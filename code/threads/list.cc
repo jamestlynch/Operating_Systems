@@ -235,4 +235,3 @@ List::SortedRemove(int64_t *keyPtr)
     delete element;
     return thing;
 }
-

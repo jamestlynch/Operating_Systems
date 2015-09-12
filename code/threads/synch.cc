@@ -95,16 +95,78 @@ Semaphore::V()
 	scheduler->ReadyToRun(thread);
     value++;
     (void) interrupt->SetLevel(oldLevel);
+    printf("V, currentThread = %s\n", currentThread->getName());
 }
 
 // Dummy functions -- so we can compile our later assignments 
 // Note -- without a correct implementation of Condition::Wait(), 
 // the test case in the network assignment won't work!
-Lock::Lock(char* debugName) {}
-Lock::~Lock() {}
-void Lock::Acquire() {}
-void Lock::Release() {}
+Lock::Lock(char* debugName) {
+    name = debugName;
+    lockOwner = NULL;
+    state = 0;
+    queue = new List();
 
+}
+Lock::~Lock() {
+     delete queue;
+}
+void Lock::Acquire(){
+    printf("Acquire, currentThread = %s\n", currentThread->getName());
+    IntStatus old = interrupt->SetLevel(IntOff);
+    printf("Acquire1\n");
+    if (isHeldByCurrentThread()){  
+        printf("Acquire2\n");    
+        //check if the thread that is trying to acquire the lock already owns it
+        interrupt->SetLevel(old); //restore interrupts
+        return;
+    }
+
+    if (!lockOwner){
+        printf("Acquire3\n");
+        //I can have it, make state busy, make myself the lock owner
+        lockOwner=currentThread; //i am the lock owner
+        state = 1; //busy
+        printf("Acquire4\n");
+        printf("Lock owner: %s\n", lockOwner->getName());
+     }
+     else {
+        //put current thread on lock’s wait Q
+        queue->Append((void *)currentThread); // so go to sleep
+        currentThread->Sleep();
+    }
+    
+    (void) interrupt->SetLevel(old); //end of acquire
+    printf("Acquire5\n");
+    return;
+}
+void Lock::Release() {
+    printf("Release\n");
+    IntStatus old= interrupt->SetLevel(IntOff);
+    if (!isHeldByCurrentThread()){
+       //error message not lock owner
+       interrupt->SetLevel(old);
+       return;
+     }
+     //thread is lock owner
+     if (!queue->IsEmpty()){
+        lockOwner= (Thread *)queue->Remove(); //make them the owner
+        scheduler->ReadyToRun(lockOwner);//put thread at the back of the ready queue 
+      }
+     else{
+        lockOwner = NULL;
+        state = 0; //state of the lock is free
+    }
+
+    interrupt->SetLevel(old);
+    return;
+}
+bool Lock::isHeldByCurrentThread(){
+    if(currentThread == NULL) return FALSE;
+
+    if(currentThread == lockOwner) return TRUE;
+    else return FALSE;
+}
 Condition::Condition(char* debugName) { }
 Condition::~Condition() { }
 void Condition::Wait(Lock* conditionLock) { ASSERT(FALSE); }

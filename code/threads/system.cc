@@ -143,9 +143,11 @@ Initialize(int argc, char **argv)
     // object to save its state. 
     currentThread = new Thread("main");		
     currentThread->setStatus(RUNNING);
-
+    //printf("1");
     interrupt->Enable();
+    //printf("2");
     CallOnUserAbort(Cleanup);			// if user hits ctl-C
+    //printf("3");
     
 #ifdef USER_PROGRAM
     machine = new Machine(debugUserProg);	// this must come first
