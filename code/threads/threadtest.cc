@@ -332,7 +332,6 @@ void TestSuite() {
     printf("Starting Test 1\n");
 
     t = new Thread("t1_t1");
-    printf("after\n");
     t->Fork((VoidFunctionPtr)t1_t1,0);
 
     t = new Thread("t1_t2");

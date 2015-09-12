@@ -76,13 +76,13 @@ class Lock {
 					// holds this lock.  Useful for
 					// checking in Release, and in
 					// Condition variable ops below.
+    List *queue;
 
   private:
     char* name;				// for debugging
     // plus some other stuff you'll need to define
     Thread *lockOwner;
     bool state; //0=free, 1=busy
-    List *queue;
 };
 
 // The following class defines a "condition variable".  A condition
@@ -135,6 +135,7 @@ class Condition {
   private:
     char* name;
     // plus some other stuff you'll need to define
+    Lock* waitingLock;
 
 };
 #endif // SYNCH_H
