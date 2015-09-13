@@ -176,7 +176,7 @@ Condition::~Condition() { }
 void Condition::Wait(Lock* conditionLock) 
 { 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // disable interrupts
-
+ printf("Wait condition %d\n", conditionLock->getState() );
     if (!conditionLock) // checking if parameters are safe
     {
         printf("[Condition::Wait] conditionLock is null! Returning...\n");
@@ -184,10 +184,12 @@ void Condition::Wait(Lock* conditionLock)
         return;
     }
 
-    if (waitingLock) // No lock associated with C.V. yet, set parameter = to our lock
+    if (!waitingLock) // No lock associated with C.V. yet, set parameter = to our lock
     {
+        printf("[Condition::Wait] nobody is waiting, waitingLock is null! Returning...\n");
         waitingLock = conditionLock;
     }
+
 
     if (waitingLock != conditionLock) // Passing in wrong lock!
     {
@@ -197,13 +199,10 @@ void Condition::Wait(Lock* conditionLock)
     }
 
     // Before going to sleep, add myself to the C.V.'s waitQueue
-
+    conditionLock->queue->Append((Thread *)currentThread);
     conditionLock->Release();
-
     currentThread->Sleep(); // Sleep until this waitingLock is available
-
     conditionLock->Acquire();
-
     (void) interrupt->SetLevel(oldLevel); // re-enable interrupts
 }
 
@@ -221,21 +220,23 @@ void Condition::Signal(Lock* conditionLock)
         return;
     }
 
-
-
-
     // BELOW IS PROBABLY WRONG
 
+    printf("[Condition::Signal] before queue\n");
 
-
-
-    if (waitingLock->queue->IsEmpty())
-    {
-        printf("[Condition::Signal] C.V.'s lock has no threads on its waitingQueue! Returning...\n");
-        (void) interrupt->SetLevel(oldLevel); // re-enable interrupts
-        return;
+    //printf("waiting lock %d",(int)waitingLock);
+    if (waitingLock){
+       // if ((Thread *)waitingLock->queue->IsEmpty())
+        //{
+            printf("[Condition::Signal] C.V.'s lock has no threads on its waitingQueue! Returning...\n");
+            (void) interrupt->SetLevel(oldLevel); // re-enable interrupts
+            return;
+          //  }
     }
+    //else{
 
+    //}
+    printf("[Condition::Signal] after queue\n");
     if (waitingLock != conditionLock)
     {
         printf("[Condition::Signal] Passed in the wrong lock! Returning...\n");
@@ -244,9 +245,6 @@ void Condition::Signal(Lock* conditionLock)
     }
 
     printf("[Condition::Signal] Before waking thread.\n");
-
-
-
 
     // BELOW IS PROBABLY WRONG
 
