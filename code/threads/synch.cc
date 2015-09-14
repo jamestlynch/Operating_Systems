@@ -199,7 +199,7 @@ void Condition::Wait(Lock* conditionLock)
     }
 
     // Before going to sleep, add myself to the C.V.'s waitQueue
-    conditionLock->queue->Append((Thread *)currentThread);
+    
     conditionLock->Release();
     currentThread->Sleep(); // Sleep until this waitingLock is available
     conditionLock->Acquire();
@@ -291,6 +291,7 @@ void Condition::Broadcast(Lock* conditionLock)
 
     while (!waitingLock->queue->IsEmpty())
     {
+
         this->Signal(waitingLock);
     }
 }
