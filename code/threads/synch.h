@@ -131,7 +131,7 @@ class Condition {
     void Signal(Lock *conditionLock);   // conditionLock must be held by
     void Broadcast(Lock *conditionLock);// the currentThread for all of 
 					// these operations
-
+    List *conditionqueue;
   private:
     char* name;
     Lock * waitingLock;

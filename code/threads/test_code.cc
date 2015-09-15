@@ -346,7 +346,7 @@ void TestSuite() {
 
     // Wait for Test 4 to complete
     for (  i = 0; i < 6; i++ )
-	t4_done.P();
+	   t4_done.P();
 
     // Test 5
 
