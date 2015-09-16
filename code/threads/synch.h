@@ -136,7 +136,7 @@ class Condition {
     List *waitqueue;
   private:
     char* name;
-    //Lock * waitingLock;
+    Lock * waitingLock;
 
     // plus some other stuff you'll need to define
 
