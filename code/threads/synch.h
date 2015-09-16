@@ -76,12 +76,14 @@ class Lock {
 					// holds this lock.  Useful for
 					// checking in Release, and in
 					// Condition variable ops below.
-    List *queue;
+    List *sleepqueue;
   private:
     char* name;				// for debugging
     // plus some other stuff you'll need to define
+   // Thread *lockOwner;
     Thread *lockOwner;
     bool state; //0=free, 1=busy
+    bool isHeldBySomeOne;
     
 };
 
@@ -122,7 +124,7 @@ class Condition {
     Condition(char* debugName);		// initialize condition to 
 					// "no one waiting"
     ~Condition();			// deallocate the condition
-    char* getName() { return (name); }
+    char* getName() { return name; }
     
     void Wait(Lock *conditionLock); 	// these are the 3 operations on 
 					// condition variables; releasing the 
@@ -131,10 +133,11 @@ class Condition {
     void Signal(Lock *conditionLock);   // conditionLock must be held by
     void Broadcast(Lock *conditionLock);// the currentThread for all of 
 					// these operations
-    List *conditionqueue;
+    List *waitqueue;
   private:
     char* name;
-    Lock * waitingLock;
+    //Lock * waitingLock;
+
     // plus some other stuff you'll need to define
 
 };
