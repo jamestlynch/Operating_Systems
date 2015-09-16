@@ -124,7 +124,7 @@ class Condition {
     Condition(char* debugName);		// initialize condition to 
 					// "no one waiting"
     ~Condition();			// deallocate the condition
-    char* getName() { return name; }
+    char* getName() { return (name); }
     
     void Wait(Lock *conditionLock); 	// these are the 3 operations on 
 					// condition variables; releasing the 
@@ -134,6 +134,7 @@ class Condition {
     void Broadcast(Lock *conditionLock);// the currentThread for all of 
 					// these operations
     List *waitqueue;
+    //char* name;
   private:
     char* name;
     Lock * waitingLock;

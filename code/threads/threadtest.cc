@@ -184,6 +184,8 @@ Semaphore t3_done("t3_done",0); // So that TestSuite knows when Test 3 is
 void t3_waiter() {
     t3_l1.Acquire();
     t3_s1.V();		// Let the signaller know we're ready to wait
+       // printf("CV NAME: %s \n", t3_c1.getName());
+
     printf("%s: Lock %s acquired, waiting on %s\n",currentThread->getName(),
 	   t3_l1.getName(), t3_c1.getName());
     t3_c1.Wait(&t3_l1);

@@ -176,7 +176,6 @@ Condition::Condition(char* debugName)
     name = debugName;
     waitingLock = NULL;
     waitqueue = new List;
-
 }
 
 Condition::~Condition() 
@@ -198,13 +197,17 @@ void Condition::Wait(Lock * conditionLock)
         printf("[Condition:Wait] thread %s cannot release the condition lock\n", currentThread->getName());
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
+    }    
+    if (!waitingLock){
+        waitingLock=conditionLock;
+        printf("[Condition:Wait] setting waiting lock = condition lock: %s\n",  conditionLock->getName());
     }
-    if (!waitingLock && waitingLock!=conditionLock){
-        printf("[Condition:Wait] Fatal Error");
+    if (waitingLock != conditionLock){
+        printf("[Condition:Wait] Fatal Error , condition lock: %s\n",  conditionLock->getName());
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }
-    waitingLock=conditionLock;
+    //waitingLock=conditionLock;
     conditionLock->Release(); //release condition lock
     waitqueue->Append((void*) currentThread); //add current thread to wait queue
     currentThread->Sleep(); //put current thread to sleep
@@ -225,17 +228,20 @@ void Condition::Signal(Lock * conditionLock)
         interrupt->SetLevel(oldLevel);
         return;
     }
-    if (!waitingLock && waitingLock!=conditionLock){
+    if (waitingLock && waitingLock!=conditionLock){
         printf("[Condition:Wait] Fatal Error");
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }
-
     Thread *next = (Thread *)waitqueue->Remove();
     if(next!=NULL) //while waitqueue isn't empty
     {
         scheduler->ReadyToRun(next);
         interrupt->SetLevel(oldLevel);
+    }
+    if(waitqueue->IsEmpty())
+    {
+        waitingLock=NULL;
     }
     printf("[Condition::Signal] waitingqueue is now null\n");
 } 
@@ -250,11 +256,11 @@ void Condition::Broadcast(Lock* conditionLock)
     }
     if(!conditionLock->isHeldByCurrentThread())
     {
-            printf("[Condition:Broadcast] thread %s cannot the condition lock\n", currentThread->getName());
-            interrupt->SetLevel(oldLevel); 
-            return;
+        printf("[Condition:Broadcast] thread %s cannot the condition lock\n", currentThread->getName());
+        interrupt->SetLevel(oldLevel); 
+        return;
     }
-     if (!waitingLock && waitingLock!=conditionLock){
+     if (!waitingLock || waitingLock!=conditionLock){
         printf("[Condition:Wait] Fatal Error");
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
@@ -262,7 +268,5 @@ void Condition::Broadcast(Lock* conditionLock)
     interrupt->SetLevel(oldLevel);
     while(!waitqueue->IsEmpty()){
         Signal(conditionLock);
-        waitqueue->Remove();
     }
-
 }
