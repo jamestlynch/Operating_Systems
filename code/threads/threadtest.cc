@@ -756,20 +756,18 @@ void Senator()
     PictureClerkData picClerkData[numPictureClerks];
     CashierData cashierData[numCashiers];
     ManagerData managerData[numManagers];
-
-    //typedef Lock * LockPtr;
     
     for(i=0; i < numApplicationClerks; i++){
-        appClerkLock[i]= Lock("applicationClerkLock %d\n", i);
-        appClerkCV[i] = Condition("applicationClerkCV %d\n", i);
+        appClerkLock[i].setName("applicationClerkLock %d\n", i);
+        appClerkCV[i].setName("applicationClerkCV %d\n", i);
     }
     for(i=0; i < numPictureClerks; i++){
-        picClerkLock[i]= Lock("pictureClerkLock %d\n", i);
-        picClerkCV[i] = Condition("pictureClerkCV %d\n", i);
+        picClerkLock[i].setName("pictureClerkLock %d\n", i);
+        picClerkCV[i].setName("pictureClerkCV %d\n", i);
     }
     for(i=0; i < numPassportClerks; i++){
-        passportClerkLock[i]= Lock("passportClerkLock %d\n", i);
-        passportClerkCV[i] = Condition("passportClerkCV %d\n", i);
+        passportClerkLock[i].setName("passportClerkLock %d\n", i);
+        passportClerkCV[i].setName("passportClerkCV %d\n", i);
     }
     
     CustomerData customerData[numCustomers];
