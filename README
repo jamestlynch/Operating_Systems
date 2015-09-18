@@ -32,5 +32,4 @@ using big endian.  Some information (such as the argv[] array) that
 is passed between the kernel and the user though user memory must be
 byte swapped.  (Unfortunately, this isn't as easy to fix as simply
 cross-compiling to the SGI MIPS, which is big endian; in a few places,
-the simulation assumes little endian format.  We're working on fixing this.) 
-
+the simulation assumes little endian format.  We're working on fixing this.)

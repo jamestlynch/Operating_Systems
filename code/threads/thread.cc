@@ -31,7 +31,6 @@
 //
 //	"threadName" is an arbitrary string, useful for debugging.
 //----------------------------------------------------------------------
-
 Thread::Thread(char* threadName)
 {
     printf("%s\n", threadName);

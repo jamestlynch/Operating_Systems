@@ -317,7 +317,7 @@ void t5_t2() {
 //
 //       3.  Show that Signal only wakes 1 thread
 //
-//	 4.  Show that Broadcast wakes all waiting threads
+//	     4.  Show that Broadcast wakes all waiting threads
 //
 //       5.  Show that Signalling a thread waiting under one lock
 //       while holding another is a Fatal error
@@ -405,6 +405,199 @@ void TestSuite() {
     t = new Thread("t5_t2");
     t->Fork((VoidFunctionPtr)t5_t2,0);
 
+}
+
+struct CustomerData {
+    int money,
+    bool filedApplication = false/*,
+    bool acceptedPicture = false,
+    bool gotPassport = false*/
+
+};
+
+struct ApplicationClerkData {
+    int lineCount = 0,
+    enum {AVAILABLE, BUSY, ONBREAK} State,
+    int bribeMoney
+};
+
+/*
+    Simulates customer behavior:
+    –   Whether to pick application or picture clerk
+*/
+void DecideApplicationLine(int ssn) {
+    // CS: Need to check the state of all application clerk's lines without them changing
+    applicationClerksLineLock->Acquire();
+    
+    int myLine = -1; // no line yet
+    int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created
+    
+    // What if everyone's on break?
+    int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
+    int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
+
+    for (int i = 0; i < 5; i++) {
+        // Pick the shortest line with a clerk not on break
+        if (ApplicationClerkData[i].lineCount < lineSize && ApplicationClerkData[i].State != ONBREAK)
+        {
+            myLine = i;
+            lineSize = ApplicationClerkData[i].lineCount;
+               //even if line size = 0, the clerk could still be busy since being at the counter is not                                                             ‘in line'
+        }
+
+        // What if everyones on break?
+        // Keep track of the longest line
+        if (ApplicationClerkData[i].lineCount > longestLineSize) {
+            longestLine = i;
+        }
+
+        // What if everyones on break?
+        // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
+        if (i == 4 && myLine = -1) { // If this is the last ApplicationClerk and we haven't picked a line
+            myLine = longestLine; // Join the longest line
+            lineSize = ApplicationClerkData[i].lineCount;
+        }
+    }
+    // I've selected a line...
+    if(ApplicationClerkData[myLine].State == BUSY || ApplicationClerkData[myLine].State == ONBREAK) { // ApplicationClerk is not available, so wait in line
+        ApplicationClerkData[i].lineCount++; // Join the line
+        printf("Customer %d has gotten in regular line for ApplicationClerk %d.\n", ssn, myLine);
+        appclerkLineCV[myLine]->Wait(applicationClerksLineLock); // Waiting in line
+        // Reacquires lock after getting woken up inside Wait.
+        ApplicationClerkData[i].lineCount--; // Leaving the line
+    } else { // Line was empty to begin with. Clerk is avail
+        appclerkState[myLine] = BUSY;
+    }
+    applicationClerksLineLock->Release();
+    CustomerToApplicationClerk();
+}
+void CustomerToApplicationClerk(){
+    ClerkLock[myLine]->Acquire();//simulating the line
+     //task is give my data to the clerk using customerData[5]
+    clerkCV[myLine]->Signal(clerkLock[myLine]);
+    printf("Customer %d has given SSN %d to ApplicationClerk %d.\n", ssn, ssn, myLine);
+     //wait for clerk to do their job
+    clerkCV[myLine]->Wait(clerkLock[myLine]);
+        //Read my data
+    clerkCV[myLine]->Signal(clerkLock[myLine]);
+    clerkLock[myLine]->Release();
+}
+
+void ApplicationClerk(int lineNumber){
+    while (true){
+     applicationClerksLineLock->Acquire();
+    //if (ClerkBribeLineCount[myLine] > 0)
+     //       clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
+          ApplicationClerkData[lineNumber].State=BUSY;
+    /*else*/ if (ApplicationClerkData[lineNumber].lineCount > 0) {
+        clerkLineCV[lineNumber]->Signal();//wake up next customer on my line
+        clerkState[lineNumber]=BUSY;
+    }
+    else{ // nobody is waiting
+        clerkState[lineNumber]=AVAILABLE;
+        // Go on break.
+    }
+    
+    ApplicationClerkToCustomer();
+ }
+}
+void ApplicationClerkToCustomer(int lineNumber){
+
+     clerkLock[lineNumber]->Acquire(); //acquire the lock for my line to pause time.
+     applicationClerksLineLock->Release();//clerk must know a customer left before starting over
+     clerkCV[lineNumber]->Wait(clerkLock[lineNumber]);
+          //do my job- customer now waiting
+     clerkCV[lineNumber]->Signal(clerkLock[lineNumber]);
+     clerkCV[lineNumber]->Wait(clerkLock[lineNumber]);
+     clerkLock[lineNumber]->Release();
+}
+
+
+
+    //PUT ALL LOCK CREATION HERE TOO
+    Lock applicationClerksLineLock("applicationClerksLineLock");
+    clerkLock[numApplicationClerks];
+    for(i=0; i < numApplicationClerks; i++){
+        clerkLock[i]= new Lock *;
+    } 
+    
+    CustomerData customerData[numCustomers];
+    ApplicationClerkData ApplicationClerkData[numApplicationClerks];
+    PassportClerkData PassportClerkData[numPassportClerks];
+    PictureClerkData PictureClerkData[numPictureClerks];
+    CashierData CashierData[numCashiers];
+    ManagerData ManagerData[numManagers];
+
+void Problem2(){
+    Thread *t;
+    char *name;
+    int i;
+
+    //for loop of user input
+    for(int i = 0; i < numCustomers; i++) 
+    {
+        name = new char [20];
+        sprintf(name,"customer %d",i);
+
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)customer, i); //picture or application first, faciliate all of the interactions
+
+        customerData[i].money = getMoney();
+        // whatever other customerData
+    }
+
+    //for loop of user input
+    for(int i = 0; i < numPictureClerks; i++) 
+    {
+        name = new char [20];
+        sprintf(name,"picture clerk %d",i);
+
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)picture, i);
+        ApplicationClerkData[i].PictureClerkstate = AVAILABLE;
+        // whatever other customerData
+    }
+    for(int i = 0; i < numPassportClerks; i++) 
+    {
+        name = new char [20];
+        sprintf(name,"application clerk %d",i);
+
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)customer, i);
+        ApplicationClerkData[i].State = AVAILABLE;
+        // whatever other customerData
+    }
+    for(int i = 0; i < numCashiers; i++) 
+    {
+        name = new char [20];
+        sprintf(name,"application clerk %d",i);
+
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)customer, i);
+        ApplicationClerkData[i].State = AVAILABLE;
+        // whatever other customerData
+    }
+    for(int i = 0; i < numManagers; i++) 
+    {
+        name = new char [20];
+        sprintf(name,"application clerk %d",i);
+
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)customer, i);
+        ApplicationClerkData[i].State = AVAILABLE;
+        // whatever other customerData
+    }
+
+    //for loop of user input
+    t = new Thread("test");
+    t->Fork((VoidFunctionPtr)customer,0);
+    //for loop of user input
+    t = new Thread("test");
+    t->Fork((VoidFunctionPtr)customer,0);
+    //for loop of user input
+    t = new Thread("test");
+    t->Fork((VoidFunctionPtr)customer,0);
+   
 }
 #endif
 
