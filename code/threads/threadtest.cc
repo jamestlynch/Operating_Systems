@@ -516,9 +516,11 @@ void ApplicationClerkToCustomer(int lineNumber){
 
     //PUT ALL LOCK CREATION HERE TOO
     Lock applicationClerksLineLock("applicationClerksLineLock");
-    clerkLock[numApplicationClerks];
+    
+    typedef Lock * LockPtr;
+    LockPtr * clerkLock= new LockPtr[numApplicationClerks];
     for(i=0; i < numApplicationClerks; i++){
-        clerkLock[i]= new Lock *;
+        clerkLock[i]= Lock("applicationClerkLock %d\n", i);
     } 
     
     CustomerData customerData[numCustomers];
