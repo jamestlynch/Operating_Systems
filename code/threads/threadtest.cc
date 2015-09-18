@@ -700,7 +700,49 @@ void CustomerToPassportClerk()(int lineNumber){
     picClerkLock[myLine]->Release();
 
 }
+void DecideCashierLine(){
+    pictureClerksLineLock->Acquire();    
+    int myLine = -1; // no line yet
+    int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created
+    
+    // What if everyone's on break?
+    int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
+    int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
 
+    for (int i = 0; i < 5; i++) {
+        // Pick the shortest line with a clerk not on break
+        if (PictureClerkData[i].lineCount < lineSize && PictureClerkData[i].State != ONBREAK)
+        {
+            myLine = i;
+            lineSize = PictureClerkData[i].lineCount;
+               //even if line size = 0, the clerk could still be busy since being at the counter is not                                                             ‘in line'
+        }
+        // What if everyones on break?
+        // Keep track of the longest line
+        if (PictureClerkData[i].lineCount > longestLineSize) {
+            longestLine = i;
+        }
+
+        // What if everyones on break?
+        // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
+        if (i == 4 && myLine = -1) { // If this is the last ApplicationClerk and we haven't picked a line
+            myLine = longestLine; // Join the longest line
+            lineSize = PictureClerkData[i].lineCount;
+        }
+    }
+    // I've selected a line...
+    if(PictureClerkData[myLine].State == BUSY || pictureClerkData[myLine].State == ONBREAK) { // ApplicationClerk is not available, so wait in line
+        PictureClerkData[i].lineCount++; // Join the line
+        printf("Customer %d has gotten in regular line for PictureClerk %d.\n", ssn, myLine);
+        picClerkLineCV[myLine]->Wait(PictureClerksLineLock); // Waiting in line
+        // Reacquires lock after getting woken up inside Wait.
+        PictureClerkData[i].lineCount--; // Leaving the line
+    } else { // Line was empty to begin with. Clerk is avail
+        picClerkData[myLine].State = BUSY;
+    }
+    PictureClerksLineLock->Release();
+    CustomerToPictureClerk();
+}
 
 // TODO: add a method for each lock that exists between passport clerks and X
 Condition *applicationClerkBreakCV = Condition[numApplicationClerks];
