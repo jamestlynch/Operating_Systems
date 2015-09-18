@@ -41,6 +41,7 @@ class Semaphore {
     Semaphore(char* debugName, int initialValue);	// set initial value
     ~Semaphore();   					// de-allocate semaphore
     char* getName() { return name;}			// debugging assist
+
     
     void P();	 // these are the only operations on a semaphore
     void V();	 // they are both *atomic*
@@ -68,6 +69,7 @@ class Lock {
     Lock(char* debugName);  		// initialize lock to be FREE
     ~Lock();				// deallocate lock
     char* getName() { return name; }	// debugging assist
+    void setName(char * name) {name=name;}
 
     void Acquire(); // these are the only operations on a lock
     void Release(); // they are both *atomic*
@@ -133,6 +135,7 @@ class Condition {
     void Signal(Lock *conditionLock);   // conditionLock must be held by
     void Broadcast(Lock *conditionLock);// the currentThread for all of 
 					// these operations
+    void setName(char * name) {name=name;}
     List *waitqueue;
     //char* name;
   private:
