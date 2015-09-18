@@ -582,7 +582,7 @@ void DecidePictureLine(){
     // I've selected a line...
     if(PictureClerkData[myLine].State == BUSY || pictureClerkData[myLine].State == ONBREAK) { // ApplicationClerk is not available, so wait in line
         PictureClerkData[i].lineCount++; // Join the line
-        printf("Customer %d has gotten in regular line for ApplicationClerk %d.\n", ssn, myLine);
+        printf("Customer %d has gotten in regular line for PictureClerk %d.\n", ssn, myLine);
         picClerkLineCV[myLine]->Wait(PictureClerksLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
         PictureClerkData[i].lineCount--; // Leaving the line
@@ -592,16 +592,34 @@ void DecidePictureLine(){
     PictureClerksLineLock->Release();
     CustomerToPictureClerk();
 }
-void CustomerToPictureClerk(){
+void CustomerToPictureClerk(int ssn){//clerk just got to window, wake up, wait to take picture
     picClerkLock[myLine]->Acquire();//simulating the line
-     //task is give my data to the clerk using customerData[5]
-    picClerkCV[myLine]->Signal(picClerkLock[myLine]);
-    printf("Customer %d has given SSN %d to ApplicationClerk %d.\n", ssn, ssn, myLine);
-     //wait for clerk to do their job
-    picClerkCV[myLine]->Wait(picClerkLock[myLine]);
-        //Read my data
-    picClerkCV[myLine]->Signal(picClerkLock[myLine]);
+    do{
+    picClerkCV[myLine]->Signal(picClerkLock[myLine]);//take my picture
+    picClerkCV[myLine]->Wait(picClerkLock[myLine]); //waiting for you to take my picture
+        if (rand() < .5 )
+        {
+            CustomerData[ssn].acceptedPicture=true;
+            printf("Customer %d does like their picture from PictureClerk %d.\n", ssn, );
+        }
+        else{
+            printf("Customer %d does not like their picture from PictureClerk %d.\n", ssn, );
+        }
+    }while(CustomerData[ssn].acceptedPicture)
+    picClerkCV[myLine]->Signal(picClerkLock[myLine]); //leaving
     picClerkLock[myLine]->Release();
+}
+void PictureClerkToCustomer(int ssn){
+     picClerkLock[lineNumber]->Acquire(); //acquire the lock for my line to pause time.
+     pictureClerkLineLock->Release();//clerk must know a customer left before starting over
+     do{
+     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
+        printf("PictureClerk %d has taken a picture of Customer %d.\n", )
+     picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
+    }while(!CustomerData[ssn].acceptedPicture) 
+     
+     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]); 
+     picClerkLock[lineNumber]->Release();
 }
 void PictureClerk(int lineNumber){
     while (true){
@@ -609,7 +627,7 @@ void PictureClerk(int lineNumber){
     //if (ClerkBribeLineCount[myLine] > 0)
      //       clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
           pictureClerkData[lineNumber].State=BUSY;
-    /*else*/ if (ApplicationClerkData[lineNumber].lineCount > 0) {
+    /*else*/ if (PicClerkData[lineNumber].lineCount > 0) {
         appClerkLineCV[lineNumber]->Signal();//wake up next customer on my line
         appClerkState[lineNumber]=BUSY;
     }
@@ -620,38 +638,27 @@ void PictureClerk(int lineNumber){
     PictureClerkToCustomer();
  }
 }
-void PictureClerkToCustomer(){
-     picClerkLock[lineNumber]->Acquire(); //acquire the lock for my line to pause time.
-     pictureClerkLineLock->Release();//clerk must know a customer left before starting over
-     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-          //take photo= customer now waiting, nedds to ask if customer likes the photo
-     picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
-     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-     picClerkLock[lineNumber]->Release();
-}
 //add a method for each lock that exists between picture clerks and X
 void DecidePassportLine(){
-pictureClerksLineLock->Acquire();
-    
+passportClerksLineLock->Acquire();
     int myLine = -1; // no line yet
-    int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created
-    
+    int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created  
     // What if everyone's on break?
     int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
     int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
 
     for (int i = 0; i < 5; i++) {
         // Pick the shortest line with a clerk not on break
-        if (pictureClerkData[i].lineCount < lineSize && pictureClerkData[i].State != ONBREAK)
+        if (passportClerkData[i].lineCount < lineSize && passportClerkData[i].State != ONBREAK)
         {
             myLine = i;
-            lineSize = pictureClerkData[i].lineCount;
+            lineSize = passportClerkData[i].lineCount;
                //even if line size = 0, the clerk could still be busy since being at the counter is not                                                             ‘in line'
         }
 
         // What if everyones on break?
         // Keep track of the longest line
-        if (pictureClerkData[i].lineCount > longestLineSize) {
+        if (passportClerkData[i].lineCount > longestLineSize) {
             longestLine = i;
         }
 
@@ -659,29 +666,43 @@ pictureClerksLineLock->Acquire();
         // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
         if (i == 4 && myLine = -1) { // If this is the last ApplicationClerk and we haven't picked a line
             myLine = longestLine; // Join the longest line
-            lineSize = pictureClerkData[i].lineCount;
+            lineSize = passportClerkData[i].lineCount;
         }
     }
     // I've selected a line...
-    if(pictureClerkData[myLine].State == BUSY || pictureClerkData[myLine].State == ONBREAK) { // ApplicationClerk is not available, so wait in line
-        pictureClerkData[i].lineCount++; // Join the line
+    if(passportClerkData[myLine].State == BUSY || passportClerkData[myLine].State == ONBREAK) { // ApplicationClerk is not available, so wait in line
+        passportClerkData[i].lineCount++; // Join the line
         printf("Customer %d has gotten in regular line for ApplicationClerk %d.\n", ssn, myLine);
-        picClerkLineCV[myLine]->Wait(PictureClerksLineLock); // Waiting in line
+        passportClerkLineCV[myLine]->Wait(PassportClerksLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
-        PictureClerkData[i].lineCount--; // Leaving the line
+        passportClerkData[i].lineCount--; // Leaving the line
     } else { // Line was empty to begin with. Clerk is avail
-        picClerkData[myLine].State = BUSY;
+        passportClerkData[myLine].State = BUSY;
     }
-    PictureClerksLineLock->Release();
+    PassportClerksLineLock->Release();
     CustomerToPassportClerk();
 }
-void CustomerToPictureClerk()(int lineNumber){
+void CustomerToPassportClerk()(int lineNumber){
+    picClerkLock[myLine]->Acquire();//simulating the line
+    do{
+    picClerkCV[myLine]->Signal(picClerkLock[myLine]);//take my picture
+    picClerkCV[myLine]->Wait(picClerkLock[myLine]); //waiting for you to take my picture
+        if (rand() < .5 )
+        {
+            CustomerData[ssn].acceptedPicture=true;
+            printf("Customer %d does like their picture from PictureClerk %d.\n", ssn, );
+        }
+        else{
+            printf("Customer %d does not like their picture from PictureClerk %d.\n", ssn, );
+        }
+    }while(CustomerData[ssn].acceptedPicture)
+    picClerkCV[myLine]->Signal(picClerkLock[myLine]); //leaving
+    picClerkLock[myLine]->Release();
 
 }
 
+
 // TODO: add a method for each lock that exists between passport clerks and X
-
-
 Condition *applicationClerkBreakCV = Condition[numApplicationClerks];
 
 // TODO: Change clerksLineLock to clerkLineLock[i]
