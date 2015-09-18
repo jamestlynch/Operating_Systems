@@ -404,7 +404,6 @@ void TestSuite() {
 
     t = new Thread("t5_t2");
     t->Fork((VoidFunctionPtr)t5_t2,0);
-
 }
 
 struct CustomerData {
@@ -420,6 +419,10 @@ struct ApplicationClerkData {
     enum {AVAILABLE, BUSY, ONBREAK} State,
     int bribeMoney
 };
+
+struct ManagerData {
+    int money = 0,
+}
 
 /*
     Simulates customer behavior:
@@ -471,6 +474,15 @@ void DecideApplicationLine(int ssn) {
     applicationClerksLineLock->Release();
     CustomerToApplicationClerk();
 }
+
+void Manager() {
+    while(true) {
+        for(int i = 0; i < numApplicationClerks; i++) {
+            
+        }
+    }
+}
+
 void CustomerToApplicationClerk(){
     ClerkLock[myLine]->Acquire();//simulating the line
      //task is give my data to the clerk using customerData[5]
@@ -485,22 +497,24 @@ void CustomerToApplicationClerk(){
 
 void ApplicationClerk(int lineNumber){
     while (true){
-     applicationClerksLineLock->Acquire();
-    //if (ClerkBribeLineCount[myLine] > 0)
-     //       clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-          ApplicationClerkData[lineNumber].State=BUSY;
-    /*else*/ if (ApplicationClerkData[lineNumber].lineCount > 0) {
-        clerkLineCV[lineNumber]->Signal();//wake up next customer on my line
-        clerkState[lineNumber]=BUSY;
-    }
-    else{ // nobody is waiting
-        clerkState[lineNumber]=AVAILABLE;
-        // Go on break.
-    }
+        applicationClerksLineLock->Acquire();
+        //if (ClerkBribeLineCount[myLine] > 0)
+        //       clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
+        ApplicationClerkData[lineNumber].State=BUSY;
+/*else*/if (ApplicationClerkData[lineNumber].lineCount > 0) {
+            clerkLineCV[lineNumber]->Signal();//wake up next customer on my line
+            clerkState[lineNumber]=BUSY;
+        }
+        else
+        { // nobody is waiting
+            clerkState[lineNumber]=AVAILABLE;
+            // Go on break.
+        }
     
-    ApplicationClerkToCustomer();
- }
+        ApplicationClerkToCustomer();
+    }
 }
+
 void ApplicationClerkToCustomer(int lineNumber){
 
      clerkLock[lineNumber]->Acquire(); //acquire the lock for my line to pause time.
@@ -511,8 +525,6 @@ void ApplicationClerkToCustomer(int lineNumber){
      clerkCV[lineNumber]->Wait(clerkLock[lineNumber]);
      clerkLock[lineNumber]->Release();
 }
-
-
 
     //PUT ALL LOCK CREATION HERE TOO
     Lock applicationClerksLineLock("applicationClerksLineLock");
