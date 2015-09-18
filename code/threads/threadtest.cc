@@ -423,7 +423,6 @@ struct ApplicationClerkData {
 struct ManagerData {
     int money = 0,
 }
-
 struct PictureClerkData {
     int lineCount = 0,
     enum {AVAILABLE, BUSY, ONBREAK} State,
@@ -655,10 +654,25 @@ passportClerksLineLock->Acquire();
     CustomerToPassportClerk();
 }
 void CustomerToPassportClerk()(int lineNumber){
+    picClerkLock[myLine]->Acquire();//simulating the line
+    do{
+    picClerkCV[myLine]->Signal(picClerkLock[myLine]);//take my picture
+    picClerkCV[myLine]->Wait(picClerkLock[myLine]); //waiting for you to take my picture
+        if (rand() < .5 )
+        {
+            CustomerData[ssn].acceptedPicture=true;
+            printf("Customer %d does like their picture from PictureClerk %d.\n", ssn, );
+        }
+        else{
+            printf("Customer %d does not like their picture from PictureClerk %d.\n", ssn, );
+        }
+    }while(CustomerData[ssn].acceptedPicture)
+    picClerkCV[myLine]->Signal(picClerkLock[myLine]); //leaving
+    picClerkLock[myLine]->Release();
 
 }
 
-//add a method for each lock that exists between passport clerks and X
+//add a method for each lock that exists between passport clerks and X 
 
 Condition *applicationClerkBreakCV = Condition[numApplicationClerks];
 
