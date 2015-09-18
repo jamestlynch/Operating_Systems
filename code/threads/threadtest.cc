@@ -407,110 +407,138 @@ void TestSuite() {
 
 }
 
-struct CustomerData {
+enum ClerkStatus {AVAILABLE, BUSY, ONBREAK};
+
+struct CustomerData 
+{
     int money,
     bool filedApplication = false,
     bool acceptedPicture = false,
     bool gotPassport = false
 };
 
-struct ApplicationClerkData {
+struct ApplicationClerkData 
+{
     int lineCount = 0,
-    enum {AVAILABLE, BUSY, ONBREAK} State,
+    ClerkStatus state,
     int bribeMoney
 };
 
-struct ManagerData {
+struct ManagerData 
+{
     int money = 0,
-}
+};
 
-struct PictureClerkData {
+struct PictureClerkData 
+{
     int lineCount = 0,
-    enum {AVAILABLE, BUSY, ONBREAK} State,
+    ClerkStatus state,
     int bribeMoney
 };
-struct PassportClerkData{
+
+struct PassportClerkData
+{
     int lineCount = 0,
-    enum {AVAILABLE, BUSY, ONBREAK} State,
+    ClerkStatus state,
     int bribeMoney
-}
+};
+
 /*
     Simulates customer behavior:
     –   Whether to pick application or picture clerk
 */
-void DecideApplicationLine(int ssn) {
-    // CS: Need to check the state of all application clerk's lines without them changing
-    applicationClerkLineLock->Acquire();
+void DecideApplicationLine(int ssn) 
+{
+    // CS: Need to check the state of all application clerks' lines without them changing
+    appLineLock.Acquire();
     
-    int myLine = -1; // no line yet
-    int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created
+    int myLine = -1; // No line yet
+    int lineSize = 1000; // Larger (bc we're finding shortest line) than the number customers created
     
     // What if everyone's on break?
     int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
     int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
 
-    for (int i = 0; i < 5; i++) {//number of clerks
+    for (int i = 0; i < numAppClerks; i++) //number of clerks
+    {
         // Pick the shortest line with a clerk not on break
-        if (ApplicationClerkData[i].lineCount < lineSize && ApplicationClerkData[i].State != ONBREAK)
+        if (appClerkData[i].lineCount < lineSize && appClerkData[i].state != ONBREAK)
         {
             myLine = i;
-            lineSize = ApplicationClerkData[i].lineCount;
-               //even if line size = 0, the clerk could still be busy since being at the counter is not                                                             ‘in line'
+            lineSize = appClerkData[i].lineCount;
+            //even if line size = 0, the clerk could still be busy since being at the counter is not                                                             ‘in line'
         }
+
         // What if everyones on break?
         // Keep track of the longest line
-        if (ApplicationClerkData[i].lineCount > longestLineSize) {
+        if (appClerkData[i].lineCount > longestLineSize) 
+        {
             longestLine = i;
         }
+
         // What if everyones on break?
         // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
-        if (i == 4 && myLine = -1) { // If this is the last ApplicationClerk(number of clerks -1) and we haven't picked a line
+        if (i == 4 && myLine = -1) 
+        { // If this is the last ApplicationClerk(number of clerks -1) and we haven't picked a line
             myLine = longestLine; // Join the longest line
-            lineSize = ApplicationClerkData[i].lineCount;
+            lineSize = appClerkData[i].lineCount;
         }
     }
+
     // I've selected a line...
-    if(ApplicationClerkData[myLine].State == BUSY || ApplicationClerkData[myLine].State == ONBREAK) { // ApplicationClerk is not available, so wait in line
-        ApplicationClerkData[i].lineCount++; // Join the line
+    if (appClerkData[myLine].state == BUSY || appClerkData[myLine].state == ONBREAK)// ApplicationClerk is not available, so wait in line
+    { 
+        appClerkData[myLine].lineCount++; // Join the line
         printf("Customer %d has gotten in regular line for ApplicationClerk %d.\n", ssn, myLine);
-        appclerkLineCV[myLine]->Wait(applicationClerksLineLock); // Waiting in line
+        appClerkLineCV[myLine].Wait(appLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
-        ApplicationClerkData[i].lineCount--; // Leaving the line
-    } else { // Line was empty to begin with. Clerk is avail
-        appclerkState[myLine] = BUSY;
+        appClerkData[myLine].lineCount--; // Leaving the line
+    } 
+    else // Line was empty to begin with. Clerk is avail
+    { 
+        appClerkData[myLine] = BUSY;
     }
-    applicationClerksLineLock->Release();
+
+    appLineLock.Release();
     CustomerToApplicationClerk();
 }
 
-void CustomerToApplicationClerk(){
-    appClerkLock[myLine]->Acquire();//simulating the line
-     //task is give my data to the clerk using customerData[5]
-    appClerkCV[myLine]->Signal(appClerkLock[myLine]);
+void CustomerToApplicationClerk()
+{
+    appClerkLock[myLine].Acquire();//simulating the line
+    //task is give my data to the clerk using customerData[5]
+    appClerkCV[myLine].Signal(appClerkLock[myLine]);
     printf("Customer %d has given SSN %d to ApplicationClerk %d.\n", ssn, ssn, myLine);
-     //wait for clerk to do their job
-    appClerkCV[myLine]->Wait(appClerkLock[myLine]);
-        //Read my data
-    appClerkCV[myLine]->Signal(appClerkLock[myLine]);
-    appClerkLock[myLine]->Release();
+    //wait for clerk to do their job
+    appClerkCV[myLine].Wait(appClerkLock[myLine]);
+    //Read my data
+    appClerkCV[myLine].Signal(appClerkLock[myLine]);
+    appClerkLock[myLine].Release();
 }
 
-void ApplicationClerk(int lineNumber){
-    while (true){
-     applicationClerksLineLock->Acquire();
-    //if (ClerkBribeLineCount[myLine] > 0)
-     //       clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-          ApplicationClerkData[lineNumber].State=BUSY;
-    /*else*/ if (ApplicationClerkData[lineNumber].lineCount > 0) {
-        appClerkLineCV[lineNumber]->Signal();//wake up next customer on my line
-        appClerkState[lineNumber]=BUSY;
+void ApplicationClerk(int lineNumber)
+{
+    while (true)
+    {
+        appLineLock.Acquire();
+        //if (ClerkBribeLineCount[myLine] > 0)
+        //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
+        //appClerkData[lineNumber].state = BUSY;
+        /*else*/ if (appClerkData[lineNumber].lineCount > 0) 
+        {
+            appClerkLineCV[lineNumber].Signal();//wake up next customer on my line
+            appClerkState[lineNumber] = BUSY;
+        }
+        else
+        { 
+            // nobody is waiting
+            appClerkState[lineNumber] = AVAILABLE;
+            // Go on break.
+        }
+        appLineLock.Release();
     }
-    else{ // nobody is waiting
-        appClerkState[lineNumber]=AVAILABLE;
-        // Go on break.
-    }
+    
     ApplicationClerkToCustomer();
- }
 }
 void ApplicationClerkToCustomer(int lineNumber){
      clerkLock[lineNumber]->Acquire(); //acquire the lock for my line to pause time.
@@ -651,11 +679,10 @@ void CustomerToPictureClerk()(int lineNumber){
 
 }
 
-//add a method for each lock that exists between passport clerks and X
+// TODO: add a method for each lock that exists between passport clerks and X
+
 
 Condition *applicationClerkBreakCV = Condition[numApplicationClerks];
-
-ManagerData managerData;
 
 // TODO: Change clerksLineLock to clerkLineLock[i]
 void Manager(){
@@ -668,47 +695,47 @@ void Manager(){
     int totalMoney = 0;
 
     while(true) {
-        applicationClerksLineLock->Acquire();
+        applicationClerksLineLock.Acquire();
         for(int i = 0; i < numApplicationClerks; i++) 
         {
             applicationClerkMoney += applicationClerkData[i].bribeMoney;
 
-            if(applicationClerkData[i].status == ONBREAK && applicationClerkData[i].lineCount > 3) 
+            if(applicationClerkData[i].status == ONBREAK && applicationClerkData[i].lineCount >= 3) 
             {
                 applicationClerkData[i].status = AVAILABLE;
-                applicationClerkBreakCV[i]->Signal(applicationClerksLineLock);
+                applicationClerkBreakCV[i].Signal(applicationClerksLineLock);
                 printf("Manager has woken up an ApplicationClerk\n");
             }
         }
-        applicationClerksLineLock->Release();
+        applicationClerksLineLock.Release();
 
-        pictureClerksLineLock->Acquire();
+        pictureClerksLineLock.Acquire();
         for(int i = 0; i < numPictureClerks; i++) 
         {
             pictureClerkMoney += pictureClerkData[i].bribeMoney;
 
-            if(pictureClerkData[i].status == ONBREAK && pictureClerkData[i].lineCount > 3)
+            if(pictureClerkData[i].status == ONBREAK && pictureClerkData[i].lineCount >= 3)
             {
                 pictureClerkData[i].status = AVAILABLE;
                 pictureClerkBreakCV[i]->Signal(pictureClerksLineLock)
                 printf("Manager has woken up an PictureClerk\n");
             }
         }
-        pictureClerksLineLock->Release();
+        pictureClerksLineLock.Release();
 
-        passportClerksLineLock->Acquire();
+        passportClerksLineLock.Acquire();
         for(int i = 0; i < numPassportClerks; i++)
         {
             passportClerkMoney += passportClerkData[i].bribeMoney;
 
-            if(passportClerkData[i].status == ONBREAK && passportClerkData[i].lineCount > 3)
+            if(passportClerkData[i].status == ONBREAK && passportClerkData[i].lineCount >= 3)
             {
                 passportClerkData[i].status = AVAILABLE;
                 passportClerkBreakCV[i]->Signal(passportClerksLineLock);
                 printf("Manager has woken up an PassportClerk\n");
             }
         }
-        passportClerksLineLock->Release();
+        passportClerksLineLock.Release();
 
         printf("Manager has counted a total of $%d for ApplicationClerks\n", applicationClerkMoney);
         printf("Manager has counted a total of $%d for PictureClerks\n", pictureClerkMoney);
@@ -718,64 +745,74 @@ void Manager(){
 
         currentThread->Yield();
     }
-
 }
 
 void Senator()
 {
 
 }
-    /* CONDITION VARIABLES FOR INTERACTING WITH CLERKS */
-    Condition appClerkCV[numAppClerks];
-    Condition picClerkCV[numPicClerks];
-    Condition passportClerkCV[numPassportClerks];
 
-    /* CONDITION VARIABLES FOR WAITING ON CLERKS' LINE */
-    Condition appClerkLineCV[numAppClerks];
-    Condition picClerkLineCV[numPicClerks];
-    Condition passportClerkLineCV[numPassportClerks];
+/* CONDITION VARIABLES FOR INTERACTING WITH CLERKS */
+Condition appClerkCV[numAppClerks];
+Condition picClerkCV[numPicClerks];
+Condition passportClerkCV[numPassportClerks];
 
-    /* LOCKS ON CLERK */
-    Lock appClerkLock[numAppClerks];
-    Lock picClerkLock[numPicClerks];
-    Lock passportClerkLock[numPassportClerks];
+/* CONDITION VARIABLES FOR WAITING ON CLERKS' LINE */
+Condition appClerkLineCV[numAppClerks];
+Condition picClerkLineCV[numPicClerks];
+Condition passportClerkLineCV[numPassportClerks];
 
-    /* LOCKS ON INDIVIDIDUAL LINES */
-    Lock appClerkLineLock[numAppClerks];
-    Lock picClerkLineLock[numPicClerks];
-    Lock passportClerkLineLock[numPassportClerks];
+/* LOCKS ON CLERK */
+Lock appClerkLock[numAppClerks];
+Lock picClerkLock[numPicClerks];
+Lock passportClerkLock[numPassportClerks];
 
-    /* LOCKS ON LINE */
-    Lock appLineLock("applicationClerksLineLock");
-    Lock pictureLineLock("applicationClerksLineLock");
-    Lock passportLineLock("applicationClerksLineLock");
+/* LOCKS ON INDIVIDIDUAL LINES */
+Lock appClerkLineLock[numAppClerks];
+Lock picClerkLineLock[numPicClerks];
+Lock passportClerkLineLock[numPassportClerks];
 
-    CustomerData customerData[numCustomers];
-    ApplicationClerkData appClerkData[numApplicationClerks];
-    PassportClerkData passportClerkData[numPassportClerks];
-    PictureClerkData picClerkData[numPictureClerks];
-    CashierData cashierData[numCashiers];
-    ManagerData managerData[numManagers];
-    
-    for(i=0; i < numApplicationClerks; i++){
-        appClerkLock[i].setName("applicationClerkLock %d\n", i);
-        appClerkCV[i].setName("applicationClerkCV %d\n", i);
-    }
-    for(i=0; i < numPictureClerks; i++){
-        picClerkLock[i].setName("pictureClerkLock %d\n", i);
-        picClerkCV[i].setName("pictureClerkCV %d\n", i);
-    }
-    for(i=0; i < numPassportClerks; i++){
-        passportClerkLock[i].setName("passportClerkLock %d\n", i);
-        passportClerkCV[i].setName("passportClerkCV %d\n", i);
-    }
-    
-    CustomerData customerData[numCustomers];
-    ApplicationClerkData applicationClerkData[numApplicationClerks];
-    PassportClerkData passportClerkData[numPassportClerks];
-    PictureClerkData pictureClerkData[numPictureClerks];
-    CashierData cashierData[numCashiers];
+/* LOCKS ON LINE */
+Lock appLineLock("applicationClerksLineLock");
+Lock pictureLineLock("applicationClerksLineLock");
+Lock passportLineLock("applicationClerksLineLock");
 
+CustomerData customerData[numCustomers];
+ApplicationClerkData appClerkData[numApplicationClerks];
+PassportClerkData passportClerkData[numPassportClerks];
+PictureClerkData picClerkData[numPictureClerks];
+CashierData cashierData[numCashiers];
+ManagerData managerData;
+
+
+char* name;
+for(i=0; i < numApplicationClerks; i++)
+{
+    sprintf(name, "applicationClerkLock %d\n", i);
+    appClerkLock[i].setName(name);
+    sprintf(name, "applicationClerkCV %d\n", i);
+    appClerkCV[i].setName(name);
+}
+for(i=0; i < numPictureClerks; i++)
+{
+    sprintf(name, "pictureClerkLock %d\n", i);
+    picClerkLock[i].setName(name);
+    sprintf(name, "pictureClerkCV %d\n", i);
+    picClerkCV[i].setName(name);
+}
+for(i=0; i < numPassportClerks; i++)
+{
+    sprintf(name, "passportClerkLock %d\n", i);
+    passportClerkLock[i].setName(name);
+    sprintf(name, "passportClerkCV %d\n", i);
+    passportClerkCV[i].setName(name);
+}
+
+CustomerData customerData[numCustomers];
+ApplicationClerkData applicationClerkData[numApplicationClerks];
+PassportClerkData passportClerkData[numPassportClerks];
+PictureClerkData pictureClerkData[numPictureClerks];
+CashierData cashierData[numCashiers];
 
 void getInput(){
 
