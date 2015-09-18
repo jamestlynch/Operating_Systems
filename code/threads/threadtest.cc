@@ -653,7 +653,7 @@ void CustomerToPictureClerk()(int lineNumber){
 
 //add a method for each lock that exists between passport clerks and X
 
-ConditionVariable *applicationClerkBreakCV = ConditionVariable[numApplicationClerks];
+Condition *applicationClerkBreakCV = Condition[numApplicationClerks];
 
 ManagerData managerData;
 
@@ -720,29 +720,40 @@ void Manager(){
     }
 
 }
-void Senator(){
+
+void Senator()
+{
 
 }
-    Condition * appClerkCV[numApplicationClerks];
-    Condition * picClerkCV[numPictureClerks];
-    Condition * passportClerkCV[numPassportClerks];
+    /* CONDITION VARIABLES FOR INTERACTING WITH CLERKS */
+    Condition appClerkCV[numAppClerks];
+    Condition picClerkCV[numPicClerks];
+    Condition passportClerkCV[numPassportClerks];
 
-    Condition * picClerkLineCV = new Condition("picClerkLineCV");
-    Condition * passportClerkLineCV= new Condition("passportClerkLineCV");
-    Condition * applicationClerkLineCV= new Condition("applicationClerkLineCV");
+    /* CONDITION VARIABLES FOR WAITING ON CLERKS' LINE */
+    Condition appClerkLineCV[numAppClerks];
+    Condition picClerkLineCV[numPicClerks];
+    Condition passportClerkLineCV[numPassportClerks];
 
-    Lock* appClerkLock[numApplicationClerks];
-    Lock* picClerkLock[numApplicationClerks];
-    Lock * passportClerkLock[numPassportClerks];
+    /* LOCKS ON CLERK */
+    Lock appClerkLock[numAppClerks];
+    Lock picClerkLock[numPicClerks];
+    Lock passportClerkLock[numPassportClerks];
 
-    Lock * applicationClerkLineLock= new Lock("applicationClerksLineLock");
-    Lock * pictureClerkLineLock= new Lock ("applicationClerksLineLock");
-    Lock * passportClerkLineLock= new Lock ("applicationClerksLineLock");
+    /* LOCKS ON INDIVIDIDUAL LINES */
+    Lock appClerkLineLock[numAppClerks];
+    Lock picClerkLineLock[numPicClerks];
+    Lock passportClerkLineLock[numPassportClerks];
+
+    /* LOCKS ON LINE */
+    Lock appLineLock("applicationClerksLineLock");
+    Lock pictureLineLock("applicationClerksLineLock");
+    Lock passportLineLock("applicationClerksLineLock");
 
     CustomerData customerData[numCustomers];
-    ApplicationClerkData applicationClerkData[numApplicationClerks];
+    ApplicationClerkData appClerkData[numApplicationClerks];
     PassportClerkData passportClerkData[numPassportClerks];
-    PictureClerkData pictureClerkData[numPictureClerks];
+    PictureClerkData picClerkData[numPictureClerks];
     CashierData cashierData[numCashiers];
     ManagerData managerData[numManagers];
 
@@ -771,6 +782,7 @@ void Senator(){
 void getInput(){
 
 }
+
 void Problem2(){
     getInput();
     Thread *t;
