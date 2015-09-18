@@ -419,6 +419,11 @@ struct ApplicationClerkData {
     enum {AVAILABLE, BUSY, ONBREAK} State,
     int bribeMoney
 };
+
+struct ManagerData {
+    int money = 0,
+}
+
 struct PictureClerkData {
     int lineCount = 0,
     enum {AVAILABLE, BUSY, ONBREAK} State,
@@ -477,6 +482,7 @@ void DecideApplicationLine(int ssn) {
     applicationClerksLineLock->Release();
     CustomerToApplicationClerk();
 }
+
 void CustomerToApplicationClerk(){
     appClerkLock[myLine]->Acquire();//simulating the line
      //task is give my data to the clerk using customerData[5]
@@ -644,10 +650,74 @@ pictureClerksLineLock->Acquire();
 void CustomerToPictureClerk()(int lineNumber){
 
 }
+
 //add a method for each lock that exists between passport clerks and X
+
+ConditionVariable *applicationClerkBreakCV = ConditionVariable[numApplicationClerks];
+
+ManagerData managerData;
+
+// TODO: Change clerksLineLock to clerkLineLock[i]
 void Manager(){
-    //wakes up the clerks when there are >3 people waiting
-    //counts each clerks money
+    // Wakes up the clerks when there are >3 people waiting
+    // Counts each clerks money
+    int applicationClerkMoney = 0;
+    int pictureClerkMoney = 0;
+    int passportClerkMoney = 0;
+    int cashierMoney = 0;
+    int totalMoney = 0;
+
+    while(true) {
+        applicationClerksLineLock->Acquire();
+        for(int i = 0; i < numApplicationClerks; i++) 
+        {
+            applicationClerkMoney += applicationClerkData[i].bribeMoney;
+
+            if(applicationClerkData[i].status == ONBREAK && applicationClerkData[i].lineCount > 3) 
+            {
+                applicationClerkData[i].status = AVAILABLE;
+                applicationClerkBreakCV[i]->Signal(applicationClerksLineLock);
+                printf("Manager has woken up an ApplicationClerk\n");
+            }
+        }
+        applicationClerksLineLock->Release();
+
+        pictureClerksLineLock->Acquire();
+        for(int i = 0; i < numPictureClerks; i++) 
+        {
+            pictureClerkMoney += pictureClerkData[i].bribeMoney;
+
+            if(pictureClerkData[i].status == ONBREAK && pictureClerkData[i].lineCount > 3)
+            {
+                pictureClerkData[i].status = AVAILABLE;
+                pictureClerkBreakCV[i]->Signal(pictureClerksLineLock)
+                printf("Manager has woken up an PictureClerk\n");
+            }
+        }
+        pictureClerksLineLock->Release();
+
+        passportClerksLineLock->Acquire();
+        for(int i = 0; i < numPassportClerks; i++)
+        {
+            passportClerkMoney += passportClerkData[i].bribeMoney;
+
+            if(passportClerkData[i].status == ONBREAK && passportClerkData[i].lineCount > 3)
+            {
+                passportClerkData[i].status = AVAILABLE;
+                passportClerkBreakCV[i]->Signal(passportClerksLineLock);
+                printf("Manager has woken up an PassportClerk\n");
+            }
+        }
+        passportClerksLineLock->Release();
+
+        printf("Manager has counted a total of $%d for ApplicationClerks\n", applicationClerkMoney);
+        printf("Manager has counted a total of $%d for PictureClerks\n", pictureClerkMoney);
+        printf("Manager has counted a total of $%d for PassportClerks\n", passportClerkMoney);
+        printf("Manager has counted a total of $%d for Cashier\n", cashierMoney);
+        printf("Manager has counted a total of $%d for the passport office\n", totalMoney);
+
+        currentThread->Yield();
+    }
 
 }
 void Senator(){
@@ -691,6 +761,12 @@ void Senator(){
         passportClerkCV[i] = Condition("passportClerkCV %d\n", i);
     }
     
+    CustomerData customerData[numCustomers];
+    ApplicationClerkData applicationClerkData[numApplicationClerks];
+    PassportClerkData passportClerkData[numPassportClerks];
+    PictureClerkData pictureClerkData[numPictureClerks];
+    CashierData cashierData[numCashiers];
+
 
 void getInput(){
 
