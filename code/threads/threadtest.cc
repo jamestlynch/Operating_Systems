@@ -451,7 +451,7 @@ void TestSuite() {
 
 
 enum ClerkStatus {AVAILABLE, BUSY, ONBREAK};
-const char money[4] = {'100', '600', '1100', '1600'};
+const int moneyOptions[4] = {100, 600, 1100, 1600};
 
 
 struct CustomerData 
@@ -463,25 +463,24 @@ struct CustomerData
     bool filed;
     CustomerData(){
         //initialize money value of 
-        turnedInApplication=false;
-        acceptedPicture=false;
-        gotPassport=false;
-        filed=false; //this needs to become true when gotPassport=true, acceptedPicture=true, and yield happens for a random amt of time
+        turnedInApplication = false;
+        acceptedPicture = false;
+        gotPassport = false;
+        filed = false; //this needs to become true when gotPassport=true, acceptedPicture=true, and yield happens for a random amt of time
         int RandIndex = rand() % 4;
-        money= money[RandIndex];
+        money = moneyOptions[RandIndex];
     }
 };
 
 struct ApplicationClerkData 
 {
-    int lineCount;// = 0;
+    int lineCount;
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
 
     ApplicationClerkData() 
     {
-        //state = AVAILABLE;
         lineCount = 0;
         bribeMoney=0;
         currentCustomer=-1;
@@ -491,7 +490,7 @@ struct ApplicationClerkData
 
 struct PictureClerkData 
 {
-    int lineCount;// = 0
+    int lineCount;
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
@@ -506,7 +505,7 @@ struct PictureClerkData
 
 struct PassportClerkData
 {
-    int lineCount;// = 0;
+    int lineCount;
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
@@ -521,14 +520,15 @@ struct PassportClerkData
 
 struct CashierData
 {
-    int lineCount;// = 0
+    int lineCount;
+    int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
     CashierData()
     {
         lineCount = 0;
-        bribeMoney=0;
-        currentCustomer=-1;
+        bribeMoney = 0;
+        currentCustomer = -1;
         state=AVAILABLE;
     }
 };

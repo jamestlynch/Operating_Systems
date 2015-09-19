@@ -163,7 +163,7 @@ void Lock::Acquire()
 }
 void Lock::Release() 
 {
-    if (debuggingLocks) printf(ANSI_COLOR_YELLOW  "[Lock::Release] (%s) %s called release."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), name);
+    if (debuggingLocks) printf(ANSI_COLOR_YELLOW  "[Lock::Release] (%s) %s called release."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); //turn off interrupts
     
@@ -176,7 +176,7 @@ void Lock::Release()
 
     if(isHeldByCurrentThread()) //if current thread is lockowner
     {
-        if (debuggingLocks) printf(ANSI_COLOR_YELLOW  "[Lock::Release] (%s) %s released the lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), name);
+        if (debuggingLocks) printf(ANSI_COLOR_YELLOW  "[Lock::Release] (%s) %s released the lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         
         state = 0;//free the lock
         lockOwner = NULL;//return lockOwner to NULL
