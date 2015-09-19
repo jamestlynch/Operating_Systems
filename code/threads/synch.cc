@@ -171,6 +171,7 @@ bool Lock::isHeldByCurrentThread()
     return currentThread == lockOwner;
 }
 
+
 Condition::Condition(char* debugName) 
 {
     name = debugName;
