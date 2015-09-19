@@ -494,7 +494,7 @@ ManagerData managerData;
 int numAppClerks = 1;
 int numPicClerks = 5;
 int numPassportClerks = 5;
-int numCustomers = 1;
+int numCustomers = 2;
 int numCashiers = 5;
 
 /*
@@ -503,29 +503,28 @@ int numCashiers = 5;
 */
 void CustomerToApplicationClerk(int ssn, int myLine)
 {
-    //semaphore.V();
-    appClerkLock[myLine]->Acquire();//simulating the line
-    //task is give my data to the clerk using customerData[5]
-    appClerkCV[myLine]->Signal(appClerkLock[myLine]);
+    appClerkLock[myLine]->Acquire();
+    //Give my data to my clerk
     printf("Customer %d has given SSN %d to ApplicationClerk %d.\n", ssn, ssn, myLine);
     appClerkData[myLine].currentCustomer = ssn;
+    //task is give my data to the clerk using customerData[5]
+    appClerkCV[myLine]->Signal(appClerkLock[myLine]);
     //wait for clerk to do their job
     appClerkCV[myLine]->Wait(appClerkLock[myLine]);
     //Read my data
     appClerkCV[myLine]->Signal(appClerkLock[myLine]);
     appClerkLock[myLine]->Release();
-    //semaphore.P();
 }
 
 /*
 
-    customer at clerk desk calls V() so that it can acquire clerk's lock
-    customer is working with clerk
-    senator enters: grabs every available semaphore slot  –––  can this get interrupted?
-        lock
-        for i numClerks:
-            sem.v()
-        release 
+customer at clerk desk calls V() so that it can acquire clerk's lock
+customer is working with clerk
+senator enters: grabs every available semaphore slot  –––  can this get interrupted?
+    lock
+    for i numClerks:
+        sem.v()
+    release 
     
 */
 
@@ -554,7 +553,7 @@ void DecideApplicationLine(int ssn)
 
         // What if everyones on break?
         // Keep track of the longest line
-        if (appClerkData[i].lineCount > longestLineSize) 
+        /*if (appClerkData[i].lineCount > longestLineSize) 
         {
             longestLine = i;
         }
@@ -565,7 +564,7 @@ void DecideApplicationLine(int ssn)
         { // If this is the last ApplicationClerk(number of clerks -1) and we haven't picked a line
             myLine = longestLine; // Join the longest line
             lineSize = appClerkData[i].lineCount;
-        }
+        }*/
     }
 
     // I've selected a line...
@@ -613,12 +612,11 @@ void ApplicationClerk(int lineNumber)
 
         if (appClerkData[lineNumber].lineCount > 0) 
         {
-            // wake up next customer on my line
+            // wake up next customer on may line
             printf("ApplicationClerk %d has signalled a Customer to come to their counter\n", lineNumber);
             appClerkLineCV[lineNumber]->Signal(&appLineLock);
             appClerkData[lineNumber].state = BUSY;
             ApplicationClerkToCustomer(lineNumber);
-            continue;
         }
         else
         {
@@ -627,7 +625,6 @@ void ApplicationClerk(int lineNumber)
             appClerkData[lineNumber].state = ONBREAK;
             appClerkBreakCV[lineNumber]->Wait(&appLineLock);
             // Go on break.
-            continue;
         }
     }
 }
