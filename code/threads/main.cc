@@ -99,10 +99,10 @@ main(int argc, char **argv)
         if (!strcmp(*argv, "-T")) 
         	            // Test Suite
             TestSuite();
-        //if (!strcmp(*argv, "-P2"))               // Problem 2
-           // Problem2();
+        if (!strcmp(*argv, "-P2"))               // Problem 2
+            Part2();
 #endif 	//THREADS
-/*#ifdef USER_PROGRAM
+#ifdef USER_PROGRAM
         if (!strcmp(*argv, "-x")) {        	// run a user program
 	    ASSERT(argc > 1);
             StartProcess(*(argv + 1));

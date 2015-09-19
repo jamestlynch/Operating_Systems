@@ -116,12 +116,12 @@ Lock::~Lock()
 }
 void Lock::Acquire()
 {
-    printf("[Lock::Acquire] %s called Acquire\n", currentThread->getName());
+    //printf("[Lock::Acquire] %s called Acquire\n", currentThread->getName());
     
     IntStatus old = interrupt->SetLevel(IntOff);
     if (isHeldByCurrentThread())
     {  
-        printf("[Lock::Acquire] CurrentThread is already the lock owner. \n");    
+        //printf("[Lock::Acquire] CurrentThread is already the lock owner. \n");    
         //check if the thread that is trying to acquire the lock already owns it
         (void*) interrupt->SetLevel(old); //restore interrupts
         return;
@@ -140,7 +140,7 @@ void Lock::Acquire()
         currentThread->Sleep();
     }
     (void*) interrupt->SetLevel(old); //end of acquire
-    printf("lock owner is: %s\n", currentThread->getName());
+    //printf("lock owner is: %s\n", currentThread->getName());
     return;
 }
 void Lock::Release() 
@@ -201,7 +201,7 @@ void Condition::Wait(Lock * conditionLock)
     }    
     if (!waitingLock){
         waitingLock=conditionLock;
-        printf("[Condition:Wait] setting waiting lock = condition lock: %s\n",  conditionLock->getName());
+        printf("[Condition:Wait] setting waiting lock = condition lock: %s\n", conditionLock->getName());
     }
     if (waitingLock != conditionLock){
         printf("[Condition:Wait] Fatal Error , condition lock: %s\n",  conditionLock->getName());
@@ -217,6 +217,7 @@ void Condition::Wait(Lock * conditionLock)
 } 
 void Condition::Signal(Lock * conditionLock)
 {
+    //printf("[Condition:Signal] %d\n", conditionLock->getName());
     IntStatus oldLevel = interrupt->SetLevel(IntOff);
     if(!conditionLock) //if condition lock is not owned by curr thread
     { 
@@ -234,6 +235,7 @@ void Condition::Signal(Lock * conditionLock)
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }
+
     Thread *next = (Thread *)waitqueue->Remove();
     if(next!=NULL) //while waitqueue isn't empty
     {
