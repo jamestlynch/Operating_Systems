@@ -565,7 +565,7 @@ void DecidePictureLine(int ssn)
     int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
     int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
 
-    for (int i = 0; i < 5; i++) 
+    for (int i = 0; i < numPicClerks; i++) 
     {
 
         // Pick the shortest line with a clerk not on break
@@ -614,24 +614,35 @@ void DecidePictureLine(int ssn)
 
 void CustomerToPictureClerk(int ssn, int myLine);
 {
-    //clerk just got to window, wake up, wait to take picture
+    //customer just got to window, wake up, wait to take picture
     picClerkLock[myLine].Acquire();//simulating the line
-    do {
-        picClerkCV[myLine].Signal(picClerkLock[myLine]);//take my picture
-        picClerkCV[myLine].Wait(picClerkLock[myLine]); //waiting for you to take my picture
-        if ( rand() < .5 )
-        {
-            CustomerData[ssn].acceptedPicture = true;
-            printf("Customer %d does like their picture from PictureClerk %d.\n", ssn, myLine);
-        }
-        else
-        {
-            printf("Customer %d does not like their picture from PictureClerk %d.\n", ssn, myLine);
-        }
-    } while(CustomerData[ssn].acceptedPicture)
-
+    picClerkCV[myLine].Signal(picClerkLock[myLine]);//take my picture
+    picClerkCV[myLine].Wait(picClerkLock[myLine]); //waiting for you to take my picture
+    if ( rand() < .5 )
+    {
+        CustomerData[ssn].acceptedPicture = true;
+        printf("Customer %d does like their picture from PictureClerk %d.\n", ssn, myLine);
+    }
+    else
+    {
+        printf("Customer %d does not like their picture from PictureClerk %d.\n", ssn, myLine);
+    }
     picClerkCV[myLine].Signal(picClerkLock[myLine]); //leaving
     picClerkLock[myLine].Release();
+    
+    if (!CustomerData[ssn].acceptedPicture)
+    {
+        picLineLock.Acquire();
+        // ApplicationClerk is not available, so wait in line
+        picClerkData[i].lineCount++; // Join the line
+        printf("Customer %d has gotten in regular line for PictureClerk %d.\n", ssn, myLine);
+        picClerkLineCV[myLine].Wait(picLineLock); // Waiting in line
+        // Reacquires lock after getting woken up inside Wait.
+        picClerkData[i].lineCount--; // Leaving the line
+        }
+        picLineLock.Release();
+        CustomerToPictureClerk(ssn, myLine);
+    }
 }
 
 void PictureClerk(int lineNumber)
@@ -663,14 +674,11 @@ void PictureClerk(int lineNumber)
 void PictureClerkToCustomer(int ssn, int lineNumber){
     picClerkLock[lineNumber].Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
-    do { 
-        picClerkCV[lineNumber].Wait(picClerkLock[lineNumber]);
-        printf("PictureClerk %d has taken a picture of Customer %d.\n", lineNumber, ssn)
-        picClerkCV[lineNumber].Signal(picClerkLock[lineNumber]);
-    } while( !CustomerData[ssn].acceptedPicture ) 
-     
-     picClerkCV[lineNumber].Wait(picClerkLock[lineNumber]); 
-     picClerkLock[lineNumber].Release();
+    picClerkCV[lineNumber].Wait(picClerkLock[lineNumber]);
+    printf("PictureClerk %d has taken a picture of Customer %d.\n", lineNumber, ssn)
+    picClerkCV[lineNumber].Signal(picClerkLock[lineNumber]);
+    picClerkCV[lineNumber].Wait(picClerkLock[lineNumber]);
+    picClerkLock[lineNumber].Release();
 }
 
 //add a method for each lock that exists between picture clerks and X
@@ -678,11 +686,10 @@ void DecidePassportLine(){
 passportClerksLineLock->Acquire();
     int myLine = -1; // no line yet
     int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created  
-    // What if everyone's on break?
     int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
     int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < numPassportClerks; i++) { 
         // Pick the shortest line with a clerk not on break
         if (passportClerkData[i].lineCount < lineSize && passportClerkData[i].State != ONBREAK)
         {
@@ -748,7 +755,7 @@ void DecideCashierLine(int ssn, int myLine){
     int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
     int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < numCashiers; i++) {
         // Pick the shortest line with a clerk not on break
         if (CashierClerkData[i].lineCount < lineSize && CashierClerkData[i].State != ONBREAK)
         {
@@ -916,13 +923,13 @@ void Problem2()
     picClerkLock = Lock[numPicClerks];
     passportClerkLock = Lock[numPassportClerks];
     customerData = CustomerData[numCustomers];
-    appClerkData = ApplicationClerkData[numApplicationClerks];
+    appClerkData = ApplicationClerkData[numAppClerks];
     passportClerkData = PassportClerkData[numPassportClerks];
     picClerkData = PictureClerkData[numPictureClerks];
     cashierData = CashierData[numCashiers];
 
     char* name;
-    for(i=0; i < numApplicationClerks; i++)
+    for(i=0; i < numAppClerks; i++)
     {
         sprintf(name, "applicationClerkLock %d\n", i);
         appClerkLock[i].setName(name);
@@ -930,7 +937,7 @@ void Problem2()
         appClerkCV[i].setName(name);
     }
 
-    for(i=0; i < numPictureClerks; i++)
+    for(i=0; i < numPicClerks; i++)
     {
         sprintf(name, "pictureClerkLock %d\n", i);
         picClerkLock[i].setName(name);
