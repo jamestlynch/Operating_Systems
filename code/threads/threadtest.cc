@@ -524,32 +524,39 @@ void ApplicationClerk(int lineNumber)
         //if (ClerkBribeLineCount[myLine] > 0)
         //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
         //appClerkData[lineNumber].state = BUSY;
-        /*else*/ if (appClerkData[lineNumber].lineCount > 0) 
+        //else
+
+        if (appClerkData[lineNumber].lineCount > 0) 
         {
-            appClerkLineCV[lineNumber].Signal();//wake up next customer on my line
+            // wake up next customer on my line
+            appClerkLineCV[lineNumber].Signal(appLineLock);
             appClerkState[lineNumber] = BUSY;
+            ApplicationClerkToCustomer();
         }
         else
         { 
+
             // nobody is waiting
-            appClerkState[lineNumber] = AVAILABLE;
+            appClerkData[lineNumber].state = ONBREAK;
+            appClerkBreakCV[lineNumber].Wait(appLineLock);
             // Go on break.
         }
-        appLineLock.Release();
     }
-    
-    ApplicationClerkToCustomer();
 }
-void ApplicationClerkToCustomer(int lineNumber){
-     clerkLock[lineNumber]->Acquire(); //acquire the lock for my line to pause time.
-     applicationClerkLineLock->Release();//clerk must know a customer left before starting over
-     appClerkCV[lineNumber]->Wait(clerkLock[lineNumber]);
-          //do my job- customer now waiting
-     appClerkCV[lineNumber]->Signal(clerkLock[lineNumber]);
-     appClerkCV[lineNumber]->Wait(clerkLock[lineNumber]);
-     appClerkLock[lineNumber]->Release();
+
+void ApplicationClerkToCustomer(int lineNumber)
+{
+    appClerkLock[lineNumber].Acquire(); // acquire the lock for my line to pause time.
+    appLineLock.Release(); // clerk must know a customer left before starting over
+    appClerkCV[lineNumber].Wait(appClerkLock[lineNumber]);
+    // do my job - customer now waiting
+    appClerkCV[lineNumber].Signal(appClerkLock[lineNumber]);
+    appClerkCV[lineNumber].Wait(appClerkLock[lineNumber]);
+    appClerkLock[lineNumber].Release();
 }
-void DecidePictureLine(){
+
+void DecidePictureLine()
+{
     pictureClerksLineLock->Acquire();    
     int myLine = -1; // no line yet
     int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created
@@ -745,48 +752,49 @@ void DecideCashierLine(){
 }
 
 // TODO: add a method for each lock that exists between passport clerks and X
-Condition *applicationClerkBreakCV = Condition[numApplicationClerks];
+Condition appClerkBreakCV[numAppClerks];
+Condition picClerkBreakCV[numPicClerks];
 
 // TODO: Change clerksLineLock to clerkLineLock[i]
 void Manager(){
     // Wakes up the clerks when there are >3 people waiting
     // Counts each clerks money
-    int applicationClerkMoney = 0;
-    int pictureClerkMoney = 0;
+    int appClerkMoney = 0;
+    int picClerkMoney = 0;
     int passportClerkMoney = 0;
     int cashierMoney = 0;
     int totalMoney = 0;
 
     while(true) {
-        applicationClerksLineLock.Acquire();
+        appLineLock.Acquire();
         for(int i = 0; i < numApplicationClerks; i++) 
         {
-            applicationClerkMoney += applicationClerkData[i].bribeMoney;
+            appClerkMoney += appClerkData[i].bribeMoney;
 
-            if(applicationClerkData[i].status == ONBREAK && applicationClerkData[i].lineCount >= 3) 
+            if(appClerkData[i].status == ONBREAK && appClerkData[i].lineCount >= 3) 
             {
-                applicationClerkData[i].status = AVAILABLE;
-                applicationClerkBreakCV[i].Signal(applicationClerksLineLock);
+                appClerkData[i].status = AVAILABLE;
+                appClerkBreakCV[i].Signal(appLineLock);
                 printf("Manager has woken up an ApplicationClerk\n");
             }
         }
-        applicationClerksLineLock.Release();
+        appLineLock.Release();
 
-        pictureClerksLineLock.Acquire();
-        for(int i = 0; i < numPictureClerks; i++) 
+        picLineLock.Acquire();
+        for(int i = 0; i < numPicClerks; i++) 
         {
-            pictureClerkMoney += pictureClerkData[i].bribeMoney;
+            picClerkMoney += picClerkData[i].bribeMoney;
 
-            if(pictureClerkData[i].status == ONBREAK && pictureClerkData[i].lineCount >= 3)
+            if(picClerkData[i].status == ONBREAK && picClerkData[i].lineCount >= 3)
             {
-                pictureClerkData[i].status = AVAILABLE;
-                pictureClerkBreakCV[i]->Signal(pictureClerksLineLock)
+                picClerkData[i].status = AVAILABLE;
+                picClerkBreakCV[i].Signal(picLineLock)
                 printf("Manager has woken up an PictureClerk\n");
             }
         }
-        pictureClerksLineLock.Release();
+        picLineLock.Release();
 
-        passportClerksLineLock.Acquire();
+        passportLineLock.Acquire();
         for(int i = 0; i < numPassportClerks; i++)
         {
             passportClerkMoney += passportClerkData[i].bribeMoney;
@@ -794,11 +802,11 @@ void Manager(){
             if(passportClerkData[i].status == ONBREAK && passportClerkData[i].lineCount >= 3)
             {
                 passportClerkData[i].status = AVAILABLE;
-                passportClerkBreakCV[i]->Signal(passportClerksLineLock);
+                passportClerkBreakCV[i].Signal(passportLineLock);
                 printf("Manager has woken up an PassportClerk\n");
             }
         }
-        passportClerksLineLock.Release();
+        passportLineLock.Release();
 
         printf("Manager has counted a total of $%d for ApplicationClerks\n", applicationClerkMoney);
         printf("Manager has counted a total of $%d for PictureClerks\n", pictureClerkMoney);
