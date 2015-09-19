@@ -746,6 +746,67 @@ void CustomerToPassportClerk()(int lineNumber){
     picClerkLock[myLine]->Release();
 
 }
+// TODO: add a method for each lock that exists between passport clerks and X
+Condition appClerkBreakCV[numAppClerks];
+Condition picClerkBreakCV[numPicClerks];
+
+void DecideCashierLine(int ssn, int myLine){
+    pictureClerksLineLock->Acquire();    
+    int myLine = -1; // no line yet
+    int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created
+    
+    // What if everyone's on break?
+    int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
+    int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
+
+    for (int i = 0; i < 5; i++) {
+        // Pick the shortest line with a clerk not on break
+        if (CashierClerkData[i].lineCount < lineSize && CashierClerkData[i].State != ONBREAK)
+        {
+            myLine = i;
+            lineSize = CashierClerkData[i].lineCount;
+               //even if line size = 0, the clerk could still be busy since being at the counter is not                                                             ‘in line'
+        }
+        // What if everyones on break?
+        // Keep track of the longest line
+        if (CashierClerkData[i].lineCount > longestLineSize) {
+            longestLine = i;
+        }
+
+        // What if everyones on break?
+        // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
+        if (i == 4 && myLine = -1) { // If this is the last CashierClerk and we haven't picked a line
+            myLine = longestLine; // Join the longest line
+            lineSize = CashierClerkData[i].lineCount;
+        }
+    }
+    // I've selected a line...
+    if(CashierClerkData[myLine].State == BUSY || CashierClerkData[myLine].State == ONBREAK) { // ApplicationClerk is not available, so wait in line
+        CashierClerkData[i].lineCount++; // Join the line
+        printf("Customer %d has gotten in regular line for PictureClerk %d.\n", ssn, myLine);
+        cashierClerkLineCV[myLine]->Wait(CashierClerksLineLock); // Waiting in line
+        // Reacquires lock after getting woken up inside Wait.
+        CashierClerkData[i].lineCount--; // Leaving the line
+    } else { // Line was empty to begin with. Clerk is avail
+        CashierClerkData[myLine].State = BUSY;
+    }
+    cashierClerksLineLock->Release();
+    CashierToPassportClerk(int ssn, int myLine);
+}
+void CashierToPassportClerk(int ssn, int cashierLineNumber, int passportLineNumber){
+    //does the cashier have to acquire the passport lock to check the current customers state??
+
+}
+void PassportClerkToCashier(int ssn, int lineNumber, int ){
+
+}
+void CashierToCustomer(){
+
+}
+void CustomerToCashier(){
+
+}
+
 
 // TODO: add a method for each lock that exists between passport clerks and X
 
@@ -819,7 +880,7 @@ void Senator()
 
 }
 
-/* CONDITION VARIABLES FOR INTERACTING WITH CLERKS */
+
 Condition * appClerkCV;
 Condition * picClerkCV
 Condition * passportClerkCV;
