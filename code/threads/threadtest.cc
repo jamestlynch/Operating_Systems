@@ -444,6 +444,7 @@ struct PassportClerkData
 struct CashierData
 {
     int lineCount;// = 0
+    int currentCustomer;
     ClerkStatus state;
 };
 
@@ -494,9 +495,9 @@ int numCashiers = 5;
     Simulates customer behavior:
     –   Whether to pick application or picture clerk
 */
-
 void CustomerToApplicationClerk(int ssn, int myLine)
 {
+    //semaphore.V();
     appClerkLock[myLine].Acquire();//simulating the line
     //task is give my data to the clerk using customerData[5]
     appClerkCV[myLine].Signal(&appClerkLock[myLine]);
@@ -507,7 +508,20 @@ void CustomerToApplicationClerk(int ssn, int myLine)
     //Read my data
     appClerkCV[myLine].Signal(&appClerkLock[myLine]);
     appClerkLock[myLine].Release();
+    //semaphore.P();
 }
+
+/*
+
+    customer at clerk desk calls V() so that it can acquire clerk's lock
+    customer is working with clerk
+    senator enters: grabs every available semaphore slot  –––  can this get interrupted?
+        lock
+        for i numClerks:
+            sem.v()
+        release 
+    
+*/
 
 void DecideApplicationLine(int ssn) 
 {
@@ -562,6 +576,7 @@ void DecideApplicationLine(int ssn)
         appClerkData[myLine].state = BUSY;
     }
 
+
     appLineLock.Release();
     CustomerToApplicationClerk(ssn, myLine);
 }
@@ -611,24 +626,34 @@ void ApplicationClerk(int lineNumber)
 
 void CustomerToPictureClerk(int ssn, int myLine)
 {
-    //clerk just got to window, wake up, wait to take picture
+    //customer just got to window, wake up, wait to take picture
     picClerkLock[myLine].Acquire();//simulating the line
-    do {
-        picClerkCV[myLine].Signal(&picClerkLock[myLine]);//take my picture
-        picClerkCV[myLine].Wait(&picClerkLock[myLine]); //waiting for you to take my picture
-        if ( rand() < .5 )
-        {
-            customerData[ssn].acceptedPicture = true;
-            printf("Customer %d does like their picture from PictureClerk %d.\n", ssn, myLine);
-        }
-        else
-        {
-            printf("Customer %d does not like their picture from PictureClerk %d.\n", ssn, myLine);
-        }
-    } while(customerData[ssn].acceptedPicture);
-
+    picClerkCV[myLine].Signal(&picClerkLock[myLine]);//take my picture
+    picClerkCV[myLine].Wait(&picClerkLock[myLine]); //waiting for you to take my picture
+    if ( rand() < .5 )
+    {
+        customerData[ssn].acceptedPicture = true;
+        printf("Customer %d does like their picture from PictureClerk %d.\n", ssn, myLine);
+    }
+    else
+    {
+        printf("Customer %d does not like their picture from PictureClerk %d.\n", ssn, myLine);
+    }
     picClerkCV[myLine].Signal(&picClerkLock[myLine]); //leaving
     picClerkLock[myLine].Release();
+    
+    if (!customerData[ssn].acceptedPicture)
+    {
+        picLineLock.Acquire();
+        // ApplicationClerk is not available, so wait in line
+        picClerkData[myLine].lineCount++; // Join the line
+        printf("Customer %d has gotten in regular line for PictureClerk %d.\n", ssn, myLine);
+        picClerkLineCV[myLine].Wait(&picLineLock); // Waiting in line
+        // Reacquires lock after getting woken up inside Wait.
+        picClerkData[myLine].lineCount--; // Leaving the line
+        picLineLock.Release();
+        CustomerToPictureClerk(ssn, myLine);
+    }
 }
 
 void DecidePictureLine(int ssn)
@@ -642,7 +667,7 @@ void DecidePictureLine(int ssn)
     int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
     int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
 
-    for (int i = 0; i < 5; i++) 
+    for (int i = 0; i < numPicClerks; i++) 
     {
 
         // Pick the shortest line with a clerk not on break
@@ -694,17 +719,13 @@ void PictureClerkToCustomer(int lineNumber)
 {
     // TODO: TRANSFER DATA BETWEEN PIC CLERK AND CUSTOMER
     int ssn = 0;
-
     picClerkLock[lineNumber].Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
-    do { 
-        picClerkCV[lineNumber].Wait(&picClerkLock[lineNumber]);
-        printf("PictureClerk %d has taken a picture of Customer %d.\n", lineNumber, ssn);
-        picClerkCV[lineNumber].Signal(&picClerkLock[lineNumber]);
-    } while( !customerData[ssn].acceptedPicture );
-     
-     picClerkCV[lineNumber].Wait(&picClerkLock[lineNumber]); 
-     picClerkLock[lineNumber].Release();
+    picClerkCV[lineNumber].Wait(&picClerkLock[lineNumber]);
+    printf("PictureClerk %d has taken a picture of Customer %d.\n", lineNumber, ssn);
+    picClerkCV[lineNumber].Signal(&picClerkLock[lineNumber]);
+    picClerkCV[lineNumber].Wait(&picClerkLock[lineNumber]);
+    picClerkLock[lineNumber].Release();
 }
 
 void PictureClerk(int lineNumber)
@@ -764,11 +785,10 @@ void DecidePassportLine(int ssn)
 
     int myLine = -1; // no line yet
     int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created  
-    // What if everyone's on break?
     int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
     int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < numPassportClerks; i++) { 
         // Pick the shortest line with a clerk not on break
         if (passportClerkData[i].lineCount < lineSize && passportClerkData[i].state != ONBREAK)
         {
@@ -818,8 +838,7 @@ void DecideCashierLine(int ssn){
     int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
     int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
 
-    for (int i = 0; i < 5; i++) 
-    {
+    for (int i = 0; i < numCashiers; i++) {
         // Pick the shortest line with a clerk not on break
         if (cashierData[i].lineCount < lineSize && cashierData[i].state != ONBREAK)
         {
@@ -946,11 +965,46 @@ void Senator()
 
 }
 
-
 void getInput()
 {
 
 }
+
+void Customer(int ssn) 
+{
+    if (rand() < 0.5) 
+    {
+        DecideApplicationLine(ssn);
+        DecidePictureLine(ssn);
+    } 
+    else 
+    {
+        DecidePictureLine(ssn);
+        DecideApplicationLine(ssn);
+    }
+
+    DecidePassportLine(ssn);
+    DecideCashierLine(ssn);
+    //Leave();
+}
+
+
+/*
+    
+    semaphore(numClerks)
+
+    semaphore.V();
+    
+    while(true) {
+        for(int i = 0; i < numClerks; i++) {
+            semaphore.V();
+        }
+
+        customer(senatorID);
+    }
+    semaphore.V(numCler)
+
+*/
 
 void Problem2()
 {
