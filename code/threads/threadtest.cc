@@ -420,27 +420,30 @@ struct CustomerData
 struct ApplicationClerkData 
 {
     int lineCount = 0;
-    ClerkStatus state;
     int bribeMoney;
-};
-
-struct ManagerData 
-{
-    int money = 0;
+    int currentCustomer;
+    ClerkStatus state;
 };
 
 struct PictureClerkData 
 {
     int lineCount = 0
-    ClerkStatus state;
     int bribeMoney;
+    int currentCustomer;
+    ClerkStatus state;
 };
 
 struct PassportClerkData
 {
     int lineCount = 0;
-    ClerkStatus state;
     int bribeMoney;
+    int currentCustomer;
+    ClerkStatus state;
+};
+
+struct ManagerData 
+{
+    int money = 0;
 };
 
 /*
@@ -496,8 +499,10 @@ void DecideApplicationLine(int ssn)
     } 
     else // Line was empty to begin with. Clerk is avail
     { 
+        printf("Customer %d has gotten in regular line for ApplicationClerk %d.\n", ssn, myLine);
         appClerkData[myLine] = BUSY;
     }
+
 
     appLineLock.Release();
     CustomerToApplicationClerk(ssn, myLine);
@@ -509,6 +514,7 @@ void CustomerToApplicationClerk(int ssn, int myLine)
     //task is give my data to the clerk using customerData[5]
     appClerkCV[myLine].Signal(appClerkLock[myLine]);
     printf("Customer %d has given SSN %d to ApplicationClerk %d.\n", ssn, ssn, myLine);
+    appClerkData[myLine].currentCustomer = ssn;
     //wait for clerk to do their job
     appClerkCV[myLine].Wait(appClerkLock[myLine]);
     //Read my data
@@ -529,12 +535,14 @@ void ApplicationClerk(int lineNumber)
         if (appClerkData[lineNumber].lineCount > 0) 
         {
             // wake up next customer on my line
+            printf("ApplicationClerk %d has signalled a Customer to come to their counter\n", myLine);
             appClerkLineCV[lineNumber].Signal(appLineLock);
             appClerkState[lineNumber] = BUSY;
             ApplicationClerkToCustomer();
         }
         else
         {
+            printf("ApplicationClerk %d is going on break\n", lineNumber);
             // nobody is waiting
             appClerkData[lineNumber].state = ONBREAK;
             appClerkBreakCV[lineNumber].Wait(appLineLock);
@@ -548,7 +556,10 @@ void ApplicationClerkToCustomer(int lineNumber)
     appClerkLock[lineNumber].Acquire(); // acquire the lock for my line to pause time.
     appLineLock.Release(); // clerk must know a customer left before starting over
     appClerkCV[lineNumber].Wait(appClerkLock[lineNumber]);
+    printf("ApplicationClerk %d has received SSN %d from Customer %d\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
     // do my job - customer now waiting
+    currenThread->Yield();
+    printf("ApplicationClerk %d has recorded a completed application for Customer %d\n", lineNumber, appClerkData[lineNumber].currentCustomer);
     appClerkCV[lineNumber].Signal(appClerkLock[lineNumber]);
     appClerkCV[lineNumber].Wait(appClerkLock[lineNumber]);
     appClerkLock[lineNumber].Release();
@@ -736,10 +747,8 @@ void CustomerToPassportClerk()(int lineNumber){
 
 }
 
-
 // TODO: add a method for each lock that exists between passport clerks and X
-Condition appClerkBreakCV[numAppClerks];
-Condition picClerkBreakCV[numPicClerks];
+
 
 // TODO: Change clerksLineLock to clerkLineLock[i]
 void Manager(){
@@ -776,6 +785,7 @@ void Manager(){
                 picClerkData[i].status = AVAILABLE;
                 picClerkBreakCV[i].Signal(picLineLock)
                 printf("Manager has woken up an PictureClerk\n");
+                printf("ApplicationClerk %d is coming off break\n", i);
             }
         }
         picLineLock.Release();
@@ -829,6 +839,10 @@ Lock appLineLock("applicationClerksLineLock");
 Lock pictureLineLock("applicationClerksLineLock");
 Lock passportLineLock("applicationClerksLineLock");
 
+Condition * appClerkBreakCV;
+Condition * picClerkBreakCV;
+Condition * passportClerkBreakCV;
+
 CustomerData * customerData;
 ApplicationClerkData * appClerkData;
 PassportClerkData * passportClerkData;
@@ -861,6 +875,10 @@ void Problem2()
     passportClerkData = PassportClerkData[numPassportClerks];
     picClerkData = PictureClerkData[numPictureClerks];
     cashierData = CashierData[numCashiers];
+
+    appClerkBreakCV = Condition[numAppClerks];
+    picClerkBreakCV = Condition[numPicClerks];
+    passportClerkBreakCV = Condition[numPassportClerks];
 
     char* name;
     for(i=0; i < numApplicationClerks; i++)
