@@ -447,6 +447,38 @@ struct PassportClerkData
     Simulates customer behavior:
     –   Whether to pick application or picture clerk
 */
+void customer(int ssn) {
+    if (rand() < 0.5) {
+        DecideApplicationLine();
+        DecidePictureLine();
+    } else {
+        DecidePictureLine();
+        DecideApplicationLine();
+    }
+
+    DecidePassportLine();
+    DecideCashierLine();
+    Leave();
+}
+
+/*
+    
+    semaphore(numClerks)
+
+    semaphore.V();
+    
+    while(true) {
+        for(int i = 0; i < numClerks; i++) {
+            semaphore.V();
+        }
+
+        customer(senatorID);
+    }
+    semaphore.V(numCler)
+
+*/
+
+
 void DecideApplicationLine(int ssn) 
 {
     // CS: Need to check the state of all application clerks' lines without them changing
@@ -503,8 +535,21 @@ void DecideApplicationLine(int ssn)
     CustomerToApplicationClerk(ssn, myLine);
 }
 
+/*
+
+    customer at clerk desk calls V() so that it can acquire clerk's lock
+    customer is working with clerk
+    senator enters: grabs every available semaphore slot  –––  can this get interrupted?
+        lock
+        for i numClerks:
+            sem.v()
+        release 
+    
+*/
+
 void CustomerToApplicationClerk(int ssn, int myLine)
 {
+    semaphore.V();
     appClerkLock[myLine].Acquire();//simulating the line
     //task is give my data to the clerk using customerData[5]
     appClerkCV[myLine].Signal(appClerkLock[myLine]);
@@ -514,6 +559,7 @@ void CustomerToApplicationClerk(int ssn, int myLine)
     //Read my data
     appClerkCV[myLine].Signal(appClerkLock[myLine]);
     appClerkLock[myLine].Release();
+    semaphore.P()
 }
 
 void ApplicationClerk(int lineNumber)
@@ -714,7 +760,7 @@ passportClerksLineLock->Acquire();
     // I've selected a line...
     if(passportClerkData[myLine].State == BUSY || passportClerkData[myLine].State == ONBREAK) { // ApplicationClerk is not available, so wait in line
         passportClerkData[i].lineCount++; // Join the line
-        printf("Customer %d has gotten in regular line for ApplicationClerk %d.\n", ssn, myLine);
+        printf("Customer %d has gotten in regular line for PassportClerk %d.\n", ssn, myLine);
         passportClerkLineCV[myLine]->Wait(PassportClerksLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
         passportClerkData[i].lineCount--; // Leaving the line
@@ -909,6 +955,9 @@ void getInput()
 
 void Problem2()
 {
+
+
+    
     getInput();
     Thread *t;
     char *name;
