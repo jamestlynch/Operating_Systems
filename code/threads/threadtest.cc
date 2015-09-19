@@ -408,13 +408,25 @@ void TestSuite() {
 }
 
 enum ClerkStatus {AVAILABLE, BUSY, ONBREAK};
+const char money[4] = {'100', '600', '1100', '1600'};
+
 
 struct CustomerData 
 {
     int money;
-    bool filedApplication;// = false;
+    bool turnedInApplication;// = false;
     bool acceptedPicture;// = false;
     bool gotPassport;// = false;
+    bool filed;
+    CustomerData(){
+        //initialize money value of 
+        turnedInApplication=false;
+        acceptedPicture=false;
+        gotPassport=false;
+        filed=false; //this needs to become true when gotPassport=true, acceptedPicture=true, and yield happens for a random amt of time
+        int RandIndex = rand() % 4;
+        money= money[RandIndex];
+    }
 };
 
 struct ApplicationClerkData 
@@ -428,6 +440,9 @@ struct ApplicationClerkData
     {
         //state = AVAILABLE;
         lineCount = 0;
+        bribeMoney=0;
+        currentCustomer=-1;
+        state=AVAILABLE;
     }
 };
 
@@ -437,6 +452,13 @@ struct PictureClerkData
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
+    PictureClerkData()
+    {
+        lineCount = 0;
+        bribeMoney=0;
+        currentCustomer=-1;
+        state=AVAILABLE;
+    }
 };
 
 struct PassportClerkData
@@ -445,6 +467,13 @@ struct PassportClerkData
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
+    PassportClerkData()
+    {
+        lineCount = 0;
+        bribeMoney=0;
+        currentCustomer=-1;
+        state=AVAILABLE;
+    }
 };
 
 struct CashierData
@@ -452,6 +481,13 @@ struct CashierData
     int lineCount;// = 0
     int currentCustomer;
     ClerkStatus state;
+    CashierData()
+    {
+        lineCount = 0;
+        bribeMoney=0;
+        currentCustomer=-1;
+        state=AVAILABLE;
+    }
 };
 
 struct ManagerData 
@@ -766,10 +802,16 @@ void CustomerToPassportClerk(int lineNumber)
     int ssn = 0;
 
     passportClerkLock[lineNumber]->Acquire();//simulating the line
-    do {
-        passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]);//take my picture
-        passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]); //waiting for you to take my picture
-        if (rand() < .5 )
+    //do {
+        passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]);
+        passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
+         if(customerData[ssn].acceptedPicture && customerData[ssn].acceptedPicture){
+
+         }
+         else{
+
+         }
+        /*if (rand() < .5 )
         {
             customerData[ssn].acceptedPicture = true;
             printf("Customer %d does like their picture from PictureClerk %d.\n", ssn, lineNumber);
@@ -778,7 +820,7 @@ void CustomerToPassportClerk(int lineNumber)
         {
             printf("Customer %d does not like their picture from PictureClerk %d.\n", ssn, lineNumber);
         }
-    } while(customerData[ssn].acceptedPicture);
+    } while(customerData[ssn].acceptedPicture);*/
 
     passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]); //leaving
     passportClerkLock[lineNumber]->Release();
