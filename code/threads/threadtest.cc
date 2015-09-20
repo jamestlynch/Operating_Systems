@@ -537,7 +537,7 @@ ClerkData * picClerkData;
 ClerkData * cashierData;
 ManagerData managerData;
 
-int numCustomers = 8;
+int numCustomers = 4;
 int numAppClerks = 2;
 int numPicClerks = 2;
 int numPassportClerks = 1;
@@ -594,8 +594,8 @@ void CustomerToApplicationClerk(int ssn, int myLine)
 
     appClerkLock[myLine]->Acquire();
     //Give my data to my clerk
-    printf(GREEN  "Customer %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
     appClerkData[myLine].currentCustomer = ssn;
+    printf(GREEN  "Customer %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
     //task is give my data to the clerk using customerData[5]
     appClerkCV[myLine]->Signal(appClerkLock[myLine]);
     //wait for clerk to do their job
@@ -712,11 +712,11 @@ void CustomerToPictureClerk(int ssn, int myLine)
     //customer just got to window, wake up, wait to take picture
     picClerkLock[myLine]->Acquire();//simulating the line
     picClerkCV[myLine]->Signal(picClerkLock[myLine]);//take my picture
-    picClerkData[myLine].currentCustomer=ssn;
+    picClerkData[myLine].currentCustomer = ssn;
+    printf(GREEN  "Customer %d has given SSN %d to PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
     picClerkCV[myLine]->Wait(picClerkLock[myLine]); //waiting for you to take my picture
-    //srand(time(0));
+    
     int randomVal = (rand() % 100 + 1);
-    //printf("Random Value inside CustomerToPictureClerk is %d\n", randomVal);
     if ( randomVal < 50 )
     {
         currentThread->Yield();
@@ -782,15 +782,16 @@ void PictureClerk(int lineNumber)
         if (picClerkData[lineNumber].lineCount > 0) 
         {
             picClerkLineCV[lineNumber]->Signal(&picLineLock);//wake up next customer on my line
+            printf(GREEN  "PictureClerk %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
             picClerkData[lineNumber].state = BUSY;
             PictureClerkToCustomer(lineNumber);
         }
         else
         { 
-            // nobody is waiting
+            // Nobody is waiting –> Go on break.
             picClerkData[lineNumber].state = ONBREAK;
+            printf(GREEN  "PictureClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
             picClerkBreakCV[lineNumber]->Wait(&picLineLock);
-            // Go on break.
         }
     }
 }
@@ -834,6 +835,8 @@ void CustomerToPassportClerk(int ssn, int myLine)
     // TODO: TRANSMIT DATA FROM CUSTOMER TO PASSPORT CLERK
     passportClerkLock[myLine]->Acquire();//simulating the line
     passportClerkCV[myLine]->Signal(passportClerkLock[myLine]);
+    passportClerkData[myLine].currentCustomer = ssn;
+    printf(GREEN  "Customer %d has given SSN %d to PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
     passportClerkCV[myLine]->Wait(passportClerkLock[myLine]);
         
     //customer pays the passport clerk $100
@@ -876,7 +879,7 @@ void PassportClerkToCustomer(int lineNumber)
     passportClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     passportLineLock.Release(); //clerk must know a customer left before starting over
     passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
-    printf(ANSI_COLOR_GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, passportClerkData[lineNumber].currentCustomer);
+    printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, passportClerkData[lineNumber].currentCustomer);
     passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]);
     passportClerkData[lineNumber].currentCustomer = -1;
     passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
@@ -896,15 +899,16 @@ void PassportClerk(int lineNumber){
             if (passportClerkData[lineNumber].lineCount > 0) 
             {
                 passportClerkLineCV[lineNumber]->Signal(&passportLineLock);//wake up next customer on my line
+                printf(GREEN  "PassportClerk %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
                 passportClerkData[lineNumber].state = BUSY;
                 PassportClerkToCustomer(lineNumber);
             }
             else
             { 
-                // nobody is waiting
+                // Nobody is waiting –> Go on break.
                 passportClerkData[lineNumber].state = ONBREAK;
+                printf(GREEN  "PassportClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
                 passportClerkBreakCV[lineNumber]->Wait(&passportLineLock);
-                // Go on break.
             }
         }
 }
@@ -946,6 +950,10 @@ void CustomerToCashier(int ssn, int myLine)
 
     cashierLock[myLine]->Acquire();//simulating the line
     cashierCV[myLine]->Signal(cashierLock[myLine]);
+
+    cashierData[myLine].currentCustomer = ssn;
+    printf(GREEN  "Customer %d has given SSN %d to Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+
     cashierCV[myLine]->Wait(cashierLock[myLine]);
 
     //MAKE SURE MONEY IS DECREMENTED AT RIGHT TIME.
@@ -958,7 +966,7 @@ void CustomerToCashier(int ssn, int myLine)
             //go to the back of the line and wait again
             cashierLineLock.Acquire();
             cashierData[myLine].lineCount++; // rejoin the line
-            printf(GREEN  "Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+            printf(GREEN  "Customer %d has gone to Cashier %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
             cashierLineCV[myLine]->Wait(&cashierLineLock); // Waiting in line
             // Reacquires lock after getting woken up inside Wait.
             cashierData[myLine].lineCount--; // Leaving the line, going to the counter
@@ -985,7 +993,7 @@ void CashierToCustomer(int lineNumber){
     cashierLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     cashierLineLock.Release(); //clerk must know a customer left before starting over
     cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
-    printf("Cashier %d has taken $100 from Customer %d.\n", lineNumber, cashierData[lineNumber].currentCustomer);
+    printf(GREEN  "Cashier %d has taken $100 from Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, cashierData[lineNumber].currentCustomer);
     cashierCV[lineNumber]->Signal(cashierLock[lineNumber]);
     cashierData[lineNumber].currentCustomer = -1;
     cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
@@ -1004,6 +1012,7 @@ void Cashier(int lineNumber){
         if (cashierData[lineNumber].lineCount > 0) 
         {
             cashierLineCV[lineNumber]->Signal(&cashierLineLock);//wake up next customer on my line
+            printf(GREEN  "Cashier %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
             cashierData[lineNumber].state = BUSY;
             CashierToCustomer(lineNumber);
         }
@@ -1011,7 +1020,7 @@ void Cashier(int lineNumber){
         { 
             // nobody is waiting
             cashierData[lineNumber].state = ONBREAK;
-
+            printf(GREEN  "Cashier %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
             cashierBreakCV[lineNumber]->Wait(&cashierLineLock);
             // Go on break.
         }
@@ -1276,9 +1285,7 @@ void DecideLine(int ssn, int clerkType)
 }
 void Customer(int ssn) 
 {
-    //gsrand(time(0));
     int randomVal = (rand() % 100 + 1);
-    printf("Random Val: %d\n", randomVal);
     if (randomVal < 50)
     {
         DecideLine(ssn, 0); // clerkType = 0 = ApplicationClerk
