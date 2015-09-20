@@ -156,6 +156,9 @@ void Lock::Acquire()
         
         sleepqueue->Append((void *)currentThread); //put current thread on lock’s wait Q
         currentThread->Sleep();
+        old = interrupt->SetLevel(IntOff);
+        this->Acquire();
+
     }
     (void*) interrupt->SetLevel(old); //end of acquire
     //printf("lock owner is: %s\n", currentThread->getName());

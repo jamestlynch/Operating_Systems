@@ -537,9 +537,9 @@ ClerkData * picClerkData;
 ClerkData * cashierData;
 ManagerData managerData;
 
-int numCustomers = 2;
-int numAppClerks = 1;
-int numPicClerks = 1;
+int numCustomers = 8;
+int numAppClerks = 2;
+int numPicClerks = 2;
 int numPassportClerks = 1;
 int numCashiers = 1;
 int numSenators = 1;
@@ -712,8 +712,12 @@ void CustomerToPictureClerk(int ssn, int myLine)
     //customer just got to window, wake up, wait to take picture
     picClerkLock[myLine]->Acquire();//simulating the line
     picClerkCV[myLine]->Signal(picClerkLock[myLine]);//take my picture
+    picClerkData[myLine].currentCustomer=ssn;
     picClerkCV[myLine]->Wait(picClerkLock[myLine]); //waiting for you to take my picture
-    if ( rand() < .5 )
+    //srand(time(0));
+    int randomVal = (rand() % 100 + 1);
+    //printf("Random Value inside CustomerToPictureClerk is %d\n", randomVal);
+    if ( randomVal < 50 )
     {
         currentThread->Yield();
         customerData[ssn].acceptedPicture = true;
@@ -753,19 +757,20 @@ void CustomerToPictureClerk(int ssn, int myLine)
 void PictureClerkToCustomer(int lineNumber)
 {
     // TODO: TRANSFER DATA BETWEEN PIC CLERK AND CUSTOMER
-    int ssn = 0;
     picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
     printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, ssn);
     picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
+    picClerkData[lineNumber].currentCustomer = -1;
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
     picClerkLock[lineNumber]->Release();
 }
 
 void PictureClerk(int lineNumber)
 {
-
+    picLineLock.Acquire();
+    PictureClerkToCustomer(lineNumber);
     while (true)
     {
         picLineLock.Acquire();
@@ -827,8 +832,6 @@ void PictureClerk(int lineNumber)
 void CustomerToPassportClerk(int ssn, int myLine)
 {
     // TODO: TRANSMIT DATA FROM CUSTOMER TO PASSPORT CLERK
-    //int ssn = 0;
-
     passportClerkLock[myLine]->Acquire();//simulating the line
     passportClerkCV[myLine]->Signal(passportClerkLock[myLine]);
     passportClerkCV[myLine]->Wait(passportClerkLock[myLine]);
@@ -868,20 +871,20 @@ void CustomerToPassportClerk(int ssn, int myLine)
     CustomerData[ssn].passportCertified=true;
 }*/
 
-
-
 void PassportClerkToCustomer(int lineNumber)
 {
-    int ssn = 0;
-    picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
-    picLineLock.Release(); //clerk must know a customer left before starting over
-    picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-    printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, ssn);
-    picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
-    picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-    picClerkLock[lineNumber]->Release();
+    passportClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
+    passportLineLock.Release(); //clerk must know a customer left before starting over
+    passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
+    printf(ANSI_COLOR_GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, passportClerkData[lineNumber].currentCustomer);
+    passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]);
+    passportClerkData[lineNumber].currentCustomer = -1;
+    passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
+    passportClerkLock[lineNumber]->Release();
 }
 void PassportClerk(int lineNumber){
+    passportLineLock.Acquire();
+    PassportClerkToCustomer(lineNumber);
     while (true)
         {
             passportLineLock.Acquire();
@@ -945,8 +948,8 @@ void CustomerToCashier(int ssn, int myLine)
     cashierCV[myLine]->Signal(cashierLock[myLine]);
     cashierCV[myLine]->Wait(cashierLock[myLine]);
 
-    //customer pays the cashier $100
-     customerData[ssn].money -= 100;
+    //MAKE SURE MONEY IS DECREMENTED AT RIGHT TIME.
+     
     if(!customerData[ssn].passportCertified){
             //customer went to cashier too soon,
             //wait an arbitrary amount of time
@@ -962,12 +965,12 @@ void CustomerToCashier(int ssn, int myLine)
             cashierLineLock.Release();
             CustomerToCashier(ssn, myLine);
             }
-
+            customerData[ssn].money -= 100;
             //thread yield until passportcertification
             //customer leaves counter
             //customer gets on line for cashier
-    cashierCV[myLine]->Signal(cashierLock[myLine]); //leaving
-    cashierLock[myLine]->Release();
+            cashierCV[myLine]->Signal(cashierLock[myLine]); //leaving
+            cashierLock[myLine]->Release();
 }
 
 /*void recordCompletion(int ssn, int lineNumber){
@@ -979,9 +982,18 @@ void CustomerToCashier(int ssn, int myLine)
     CustomerData[ssn].passportCompleted=true;
 }*/
 void CashierToCustomer(int lineNumber){
-
+    cashierLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
+    cashierLineLock.Release(); //clerk must know a customer left before starting over
+    cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
+    printf("Cashier %d has taken $100 from Customer %d.\n", lineNumber, cashierData[lineNumber].currentCustomer);
+    cashierCV[lineNumber]->Signal(cashierLock[lineNumber]);
+    cashierData[lineNumber].currentCustomer = -1;
+    cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
+    cashierLock[lineNumber]->Release();
 }
 void Cashier(int lineNumber){
+    cashierLineLock.Acquire();
+    CashierToCustomer(lineNumber);
     while (true)
     {
         cashierLineLock.Acquire();
@@ -999,6 +1011,7 @@ void Cashier(int lineNumber){
         { 
             // nobody is waiting
             cashierData[lineNumber].state = ONBREAK;
+
             cashierBreakCV[lineNumber]->Wait(&cashierLineLock);
             // Go on break.
         }
@@ -1261,10 +1274,12 @@ void DecideLine(int ssn, int clerkType)
         case 3: CustomerToCashier(ssn, myLine); break;
     }
 }
-
 void Customer(int ssn) 
 {
-    if (rand() < 0.5) 
+    //gsrand(time(0));
+    int randomVal = (rand() % 100 + 1);
+    printf("Random Val: %d\n", randomVal);
+    if (randomVal < 50)
     {
         DecideLine(ssn, 0); // clerkType = 0 = ApplicationClerk
         DecideLine(ssn, 1); // clerkType = 1 = PictureClerk
@@ -1276,7 +1291,7 @@ void Customer(int ssn)
     }
 
     DecideLine(ssn, 2); // clerkType = 2 = PassportClerk
-    DecideLine(ssn, 3); // clerkType = 3 = Cashier
+    //DecideLine(ssn, 3); // clerkType = 3 = Cashier
     //Leave();
 }
 
@@ -1522,4 +1537,21 @@ void Part2()
     }
 }
 #endif
+
+
+/*
+
+TO DO
+senators
+bribe lines
+yields- implement for all clerk processing
+passport
+cashier
+manager
+write all the tests
+on break
+user input menu
+write up
+
+*/
 
