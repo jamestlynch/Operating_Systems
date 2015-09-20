@@ -591,6 +591,7 @@ LineDecisionMonitor * lineDecisionMonitors;
 */
 void CustomerToApplicationClerk(int ssn, int myLine)
 {
+
     appClerkLock[myLine]->Acquire();
     //Give my data to my clerk
     printf(ANSI_COLOR_GREEN  "Customer %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
@@ -616,6 +617,7 @@ senator enters: grabs every available semaphore slot  –––  can this get i
     
 */
 
+
 /*void fileApplication(int ssn) {
     int filingTime = (rand() % 80) + 20;
     for (int i = 0; i < filingTime; i++)
@@ -640,40 +642,39 @@ void ApplicationClerkToCustomer(int lineNumber)
     //t->Fork((VoidFunctionPtr)fileApplication, ApplicationClerkData[lineNumber].currentCustomer); //think about where this should go!
     printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer);
     appClerkCV[lineNumber]->Signal(appClerkLock[lineNumber]);
-
-
-
+    appClerkData[lineNumber].currentCustomer = -1; //set current customer back to -1
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
     appClerkLock[lineNumber]->Release();
 }
 
 void ApplicationClerk(int lineNumber)
 {
-    while (true)
-    {
-        appLineLock.Acquire();
-        //if (ClerkBribeLineCount[myLine] > 0)
-        //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-        //appClerkData[lineNumber].state = BUSY;
-        //else
-
-        if (appClerkData[lineNumber].lineCount > 0) 
+    appLineLock.Acquire();
+    ApplicationClerkToCustomer(lineNumber);
+        while (true)
         {
-            // wake up next customer on may line
-            printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
-            appClerkLineCV[lineNumber]->Signal(&appLineLock);
-            appClerkData[lineNumber].state = BUSY;
-            ApplicationClerkToCustomer(lineNumber);
+            appLineLock.Acquire();
+            //if (ClerkBribeLineCount[myLine] > 0)
+            //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
+            //appClerkData[lineNumber].state = BUSY;
+            //else
+            if (appClerkData[lineNumber].lineCount > 0) 
+            {
+                // wake up next customer on may line
+                printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
+                appClerkLineCV[lineNumber]->Signal(&appLineLock);
+                appClerkData[lineNumber].state = BUSY;
+                ApplicationClerkToCustomer(lineNumber);
+            }
+            else
+            {
+                printf(ANSI_COLOR_GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
+                // nobody is waiting
+                appClerkData[lineNumber].state = ONBREAK;
+                appClerkBreakCV[lineNumber]->Wait(&appLineLock);
+                // Go on break.
+            }
         }
-        else
-        {
-            printf(ANSI_COLOR_GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
-            // nobody is waiting
-            appClerkData[lineNumber].state = ONBREAK;
-            appClerkBreakCV[lineNumber]->Wait(&appLineLock);
-            // Go on break.
-        }
-    }
 }
 
 
@@ -1407,7 +1408,7 @@ void Customer(int ssn)
 {
     //if (rand() < 0.5) 
     {
-        DecideLine(ssn, 1); // clerkType = 0 = ApplicationClerk
+        DecideLine(ssn, 0); // clerkType = 0 = ApplicationClerk
         //DecidePictureLine(ssn);
     } 
     //else 

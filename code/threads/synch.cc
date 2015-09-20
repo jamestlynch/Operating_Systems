@@ -171,9 +171,9 @@ void Lock::Release()
     {
         if (debuggingLocks) printf(ANSI_COLOR_RED  "[Lock::Release] (%s) ERROR: %s is trying to release a lock owned by %s. Returning."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), lockOwner->getName());
         interrupt->SetLevel(oldLevel);
+
         return;
     }
-
     if(isHeldByCurrentThread()) //if current thread is lockowner
     {
         if (debuggingLocks) printf(ANSI_COLOR_YELLOW  "[Lock::Release] (%s) %s released the lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
@@ -261,6 +261,12 @@ void Condition::Signal(Lock * conditionLock)
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }
+    if (waitqueue->IsEmpty()){
+        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition::Signal] (%s) %s signalled, but there were no waiting threads."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+        waitingLock = NULL;
+        interrupt->SetLevel(oldLevel);//restore interrupts
+        return;
+    }
 
     Thread *next = (Thread *)waitqueue->Remove();
     if(next!=NULL) //while waitqueue isn't empty
@@ -271,7 +277,6 @@ void Condition::Signal(Lock * conditionLock)
     }
     if(waitqueue->IsEmpty())
     {
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition::Signal] (%s) %s signalled, but there were no waiting threads."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         waitingLock = NULL;
     }
 } 
