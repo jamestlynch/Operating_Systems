@@ -626,6 +626,7 @@ int numSenators = 0;
 */
 void CustomerToApplicationClerk(int ssn, int myLine)
 {
+
     appClerkLock[myLine]->Acquire();
     //Give my data to my clerk
     printf("Customer %d has given SSN %d to ApplicationClerk %d.\n", ssn, ssn, myLine);
@@ -695,21 +696,19 @@ void DecideApplicationLine(int ssn)
             lineSize = appClerkData[i].lineCount;
         }
     }
-
     // I've selected a line...
-    //if (appClerkData[myLine].state == BUSY || appClerkData[myLine].state == ONBREAK)// ApplicationClerk is not available, so wait in line
-    //{ 
+    if (appClerkData[myLine].state == BUSY || appClerkData[myLine].state == ONBREAK)// ApplicationClerk is not available, so wait in line
+    { 
         appClerkData[myLine].lineCount++; // Join the line
         printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         appClerkLineCV[myLine]->Wait(&appLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
         appClerkData[myLine].lineCount--; // Leaving the line
-    /*} 
+    } 
     else // Line was empty to begin with. Clerk is avail
     { 
-        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         appClerkData[myLine].state = BUSY;
-    }*/
+    }
 
     appLineLock.Release();
     CustomerToApplicationClerk(ssn, myLine);
@@ -738,37 +737,41 @@ void ApplicationClerkToCustomer(int lineNumber)
     //t->Fork((VoidFunctionPtr)fileApplication, ApplicationClerkData[lineNumber].currentCustomer); //think about where this should go!
     printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer);
     appClerkCV[lineNumber]->Signal(appClerkLock[lineNumber]);
+    
+    //set current customer back to -1
+    appClerkData[lineNumber].currentCustomer = -1;
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
     appClerkLock[lineNumber]->Release();
 }
 
 void ApplicationClerk(int lineNumber)
 {
-    while (true)
-    {
-        appLineLock.Acquire();
-        //if (ClerkBribeLineCount[myLine] > 0)
-        //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-        //appClerkData[lineNumber].state = BUSY;
-        //else
-
-        if (appClerkData[lineNumber].lineCount > 0) 
+    appLineLock.Acquire();
+    ApplicationClerkToCustomer(lineNumber);
+        while (true)
         {
-            // wake up next customer on may line
-            printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
-            appClerkLineCV[lineNumber]->Signal(&appLineLock);
-            appClerkData[lineNumber].state = BUSY;
-            ApplicationClerkToCustomer(lineNumber);
+            appLineLock.Acquire();
+            //if (ClerkBribeLineCount[myLine] > 0)
+            //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
+            //appClerkData[lineNumber].state = BUSY;
+            //else
+            if (appClerkData[lineNumber].lineCount > 0) 
+            {
+                // wake up next customer on may line
+                printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
+                appClerkLineCV[lineNumber]->Signal(&appLineLock);
+                appClerkData[lineNumber].state = BUSY;
+                ApplicationClerkToCustomer(lineNumber);
+            }
+            else
+            {
+                printf(ANSI_COLOR_GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
+                // nobody is waiting
+                appClerkData[lineNumber].state = ONBREAK;
+                appClerkBreakCV[lineNumber]->Wait(&appLineLock);
+                // Go on break.
+            }
         }
-        else
-        {
-            printf(ANSI_COLOR_GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
-            // nobody is waiting
-            appClerkData[lineNumber].state = ONBREAK;
-            appClerkBreakCV[lineNumber]->Wait(&appLineLock);
-            // Go on break.
-        }
-    }
 }
 
 
@@ -1149,7 +1152,7 @@ void CustomerToCashier(int ssn, int myLine)
             //go to the back of the line and wait again
             cashierLineLock.Acquire();
             cashierData[myLine].lineCount++; // rejoin the line
-            printf("Customer %s has gone to PassportClerk %s too soon. They are going to the back of the line.\n", ssn, myLine);
+            printf("Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line.\n", ssn, myLine);
             cashierLineCV[myLine]->Wait(&cashierLineLock); // Waiting in line
             // Reacquires lock after getting woken up inside Wait.
             cashierData[myLine].lineCount--; // Leaving the line, going to the counter
