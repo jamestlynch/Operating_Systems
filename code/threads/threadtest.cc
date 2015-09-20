@@ -760,7 +760,7 @@ void PictureClerkToCustomer(int lineNumber)
     picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-    printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, ssn);
+    printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, picClerkData[lineNumber].currentCustomer);
     picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
     picClerkData[lineNumber].currentCustomer = -1;
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
