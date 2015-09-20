@@ -537,9 +537,9 @@ ClerkData * picClerkData;
 ClerkData * cashierData;
 ManagerData managerData;
 
-int numCustomers = 4;
+int numCustomers = 8;
 int numAppClerks = 2;
-int numPicClerks = 1;
+int numPicClerks = 2;
 int numPassportClerks = 1;
 int numCashiers = 1;
 int numSenators = 1;
@@ -712,8 +712,12 @@ void CustomerToPictureClerk(int ssn, int myLine)
     //customer just got to window, wake up, wait to take picture
     picClerkLock[myLine]->Acquire();//simulating the line
     picClerkCV[myLine]->Signal(picClerkLock[myLine]);//take my picture
+    picClerkData[myLine].currentCustomer=ssn;
     picClerkCV[myLine]->Wait(picClerkLock[myLine]); //waiting for you to take my picture
-    if ( rand() < .5 )
+    //srand(time(0));
+    int randomVal = (rand() % 100 + 1);
+    //printf("Random Value inside CustomerToPictureClerk is %d\n", randomVal);
+    if ( randomVal < 50 )
     {
         currentThread->Yield();
         customerData[ssn].acceptedPicture = true;
@@ -740,65 +744,7 @@ void CustomerToPictureClerk(int ssn, int myLine)
     }
 }
 
-void DecidePictureLine(int ssn)
-{
-    picLineLock.Acquire();
 
-
-
-    int myLine = -1; // no line yet
-    int lineSize = 1000; // bigger (bc we're finding shortest line) than # customers created
-    
-    // What if everyone's on break?
-    int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
-    int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
-
-    for (int i = 0; i < numPicClerks; i++) 
-    {
-
-        // Pick the shortest line with a clerk not on break
-        if (picClerkData[i].lineCount < lineSize && picClerkData[i].state != ONBREAK)
-        {
-            myLine = i;
-            lineSize = picClerkData[i].lineCount;
-            //even if line size = 0, the clerk could still be busy since being at the counter is not                                                             ‘in line'
-        }
-
-        // What if everyones on break?
-        // Keep track of the longest line
-        if (picClerkData[i].lineCount > longestLineSize)
-        {
-            longestLine = i;
-        }
-
-        // What if everyones on break?
-        // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
-        if (i == 4 && myLine == -1) 
-        { // If this is the last ApplicationClerk and we haven't picked a line
-            myLine = longestLine; // Join the longest line
-            lineSize = picClerkData[i].lineCount;
-        }
-    }
-
-    // I've selected a line...
-    if(picClerkData[myLine].state == BUSY || picClerkData[myLine].state == ONBREAK) 
-    { 
-        // ApplicationClerk is not available, so wait in line
-        picClerkData[myLine].lineCount++; // Join the line
-        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
-        picClerkLineCV[myLine]->Wait(&picLineLock); // Waiting in line
-        // Reacquires lock after getting woken up inside Wait.
-        picClerkData[myLine].lineCount--; // Leaving the line
-    } 
-    else 
-    { 
-        // Line was empty to begin with. Clerk is avail
-        picClerkData[myLine].state = BUSY;
-    }
-
-    picLineLock.Release();
-    CustomerToPictureClerk(ssn, myLine);
-}
 /*void filePicture(int ssn, int lineNumber){
     int filingTime = (rand() % 80) + 20;
     for (int i = 0; i < filingTime; i++)
@@ -811,11 +757,10 @@ void DecidePictureLine(int ssn)
 void PictureClerkToCustomer(int lineNumber)
 {
     // TODO: TRANSFER DATA BETWEEN PIC CLERK AND CUSTOMER
-    int ssn = 0;
     picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-    printf(ANSI_COLOR_GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, ssn);
+    printf(ANSI_COLOR_GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, picClerkData[lineNumber].currentCustomer);
     picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
     picClerkData[lineNumber].currentCustomer = -1;
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
@@ -917,51 +862,7 @@ void CustomerToPassportClerk(int ssn, int myLine)
     passportClerkLock[myLine]->Release();
 }
 
-//add a method for each lock that exists between picture clerks and X
-void DecidePassportLine(int ssn)
-{
-    passportLineLock.Acquire();
 
-    int myLine = -1; // no line yet
-    int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created  
-    int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
-    int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
-
-    for (int i = 0; i < numPassportClerks; i++) { 
-        // Pick the shortest line with a clerk not on break
-        if (passportClerkData[i].lineCount < lineSize && passportClerkData[i].state != ONBREAK)
-        {
-            myLine = i;
-            lineSize = passportClerkData[i].lineCount;
-               //even if line size = 0, the clerk could still be busy since being at the counter is not                                                             ‘in line'
-        }
-
-        // What if everyones on break?
-        // Keep track of the longest line
-        if (passportClerkData[i].lineCount > longestLineSize) {
-            longestLine = i;
-        }
-
-        // What if everyones on break?
-        // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
-        if (i == 4 && myLine == -1) { // If this is the last ApplicationClerk and we haven't picked a line
-            myLine = longestLine; // Join the longest line
-            lineSize = passportClerkData[i].lineCount;
-        }
-    }
-    // I've selected a line...
-    if(passportClerkData[myLine].state == BUSY || passportClerkData[myLine].state == ONBREAK) { // ApplicationClerk is not available, so wait in line
-        passportClerkData[myLine].lineCount++; // Join the line
-        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
-        passportClerkLineCV[myLine]->Wait(&passportLineLock); // Waiting in line
-        // Reacquires lock after getting woken up inside Wait.
-        passportClerkData[myLine].lineCount--; // Leaving the line
-    } else { // Line was empty to begin with. Clerk is avail
-        passportClerkData[myLine].state = BUSY;
-    }
-    passportLineLock.Release();
-    CustomerToPassportClerk(ssn, myLine);
-}
 
 /*void certifyApplication(int ssn, int lineNumber){
     int filingTime = (rand() % 1000) + 100;
@@ -1073,53 +974,7 @@ void CustomerToCashier(int ssn, int myLine)
     cashierCV[myLine]->Signal(cashierLock[myLine]); //leaving
     cashierLock[myLine]->Release();
 }
-void DecideCashierLine(int ssn){
-    cashierLineLock.Acquire();    
-    int myLine = -1; // no line yet
-    int lineSize = 1000;// bigger (bc we're finding shortest line) than # customers created
-    
-    // What if everyone's on break?
-    int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
-    int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
 
-    for (int i = 0; i < numCashiers; i++) {
-        // Pick the shortest line with a clerk not on break
-        if (cashierData[i].lineCount < lineSize && cashierData[i].state != ONBREAK)
-        {
-            myLine = i;
-            lineSize = cashierData[i].lineCount;
-               //even if line size = 0, the clerk could still be busy since being at the counter is not                                                             ‘in line'
-        }
-        // What if everyones on break?
-        // Keep track of the longest line
-        if (cashierData[i].lineCount > longestLineSize) {
-            longestLine = i;
-        }
-
-        // What if everyones on break?
-        // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
-        if (i == 4 && myLine == -1) { // If this is the last CashierClerk and we haven't picked a line
-            myLine = longestLine; // Join the longest line
-            lineSize = cashierData[i].lineCount;
-        }
-    }
-    // I've selected a line...
-    if(cashierData[myLine].state == BUSY || cashierData[myLine].state == ONBREAK) 
-    { // ApplicationClerk is not available, so wait in line
-        cashierData[myLine].lineCount++; // Join the line
-        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
-        cashierLineCV[myLine]->Wait(&cashierLineLock); // Waiting in line
-        // Reacquires lock after getting woken up inside Wait.
-        cashierData[myLine].lineCount--; // Leaving the line
-    } 
-    else 
-    { // Line was empty to begin with. Clerk is avail
-        cashierData[myLine].state = BUSY;
-    }
-
-    cashierLineLock.Release();
-    CustomerToPassportClerk(ssn, myLine);
-}
 /*void recordCompletion(int ssn, int lineNumber){
     int filingTime = (rand() % 1000) + 100;
     for (int i = 0; i < filingTime; i++)
@@ -1129,11 +984,10 @@ void DecideCashierLine(int ssn){
     CustomerData[ssn].passportCompleted=true;
 }*/
 void CashierToCustomer(int lineNumber){
-    int ssn = 0;
     cashierLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     cashierLineLock.Release(); //clerk must know a customer left before starting over
     cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
-    printf("Cashier %d has taken $100 from Customer %d.\n", lineNumber, ssn);
+    printf("Cashier %d has taken $100 from Customer %d.\n", lineNumber, cashierData[lineNumber].currentCustomer);
     cashierCV[lineNumber]->Signal(cashierLock[lineNumber]);
     cashierData[lineNumber].currentCustomer = -1;
     cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
@@ -1417,22 +1271,24 @@ void DecideLine(int ssn, int clerkType)
         case 3: CustomerToCashier(ssn, myLine); break;
     }
 }
-
 void Customer(int ssn) 
 {
-    //if (rand() < 0.5) 
+    //gsrand(time(0));
+    int randomVal = (rand() % 100 + 1);
+    printf("Random Val: %d\n", randomVal);
+    if (randomVal < 50)
     {
         DecideLine(ssn, 0); // clerkType = 0 = ApplicationClerk
-        //DecidePictureLine(ssn);
+        DecideLine(ssn, 1); // clerkType = 1 = PictureClerk
     } 
-    //else 
+    else 
     {
-        //DecidePictureLine(ssn);
-        //DecideApplicationLine(ssn);
+        DecideLine(ssn, 1); // clerkType = 1 = PictureClerk
+        DecideLine(ssn, 0); // clerkType = 0 = ApplicationClerk
     }
 
-    //DecidePassportLine(ssn);
-    //DecideCashierLine(ssn);
+    //DecideLine(ssn, 2); // clerkType = 2 = PassportClerk
+    //DecideLine(ssn, 3); // clerkType = 3 = Cashier
     //Leave();
 }
 
