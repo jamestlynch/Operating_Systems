@@ -14,6 +14,19 @@
 #ifdef CHANGED
 #include "synch.h"
 #endif
+
+
+#include <stdio.h>
+
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+
+
 //----------------------------------------------------------------------
 // SimpleThread
 //  Loop 5 times, yielding the CPU to another ready thread 
@@ -407,8 +420,40 @@ void TestSuite() {
 
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 enum ClerkStatus {AVAILABLE, BUSY, ONBREAK};
-const int arr[4] = {100, 600, 1100, 1600};
+
+const int moneyOptions[4] = {100, 600, 1100, 1600};
+
 
 
 struct CustomerData 
@@ -422,30 +467,29 @@ struct CustomerData
     bool passportCertified;
     bool passportRecorded;
     CustomerData(){
-        //initialize money value of 
-        turnedInApplication=false;
-        acceptedPicture=false;
-        gotPassport=false;
-        applicationFiled=false; //this needs to become true when gotPassport=true, acceptedPicture=true, and yield happens for a random amt of time
+        //initialize money value of
+        applicationFiled = false; //this needs to become true when gotPassport=true, acceptedPicture=true, and yield happens for a random amt of time  
+        turnedInApplication = false;
+        photoFiled = false;
+        passportCertified = false;
+        passportRecorded = false;
+        turnedInApplication = false;
+        acceptedPicture = false;
+        gotPassport = false;
         int RandIndex = rand() % 4;
-        money= arr[RandIndex];
-        turnedInApplication=false;
-        photoFiled=false;
-        passportCertified=false;
-        passportRecorded=false;
+        money = moneyOptions[RandIndex];
     }
 };
 
 struct ApplicationClerkData 
 {
-    int lineCount;// = 0;
+    int lineCount;
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
 
     ApplicationClerkData() 
     {
-        //state = AVAILABLE;
         lineCount = 0;
         bribeMoney=0;
         currentCustomer=-1;
@@ -455,7 +499,7 @@ struct ApplicationClerkData
 
 struct PictureClerkData 
 {
-    int lineCount;// = 0
+    int lineCount;
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
@@ -470,7 +514,7 @@ struct PictureClerkData
 
 struct PassportClerkData
 {
-    int lineCount;// = 0;
+    int lineCount;
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
@@ -485,15 +529,15 @@ struct PassportClerkData
 
 struct CashierData
 {
-    int lineCount;// = 0
+    int lineCount;
+    int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
-    int bribeMoney;
     CashierData()
     {
         lineCount = 0;
-        bribeMoney=0;
-        currentCustomer=-1;
+        bribeMoney = 0;
+        currentCustomer = -1;
         state=AVAILABLE;
     }
 };
@@ -506,6 +550,7 @@ struct ManagerData
 Condition ** appClerkCV;
 Condition ** picClerkCV;
 Condition ** passportClerkCV;
+Condition ** cashierCV;
 
 /* CONDITION VARIABLES FOR WAITING ON CLERKS' LINE */
 Condition ** appClerkLineCV;
@@ -517,6 +562,7 @@ Condition ** cashierLineCV;
 Lock ** appClerkLock;
 Lock ** picClerkLock;
 Lock ** passportClerkLock;
+Lock ** cashierLock;
 
 /* LOCKS ON LINE */
 Lock appLineLock("applicationLineLock");
@@ -527,6 +573,7 @@ Lock cashierLineLock("cashierLineLock");
 Condition ** appClerkBreakCV;
 Condition ** picClerkBreakCV;
 Condition ** passportClerkBreakCV;
+Condition ** cashierBreakCV;
 
 CustomerData * customerData;
 ApplicationClerkData * appClerkData;
@@ -535,11 +582,43 @@ PictureClerkData * picClerkData;
 CashierData * cashierData;
 ManagerData managerData;
 
-int numAppClerks = 1;
-int numPicClerks = 5;
-int numPassportClerks = 5;
 int numCustomers = 2;
-int numCashiers = 5;
+int numAppClerks = 1;
+int numPicClerks = 0;
+int numPassportClerks = 0;
+int numCashiers = 0;
+int numSenators = 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /*
     Simulates customer behavior:
@@ -577,80 +656,88 @@ void DecideApplicationLine(int ssn)
     // TODO: CHANGE THE WAY PEOPLE CHOOSE LINES
     // CS: Need to check the state of all application clerks' lines without them changing
     appLineLock.Acquire();
+    printf(ANSI_COLOR_MAGENTA  "Acquired lock to pick a line."  ANSI_COLOR_RESET  "\n");
     
     int myLine = -1; // No line yet
     int lineSize = 1000; // Larger (bc we're finding shortest line) than the number customers created
     
     // What if everyone's on break?
-    int longestLine = -1; // Store the longest line (Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
-    int longestLineSize = -1; // Smaller than any line could possibly be because we are searching for longest line.
+    int shortestLine = -1; // Store the shortest line    //(Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
+    int shortestLineSize = 1000; // Larger than any line could possibly be because we are searching for shortest line.
 
     for (int i = 0; i < numAppClerks; i++) //number of clerks
     {
+        printf(ANSI_COLOR_MAGENTA  "Picking a line."  ANSI_COLOR_RESET  "\n");
+
         // Pick the shortest line with a clerk not on break
         if (appClerkData[i].lineCount < lineSize && appClerkData[i].state != ONBREAK)
         {
             myLine = i;
+            printf(ANSI_COLOR_MAGENTA  "Picked a line."  ANSI_COLOR_RESET  "\n");
             lineSize = appClerkData[i].lineCount;
             //even if line size = 0, the clerk could still be busy since being at the counter is not                                                             ‘in line'
         }
 
         // What if everyones on break?
         // Keep track of the longest line
-        /*if (appClerkData[i].lineCount > longestLineSize) 
+        if (appClerkData[i].lineCount < shortestLineSize) 
         {
-            longestLine = i;
+            shortestLine = i;
+            shortestLineSize = appClerkData[i].lineCount;
         }
 
         // What if everyones on break?
         // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
-        if (i == 4 && myLine == -1) 
-        { // If this is the last ApplicationClerk(number of clerks -1) and we haven't picked a line
-            myLine = longestLine; // Join the longest line
+        // ^^^ Actually just pick the shortest because assignment says to
+        if (i == (numAppClerks - 1) && myLine == -1) // If this is the last ApplicationClerk(number of clerks -1) and we haven't picked a line
+        {
+            myLine = shortestLine; // Join the shortest line
             lineSize = appClerkData[i].lineCount;
-        }*/
+        }
     }
 
     // I've selected a line...
     //if (appClerkData[myLine].state == BUSY || appClerkData[myLine].state == ONBREAK)// ApplicationClerk is not available, so wait in line
     //{ 
         appClerkData[myLine].lineCount++; // Join the line
-        printf("Customer %d has gotten in regular line for ApplicationClerk %d.\n", ssn, myLine);
+        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         appClerkLineCV[myLine]->Wait(&appLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
         appClerkData[myLine].lineCount--; // Leaving the line
     /*} 
     else // Line was empty to begin with. Clerk is avail
     { 
-        printf("Customer %d has gotten in regular line for ApplicationClerk %d.\n", ssn, myLine);
+        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         appClerkData[myLine].state = BUSY;
     }*/
 
     appLineLock.Release();
     CustomerToApplicationClerk(ssn, myLine);
 }
-void fileApplication(int ssn, int lineNumber) {
+/*void fileApplication(int ssn) {
     int filingTime = (rand() % 80) + 20;
     for (int i = 0; i < filingTime; i++)
     {
         currentThread->Yield();
     }
+
     CustomerData[ssn].turnedInApplication = true;
-}
+}*/
+
+
 
 void ApplicationClerkToCustomer(int lineNumber)
 {
-   /* t = new Thread("ApplicationFilingThread");
-    t->Fork((VoidFunctionPtr)fileApplication, ApplicationClerkData[lineNumber].currentCustomer);*/ //think about where this should go!
     appClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     appLineLock.Release(); // clerk must know a customer left before starting over
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
-    printf("ApplicationClerk %d has received SSN %d from Customer %d\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
+    printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
     // do my job - customer nowwaiting
     currentThread->Yield();
-    printf("ApplicationClerk %d has recorded a completed application for Customer %d\n", lineNumber, appClerkData[lineNumber].currentCustomer);
+    //t = new Thread("ApplicationFilingThread");
+    //t->Fork((VoidFunctionPtr)fileApplication, ApplicationClerkData[lineNumber].currentCustomer); //think about where this should go!
+    printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer);
     appClerkCV[lineNumber]->Signal(appClerkLock[lineNumber]);
-    //appClerkCV[lineNumber]->fileApplication();
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
     appClerkLock[lineNumber]->Release();
 }
@@ -668,14 +755,14 @@ void ApplicationClerk(int lineNumber)
         if (appClerkData[lineNumber].lineCount > 0) 
         {
             // wake up next customer on may line
-            printf("ApplicationClerk %d has signalled a Customer to come to their counter\n", lineNumber);
+            printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
             appClerkLineCV[lineNumber]->Signal(&appLineLock);
             appClerkData[lineNumber].state = BUSY;
             ApplicationClerkToCustomer(lineNumber);
         }
         else
         {
-            printf("ApplicationClerk %d is going on break\n", lineNumber);
+            printf(ANSI_COLOR_GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
             // nobody is waiting
             appClerkData[lineNumber].state = ONBREAK;
             appClerkBreakCV[lineNumber]->Wait(&appLineLock);
@@ -683,6 +770,36 @@ void ApplicationClerk(int lineNumber)
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void CustomerToPictureClerk(int ssn, int myLine)
 {
@@ -694,11 +811,11 @@ void CustomerToPictureClerk(int ssn, int myLine)
     {
         currentThread->Yield();
         customerData[ssn].acceptedPicture = true;
-        printf("Customer %d does like their picture from PictureClerk %d.\n", ssn, myLine);
+        printf(ANSI_COLOR_GREEN  "Customer %d does like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
     }
     else
     {
-        printf("Customer %d does not like their picture from PictureClerk %d.\n", ssn, myLine);
+        printf(ANSI_COLOR_GREEN  "Customer %d does not like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
     }
     picClerkCV[myLine]->Signal(picClerkLock[myLine]); //leaving
     picClerkLock[myLine]->Release();
@@ -708,7 +825,7 @@ void CustomerToPictureClerk(int ssn, int myLine)
         picLineLock.Acquire();
         // ApplicationClerk is not available, so wait in line
         picClerkData[myLine].lineCount++; // Join the line
-        printf("Customer %d has gotten in regular line for PictureClerk %d.\n", ssn, myLine);
+        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         picClerkLineCV[myLine]->Wait(&picLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
         picClerkData[myLine].lineCount--; // Leaving the line
@@ -760,7 +877,7 @@ void DecidePictureLine(int ssn)
     { 
         // ApplicationClerk is not available, so wait in line
         picClerkData[myLine].lineCount++; // Join the line
-        printf("Customer %d has gotten in regular line for PictureClerk %d.\n", ssn, myLine);
+        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         picClerkLineCV[myLine]->Wait(&picLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
         picClerkData[myLine].lineCount--; // Leaving the line
@@ -774,14 +891,14 @@ void DecidePictureLine(int ssn)
     picLineLock.Release();
     CustomerToPictureClerk(ssn, myLine);
 }
-void filePicture(int ssn, int lineNumber){
+/*void filePicture(int ssn, int lineNumber){
     int filingTime = (rand() % 80) + 20;
     for (int i = 0; i < filingTime; i++)
     {
         currentThread->Yield();
     }
     CustomerData[ssn].photoFiled=true;
-}
+}*/
 
 void PictureClerkToCustomer(int lineNumber)
 {
@@ -790,7 +907,7 @@ void PictureClerkToCustomer(int lineNumber)
     picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-    printf("PictureClerk %d has taken a picture of Customer %d.\n", lineNumber, ssn);
+    printf(ANSI_COLOR_GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, ssn);
     picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
     picClerkLock[lineNumber]->Release();
@@ -823,6 +940,40 @@ void PictureClerk(int lineNumber)
     }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void CustomerToPassportClerk(int ssn, int myLine)
 {
     // TODO: TRANSMIT DATA FROM CUSTOMER TO PASSPORT CLERK
@@ -842,8 +993,8 @@ void CustomerToPassportClerk(int ssn, int myLine)
             //go to the back of the line and wait again
             passportLineLock.Acquire();
             passportClerkData[myLine].lineCount++; // rejoin the line
-            printf("Customer %s has gone to PassportClerk %s too soon. They are going to the back of the line.\n", ssn, lineNumber);
-            passportClerkLineCV[myLine]->Wait(&picLineLock); // Waiting in line
+            printf("Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line.\n", ssn, myLine);
+            passportClerkLineCV[myLine]->Wait(&passportLineLock); // Waiting in line
             // Reacquires lock after getting woken up inside Wait.
             passportClerkData[myLine].lineCount--; // Leaving the line, going to the counter
             passportLineLock.Release();
@@ -891,7 +1042,7 @@ void DecidePassportLine(int ssn)
     // I've selected a line...
     if(passportClerkData[myLine].state == BUSY || passportClerkData[myLine].state == ONBREAK) { // ApplicationClerk is not available, so wait in line
         passportClerkData[myLine].lineCount++; // Join the line
-        printf("Customer %d has gotten in regular line for ApplicationClerk %d.\n", ssn, myLine);
+        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         passportClerkLineCV[myLine]->Wait(&passportLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
         passportClerkData[myLine].lineCount--; // Leaving the line
@@ -899,25 +1050,21 @@ void DecidePassportLine(int ssn)
         passportClerkData[myLine].state = BUSY;
     }
     passportLineLock.Release();
-    CustomerToPassportClerk(myLine);
+    CustomerToPassportClerk(ssn, myLine);
 }
 
-/*void CashierToPassportClerk(int ssn, int cashierLineNumber, int passportLineNumber)
-{
-    //does the cashier have to acquire the passport lock to check the current customers state??
-}*/
-void certifyApplication(int ssn, int lineNumber){
+/*void certifyApplication(int ssn, int lineNumber){
     int filingTime = (rand() % 1000) + 100;
     for (int i = 0; i < filingTime; i++)
     {
         currentThread->Yield();
     }
     CustomerData[ssn].passportCertified=true;
-}
+}*/
 
 
 
-void PassportToCustomer(int lineNumber)
+void PassportClerkToCustomer(int lineNumber)
 {
     int ssn = 0;
     picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
@@ -953,13 +1100,44 @@ void PassportClerk(int lineNumber){
         }
 }
 
-void CustomerToCashierClerk(int ssn, int myLine)
-{
-    int ssn = 0;
 
-    cashierClerkLock[lineNumber]->Acquire();//simulating the line
-    cashierClerkCV[lineNumber]->Signal(cashierClerkLock[lineNumber]);
-    cashierClerkCV[lineNumber]->Wait(cashierClerkLock[lineNumber]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void CustomerToCashier(int ssn, int myLine)
+{
+    //int ssn = 0;
+
+    cashierLock[myLine]->Acquire();//simulating the line
+    cashierCV[myLine]->Signal(cashierLock[myLine]);
+    cashierCV[myLine]->Wait(cashierLock[myLine]);
 
     //customer pays the cashier $100
      customerData[ssn].money -= 100;
@@ -970,20 +1148,20 @@ void CustomerToCashierClerk(int ssn, int myLine)
             //TO DO: PUNISHMENT OF 100 to 1000 currentThread->Yield() calls
             //go to the back of the line and wait again
             cashierLineLock.Acquire();
-            cashierClerkData[myLine].lineCount++; // rejoin the line
-            printf("Customer %s has gone to PassportClerk %s too soon. They are going to the back of the line.\n", ssn, lineNumber);
-            cashierClerkLineCV[myLine]->Wait(&cashierLineLock); // Waiting in line
+            cashierData[myLine].lineCount++; // rejoin the line
+            printf("Customer %s has gone to PassportClerk %s too soon. They are going to the back of the line.\n", ssn, myLine);
+            cashierLineCV[myLine]->Wait(&cashierLineLock); // Waiting in line
             // Reacquires lock after getting woken up inside Wait.
-            cashierClerkData[myLine].lineCount--; // Leaving the line, going to the counter
+            cashierData[myLine].lineCount--; // Leaving the line, going to the counter
             cashierLineLock.Release();
-            CustomerToCashierClerk(ssn, myLine);
+            CustomerToCashier(ssn, myLine);
             }
 
             //thread yield until passportcertification
             //customer leaves counter
             //customer gets on line for cashier
-    cashierClerkCV[lineNumber]->Signal(cashierClerkLock[lineNumber]); //leaving
-    cashierClerkLock[lineNumber]->Release();
+    cashierCV[myLine]->Signal(cashierLock[myLine]); //leaving
+    cashierLock[myLine]->Release();
 }
 void DecideCashierLine(int ssn){
     cashierLineLock.Acquire();    
@@ -1019,7 +1197,7 @@ void DecideCashierLine(int ssn){
     if(cashierData[myLine].state == BUSY || cashierData[myLine].state == ONBREAK) 
     { // ApplicationClerk is not available, so wait in line
         cashierData[myLine].lineCount++; // Join the line
-        printf("Customer %d has gotten in regular line for PictureClerk %d.\n", ssn, myLine);
+        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         cashierLineCV[myLine]->Wait(&cashierLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
         cashierData[myLine].lineCount--; // Leaving the line
@@ -1032,15 +1210,15 @@ void DecideCashierLine(int ssn){
     cashierLineLock.Release();
     CustomerToPassportClerk(ssn, myLine);
 }
-void recordCompletion(int ssn, int lineNumber){
+/*void recordCompletion(int ssn, int lineNumber){
     int filingTime = (rand() % 1000) + 100;
     for (int i = 0; i < filingTime; i++)
     {
         currentThread->Yield();
     }
     CustomerData[ssn].passportCompleted=true;
-}
-void CashierClerkToCustomer(int lineNumber){
+}*/
+void CashierToCustomer(int lineNumber){
 
 }
 void Cashier(int lineNumber){
@@ -1049,23 +1227,58 @@ void Cashier(int lineNumber){
         cashierLineLock.Acquire();
         //if (ClerkBribeLineCount[myLine] > 0)
         //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-        cashierClerkData[lineNumber].state = BUSY;
+        cashierData[lineNumber].state = BUSY;
 
-        if (cashierClerkData[lineNumber].lineCount > 0) 
+        if (cashierData[lineNumber].lineCount > 0) 
         {
-            cashierClerkLineCV[lineNumber]->Signal(&cashierLineLock);//wake up next customer on my line
-            cashierClerkData[lineNumber].state = BUSY;
-            CashierClerkToCustomer(lineNumber);
+            cashierLineCV[lineNumber]->Signal(&cashierLineLock);//wake up next customer on my line
+            cashierData[lineNumber].state = BUSY;
+            CashierToCustomer(lineNumber);
         }
         else
         { 
             // nobody is waiting
-            cashierClerkData[lineNumber].state = ONBREAK;
-            cashierClerkBreakCV[lineNumber]->Wait(&cashierLineLock);
+            cashierData[lineNumber].state = ONBREAK;
+            cashierBreakCV[lineNumber]->Wait(&cashierLineLock);
             // Go on break.
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // TODO: add a method for each lock that exists between passport clerks and X
 // TODO: Change clerksLineLock to clerkLineLock[i]
@@ -1088,7 +1301,7 @@ void Manager(){
             {
                 appClerkData[i].state = AVAILABLE;
                 appClerkBreakCV[i]->Signal(&appLineLock);
-                printf("Manager has woken up an ApplicationClerk\n");
+                printf(ANSI_COLOR_GREEN  "Manager has woken up an ApplicationClerk."  ANSI_COLOR_RESET  "\n");
             }
         }
         appLineLock.Release();
@@ -1102,8 +1315,12 @@ void Manager(){
             {
                 picClerkData[i].state = AVAILABLE;
                 picClerkBreakCV[i]->Signal(&picLineLock);
-                printf("Manager has woken up an PictureClerk\n");
-                printf("ApplicationClerk %d is coming off break\n", i);
+                printf(ANSI_COLOR_GREEN  "Manager has woken up an PictureClerk."  ANSI_COLOR_RESET  "\n");
+                
+
+
+                // TODO: I think this should be inside of ApplicationClerk
+                printf(ANSI_COLOR_GREEN  "ApplicationClerk %d is coming off break." ANSI_COLOR_RESET  "\n", i);
             }
         }
         picLineLock.Release();
@@ -1117,20 +1334,51 @@ void Manager(){
             {
                 passportClerkData[i].state = AVAILABLE;
                 passportClerkBreakCV[i]->Signal(&passportLineLock);
-                printf("Manager has woken up an PassportClerk\n");
+                printf(ANSI_COLOR_GREEN  "Manager has woken up an PassportClerk."  ANSI_COLOR_RESET  "\n");
             }
         }
         passportLineLock.Release();
 
-        printf("Manager has counted a total of $%d for ApplicationClerks\n", appClerkMoney);
-        printf("Manager has counted a total of $%d for PictureClerks\n", picClerkMoney);
-        printf("Manager has counted a total of $%d for PassportClerks\n", passportClerkMoney);
-        printf("Manager has counted a total of $%d for Cashier\n", cashierMoney);
-        printf("Manager has counted a total of $%d for the passport office\n", totalMoney);
+        printf(ANSI_COLOR_GREEN  "Manager has counted a total of $%d for ApplicationClerks."  ANSI_COLOR_RESET  "\n", appClerkMoney);
+        printf(ANSI_COLOR_GREEN  "Manager has counted a total of $%d for PictureClerks."  ANSI_COLOR_RESET  "\n", picClerkMoney);
+        printf(ANSI_COLOR_GREEN  "Manager has counted a total of $%d for PassportClerks."  ANSI_COLOR_RESET  "\n", passportClerkMoney);
+        printf(ANSI_COLOR_GREEN  "Manager has counted a total of $%d for Cashier."  ANSI_COLOR_RESET  "\n", cashierMoney);
+        printf(ANSI_COLOR_GREEN  "Manager has counted a total of $%d for the passport office."  ANSI_COLOR_RESET  "\n", totalMoney);
 
         currentThread->Yield();
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void Senator()
 {
@@ -1139,8 +1387,44 @@ void Senator()
 
 void getInput()
 {
-
+    printf(ANSI_COLOR_MAGENTA  "Number of Customers = %d"  ANSI_COLOR_RESET  "\n", numCustomers);
+    printf(ANSI_COLOR_MAGENTA  "Number of ApplicationClerks = %d"  ANSI_COLOR_RESET  "\n", numAppClerks);
+    printf(ANSI_COLOR_MAGENTA  "Number of PictureClerks = %d"  ANSI_COLOR_RESET  "\n", numPicClerks);
+    printf(ANSI_COLOR_MAGENTA  "Number of PassportClerks = %d"  ANSI_COLOR_RESET  "\n", numPassportClerks);
+    printf(ANSI_COLOR_MAGENTA  "Number of Cashiers = %d"  ANSI_COLOR_RESET  "\n", numCashiers);
+    printf(ANSI_COLOR_MAGENTA  "Number of Senators = %d"  ANSI_COLOR_RESET  "\n", numSenators);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void Customer(int ssn) 
 {
@@ -1175,9 +1459,43 @@ void Customer(int ssn)
     semaphore.V(numCler)
 */
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void Part2()
 {
     getInput();
+
     Thread *t;
     char *name;
 
@@ -1192,6 +1510,7 @@ void Part2()
     appClerkLock = new Lock*[numAppClerks];
     picClerkLock = new Lock*[numPicClerks];
     passportClerkLock = new Lock*[numPassportClerks];
+    cashierLock = new Lock*[numCashiers];
     
     customerData = new CustomerData[numCustomers];
     appClerkData = new ApplicationClerkData[numAppClerks];
@@ -1202,90 +1521,120 @@ void Part2()
     appClerkBreakCV = new Condition*[numAppClerks];
     picClerkBreakCV = new Condition*[numPicClerks];
     passportClerkBreakCV = new Condition*[numPassportClerks];
+    cashierBreakCV = new Condition*[numCashiers];
 
     for(int i = 0; i < numAppClerks; i++)
     {
-        sprintf(name, "applicationClerkLock %d\n", i);
-        appClerkLock[i] = new Lock(name);
-        sprintf(name, "applicationClerkCV %d\n", i);
-        appClerkCV[i] = new Condition(name);
-        sprintf(name, "applicationClerkLineCV %d\n", i);
+        // Create Locks and CVs tied to Clerk
+        name = new char [40];
+        sprintf(name, "LineCV-ApplicationClerk-%d", i);
         appClerkLineCV[i] = new Condition(name);
+        
+        name = new char [40];
+        sprintf(name, "Lock-ApplicationClerk-%d", i);
+        appClerkLock[i] = new Lock(name);
+        
+        name = new char [40];
+        sprintf(name, "WorkCV-ApplicationClerk-%d", i);
+        appClerkCV[i] = new Condition(name);
+        
+        name = new char [40];
+        sprintf(name, "BreakCV-ApplicationClerk-%d", i);
+        appClerkBreakCV[i] = new Condition(name);
+
+        // Create clerks
+        name = new char [40];
+        sprintf(name, "ApplicationClerk-%d", i);
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)ApplicationClerk, i);
     }
 
     for(int i = 0; i < numPicClerks; i++)
     {
-        sprintf(name, "pictureClerkLock %d\n", i);
+        // Create Locks and CVs tied to Clerk
+        name = new char [40];
+        sprintf(name, "LineCV-PictureClerk-%d", i);
+        picClerkLineCV[i] = new Condition(name);
+        
+        name = new char [40];
+        sprintf(name, "Lock-PictureClerk-%d", i);
         picClerkLock[i] = new Lock(name);
-        sprintf(name, "pictureClerkCV %d\n", i);
+        
+        name = new char [40];
+        sprintf(name, "WorkCV-PictureClerk-%d", i);
         picClerkCV[i] = new Condition(name);
+        
+        name = new char [40];
+        sprintf(name, "BreakCV-PictureClerk-%d", i);
+        picClerkBreakCV[i] = new Condition(name);
+
+        // Create clerks
+        name = new char [40];
+        sprintf(name, "PictureClerk-%d",i);
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)PictureClerk, i);
     }
 
     for(int i = 0; i < numPassportClerks; i++)
     {
-        sprintf(name, "passportClerkLock %d\n", i);
+        // Create Locks and CVs tied to Clerk
+        name = new char [40];
+        sprintf(name, "LineCV-PassportClerk-%d", i);
+        passportClerkLineCV[i] = new Condition(name);
+        
+        name = new char [40];
+        sprintf(name, "Lock-PassportClerk-%d", i);
         passportClerkLock[i] = new Lock(name);
-        sprintf(name, "passportClerkCV %d\n", i);
+        
+        name = new char [40];
+        sprintf(name, "WorkCV-PassportClerkCV-%d", i);
         passportClerkCV[i] = new Condition(name);
-    }
+        
+        name = new char [40];
+        sprintf(name, "BreakCV-PassportClerkCV-%d", i);
+        passportClerkBreakCV[i] = new Condition(name);
 
-    //for loop of user input
-    for(int i = 0; i < numCustomers; i++) 
-    {
-        name = new char [20];
-        sprintf(name, "customer %d", i);
+        // Create clerks
+        name = new char [40];
+        sprintf(name, "PassportClerk-%d",i);
         t = new Thread(name);
-        t->Fork((VoidFunctionPtr)Customer, i); //picture or application first, faciliate all of the interactions
-        //customerData[i].money = getMoney();//100,
 
-        // whatever other customerData
+        t->Fork((VoidFunctionPtr)PassportClerk, i);
     }
 
-    for(int i = 0; i < numAppClerks; i++) 
-    {
-        name = new char [20];
-        sprintf(name, "ApplicationClerk %d", i);
-        t = new Thread(name);
-        t->Fork((VoidFunctionPtr)ApplicationClerk, i); //picture or application first, faciliate all of the interactions
-
-        //customerData[i].money = getMoney();//100,
-
-        // whatever other customerData
-    }
-
-    //for loop of user input
-    /*for(int i = 0; i < numPicClerks; i++) 
-    {
-        name = new char [20];
-        sprintf(name,"picture clerk %d",i);
-
-        t = new Thread(name);
-        //t->Fork((VoidFunctionPtr)picture, i);
-        //picClerkDataData[i].state = AVAILABLE;
-        // whatever other customerData
-    }
-
-    for(int i = 0; i < numPassportClerks; i++) 
-    {
-        name = new char [20];
-        sprintf(name,"application clerk %d",i);
-
-        t = new Thread(name);
-        //t->Fork((VoidFunctionPtr)customer, i);
-        appClerkData[i].state = AVAILABLE;
-        // whatever other customerData
-    }
     for(int i = 0; i < numCashiers; i++) 
     {
-        name = new char [20];
-        sprintf(name,"application clerk %d",i);
+        // Create Locks and CVs tied to Clerk
+        name = new char [40];
+        sprintf(name, "LineCV-Cashier-%d", i);
+        cashierLineCV[i] = new Condition(name);
+        
+        name = new char [40];
+        sprintf(name, "Lock-Cashier-%d", i);
+        cashierLock[i] = new Lock(name);
+        
+        name = new char [40];
+        sprintf(name, "WorkCV-CashierCV-%d", i);
+        cashierCV[i] = new Condition(name);
+            
+        name = new char [40];
+        sprintf(name, "BreakCV-Cashier-%d", i);
+        cashierBreakCV[i] = new Condition(name);
 
+        // Create clerks
+        name = new char [40];
+        sprintf(name,"Cashier-%d",i);
         t = new Thread(name);
-        //t->Fork((VoidFunctionPtr)customer, i);
-        appClerkData[i].state = AVAILABLE;
-        // whatever other customerData
-    }*/
-   
+        t->Fork((VoidFunctionPtr)Cashier, i);
+    }
+
+    for(int i = 0; i < numCustomers; i++) 
+    {
+        name = new char [40];
+        sprintf(name, "Customer-%d", i);
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)Customer, i);
+    }
 }
 #endif
 
