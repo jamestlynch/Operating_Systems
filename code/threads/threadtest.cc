@@ -549,8 +549,8 @@ ClerkData * picClerkData;
 ClerkData * cashierData;
 ManagerData managerData;
 
-int numCustomers = 8;
-int numAppClerks = 2;
+int numCustomers = 4;
+int numAppClerks = 1;
 int numPicClerks = 1;
 int numPassportClerks = 1;
 int numCashiers = 1;
@@ -645,7 +645,6 @@ void fileApplication(FilingJob* jobPointer) {
     filingApplicationLock.Acquire();
     customerData[jobPointer->ssn].applicationFiled = true;
     printf(GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", jobPointer->lineNumber, jobPointer->ssn);
-    
     filingApplicationLock.Release();
 
 }
@@ -728,7 +727,22 @@ void ApplicationClerk(int lineNumber)
 
 
 
+void filePicture(FilingJob* jobPointer) 
+{
+    jobPointer = (FilingJob*)jobPointer;
 
+    int filingTime = (rand() % 80) + 20;
+    printf(MAGENTA  "filingTime = %d" ANSI_COLOR_RESET "\n", filingTime);
+    for (int i = 0; i < filingTime; i++)
+    {
+        currentThread->Yield();
+        //printf(MAGENTA  "FilingPicture back in scheduler %s"  ANSI_COLOR_RESET  "\n", currentThread->getName());
+    }
+    filingPictureLock.Acquire();
+    customerData[jobPointer->ssn].photoFiled = true;
+    printf(GREEN  "PictureClerk %d has recorded a filed picture for Customer %d"  ANSI_COLOR_RESET  "\n", jobPointer->lineNumber, jobPointer->ssn);
+    filingPictureLock.Release();
+}
 
 void CustomerToPictureClerk(int ssn, int myLine)
 {
@@ -745,6 +759,17 @@ void CustomerToPictureClerk(int ssn, int myLine)
         currentThread->Yield();
         customerData[ssn].acceptedPicture = true;
         printf(GREEN  "Customer %d does like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        currentThread->Yield();
+        FilingJob * pictureFiling = new FilingJob(ssn, myLine);
+        Thread * t = new Thread("PictureFilingThread");
+        t->Fork((VoidFunctionPtr)filePicture, (int)pictureFiling);
+        int filingTime = (rand() % 80) + 20;
+        //printf(MAGENTA  "filingTime = %d" ANSI_COLOR_RESET "\n", filingTime);
+        for (int i = 0; i < filingTime; i++)
+        {
+            currentThread->Yield();
+            //printf(MAGENTA  "FilingApplication back in scheduler %s"  ANSI_COLOR_RESET  "\n", currentThread->getName());
+        }
     }
     else
     {
@@ -767,34 +792,6 @@ void CustomerToPictureClerk(int ssn, int myLine)
     }
 }
 
-
-/*void filePicture(int ssn, int lineNumber){
-    int filingTime = (rand() % 80) + 20;
-    for (int i = 0; i < filingTime; i++)
-    {
-        currentThread->Yield();
-    }
-    CustomerData[ssn].photoFiled=true;
-}*/
-    void filePicture(FilingJob* jobPointer) {
-
-    jobPointer = (FilingJob*)jobPointer;
-
-    int filingTime = (rand() % 80) + 20;
-    printf(MAGENTA  "filingTime = %d" ANSI_COLOR_RESET "\n", filingTime);
-    for (int i = 0; i < filingTime; i++)
-    {
-        currentThread->Yield();
-        //printf(MAGENTA  "FilingApplication back in scheduler %s"  ANSI_COLOR_RESET  "\n", currentThread->getName());
-    }
-    filingApplicationLock.Acquire();
-    customerData[jobPointer->ssn].photoFiled = true;
-    printf(GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", jobPointer->lineNumber, jobPointer->ssn);
-    
-    filingApplicationLock.Release();
-
-}
-
 void PictureClerkToCustomer(int lineNumber)
 {
     // TODO: TRANSFER DATA BETWEEN PIC CLERK AND CUSTOMER
@@ -809,7 +806,6 @@ void PictureClerkToCustomer(int lineNumber)
     picClerkLock[lineNumber]->Release();
 
 }
-
 void PictureClerk(int lineNumber)
 {
     picLineLock.Acquire();
@@ -828,6 +824,7 @@ void PictureClerk(int lineNumber)
             printf(GREEN  "PictureClerk %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
             picClerkData[lineNumber].state = BUSY;
             PictureClerkToCustomer(lineNumber);
+
         }
         else
         { 
@@ -883,7 +880,7 @@ void CustomerToPassportClerk(int ssn, int myLine)
 
     filingApplicationLock.Acquire();
     filingPictureLock.Acquire();
-    if(!customerData[ssn].applicationFiled) { //|| !customerData[ssn].photoFiled
+    if(!customerData[ssn].applicationFiled || !customerData[ssn].photoFiled){
         printf("PassportClerk %d has determined that Customer %d does not have both their application and picture completed\n", myLine, ssn);
         printf(MAGENTA  "release 1"  ANSI_COLOR_RESET  "\n");
         filingApplicationLock.Release();
@@ -1623,8 +1620,8 @@ void Part2()
     //  ================================================
 
 
-    t = new Thread("Manager");
-    t->Fork((VoidFunctionPtr)Manager, 0);
+   // t = new Thread("Manager");
+    //t->Fork((VoidFunctionPtr)Manager, 0);
     //  ================================================
     //      Customers
     //  ================================================
