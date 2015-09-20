@@ -18,12 +18,12 @@
 
 #include <stdio.h>
 
-#define ANSI_COLOR_RED     "\x1b[31m"
-#define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_YELLOW  "\x1b[33m"
-#define ANSI_COLOR_BLUE    "\x1b[34m"
-#define ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define RED     "\x1b[31m"
+#define GREEN   "\x1b[32m"
+#define YELLOW  "\x1b[33m"
+#define BLUE    "\x1b[34m"
+#define MAGENTA "\x1b[35m"
+#define CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 
@@ -594,7 +594,7 @@ void CustomerToApplicationClerk(int ssn, int myLine)
 
     appClerkLock[myLine]->Acquire();
     //Give my data to my clerk
-    printf(ANSI_COLOR_GREEN  "Customer %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+    printf(GREEN  "Customer %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
     appClerkData[myLine].currentCustomer = ssn;
     //task is give my data to the clerk using customerData[5]
     appClerkCV[myLine]->Signal(appClerkLock[myLine]);
@@ -635,12 +635,12 @@ void ApplicationClerkToCustomer(int lineNumber)
     appClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     appLineLock.Release(); // clerk must know a customer left before starting over
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
-    printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
+    printf(GREEN  "ApplicationClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
     // do my job - customer nowwaiting
     currentThread->Yield();
     //t = new Thread("ApplicationFilingThread");
     //t->Fork((VoidFunctionPtr)fileApplication, ApplicationClerkData[lineNumber].currentCustomer); //think about where this should go!
-    printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer);
+    printf(GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer);
     appClerkCV[lineNumber]->Signal(appClerkLock[lineNumber]);
     appClerkData[lineNumber].currentCustomer = -1; //set current customer back to -1
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
@@ -661,14 +661,14 @@ void ApplicationClerk(int lineNumber)
             if (appClerkData[lineNumber].lineCount > 0) 
             {
                 // wake up next customer on may line
-                printf(ANSI_COLOR_GREEN  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
+                printf(GREEN  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
                 appClerkLineCV[lineNumber]->Signal(&appLineLock);
                 appClerkData[lineNumber].state = BUSY;
                 ApplicationClerkToCustomer(lineNumber);
             }
             else
             {
-                printf(ANSI_COLOR_GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
+                printf(GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
                 // nobody is waiting
                 appClerkData[lineNumber].state = ONBREAK;
                 appClerkBreakCV[lineNumber]->Wait(&appLineLock);
@@ -717,11 +717,11 @@ void CustomerToPictureClerk(int ssn, int myLine)
     {
         currentThread->Yield();
         customerData[ssn].acceptedPicture = true;
-        printf(ANSI_COLOR_GREEN  "Customer %d does like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        printf(GREEN  "Customer %d does like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
     }
     else
     {
-        printf(ANSI_COLOR_GREEN  "Customer %d does not like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        printf(GREEN  "Customer %d does not like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
     }
     picClerkCV[myLine]->Signal(picClerkLock[myLine]); //leaving
     picClerkLock[myLine]->Release();
@@ -731,7 +731,7 @@ void CustomerToPictureClerk(int ssn, int myLine)
         picLineLock.Acquire();
         // ApplicationClerk is not available, so wait in line
         picClerkData[myLine].lineCount++; // Join the line
-        printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        printf(GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         picClerkLineCV[myLine]->Wait(&picLineLock); // Waiting in line
         // Reacquires lock after getting woken up inside Wait.
         picClerkData[myLine].lineCount--; // Leaving the line
@@ -757,7 +757,7 @@ void PictureClerkToCustomer(int lineNumber)
     picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-    printf(ANSI_COLOR_GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, ssn);
+    printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, ssn);
     picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
     picClerkLock[lineNumber]->Release();
@@ -843,7 +843,7 @@ void CustomerToPassportClerk(int ssn, int myLine)
             //go to the back of the line and wait again
             passportLineLock.Acquire();
             passportClerkData[myLine].lineCount++; // rejoin the line
-            printf(ANSI_COLOR_GREEN  "Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+            printf(GREEN  "Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
             passportClerkLineCV[myLine]->Wait(&passportLineLock); // Waiting in line
             // Reacquires lock after getting woken up inside Wait.
             passportClerkData[myLine].lineCount--; // Leaving the line, going to the counter
@@ -876,7 +876,7 @@ void PassportClerkToCustomer(int lineNumber)
     picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-    printf(ANSI_COLOR_GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, ssn);
+    printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, ssn);
     picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
     picClerkLock[lineNumber]->Release();
@@ -955,7 +955,7 @@ void CustomerToCashier(int ssn, int myLine)
             //go to the back of the line and wait again
             cashierLineLock.Acquire();
             cashierData[myLine].lineCount++; // rejoin the line
-            printf(ANSI_COLOR_GREEN  "Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+            printf(GREEN  "Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
             cashierLineCV[myLine]->Wait(&cashierLineLock); // Waiting in line
             // Reacquires lock after getting woken up inside Wait.
             cashierData[myLine].lineCount--; // Leaving the line, going to the counter
@@ -1061,7 +1061,7 @@ void Manager(){
             {
                 appClerkData[i].state = AVAILABLE;
                 appClerkBreakCV[i]->Signal(&appLineLock);
-                printf(ANSI_COLOR_GREEN  "Manager has woken up an ApplicationClerk."  ANSI_COLOR_RESET  "\n");
+                printf(GREEN  "Manager has woken up an ApplicationClerk."  ANSI_COLOR_RESET  "\n");
             }
         }
         appLineLock.Release();
@@ -1075,12 +1075,12 @@ void Manager(){
             {
                 picClerkData[i].state = AVAILABLE;
                 picClerkBreakCV[i]->Signal(&picLineLock);
-                printf(ANSI_COLOR_GREEN  "Manager has woken up an PictureClerk."  ANSI_COLOR_RESET  "\n");
+                printf(GREEN  "Manager has woken up an PictureClerk."  ANSI_COLOR_RESET  "\n");
                 
 
 
                 // TODO: I think this should be inside of ApplicationClerk
-                printf(ANSI_COLOR_GREEN  "ApplicationClerk %d is coming off break." ANSI_COLOR_RESET  "\n", i);
+                printf(GREEN  "ApplicationClerk %d is coming off break." ANSI_COLOR_RESET  "\n", i);
             }
         }
         picLineLock.Release();
@@ -1094,16 +1094,16 @@ void Manager(){
             {
                 passportClerkData[i].state = AVAILABLE;
                 passportClerkBreakCV[i]->Signal(&passportLineLock);
-                printf(ANSI_COLOR_GREEN  "Manager has woken up an PassportClerk."  ANSI_COLOR_RESET  "\n");
+                printf(GREEN  "Manager has woken up an PassportClerk."  ANSI_COLOR_RESET  "\n");
             }
         }
         passportLineLock.Release();
 
-        printf(ANSI_COLOR_GREEN  "Manager has counted a total of $%d for ApplicationClerks."  ANSI_COLOR_RESET  "\n", appClerkMoney);
-        printf(ANSI_COLOR_GREEN  "Manager has counted a total of $%d for PictureClerks."  ANSI_COLOR_RESET  "\n", picClerkMoney);
-        printf(ANSI_COLOR_GREEN  "Manager has counted a total of $%d for PassportClerks."  ANSI_COLOR_RESET  "\n", passportClerkMoney);
-        printf(ANSI_COLOR_GREEN  "Manager has counted a total of $%d for Cashier."  ANSI_COLOR_RESET  "\n", cashierMoney);
-        printf(ANSI_COLOR_GREEN  "Manager has counted a total of $%d for the passport office."  ANSI_COLOR_RESET  "\n", totalMoney);
+        printf(GREEN  "Manager has counted a total of $%d for ApplicationClerks."  ANSI_COLOR_RESET  "\n", appClerkMoney);
+        printf(GREEN  "Manager has counted a total of $%d for PictureClerks."  ANSI_COLOR_RESET  "\n", picClerkMoney);
+        printf(GREEN  "Manager has counted a total of $%d for PassportClerks."  ANSI_COLOR_RESET  "\n", passportClerkMoney);
+        printf(GREEN  "Manager has counted a total of $%d for Cashier."  ANSI_COLOR_RESET  "\n", cashierMoney);
+        printf(GREEN  "Manager has counted a total of $%d for the passport office."  ANSI_COLOR_RESET  "\n", totalMoney);
 
         currentThread->Yield();
     }
@@ -1147,12 +1147,16 @@ void Senator()
 
 void getInput()
 {
-    printf(ANSI_COLOR_MAGENTA  "Number of Customers = %d"  ANSI_COLOR_RESET  "\n", numCustomers);
-    printf(ANSI_COLOR_MAGENTA  "Number of ApplicationClerks = %d"  ANSI_COLOR_RESET  "\n", numAppClerks);
-    printf(ANSI_COLOR_MAGENTA  "Number of PictureClerks = %d"  ANSI_COLOR_RESET  "\n", numPicClerks);
-    printf(ANSI_COLOR_MAGENTA  "Number of PassportClerks = %d"  ANSI_COLOR_RESET  "\n", numPassportClerks);
-    printf(ANSI_COLOR_MAGENTA  "Number of Cashiers = %d"  ANSI_COLOR_RESET  "\n", numCashiers);
-    printf(ANSI_COLOR_MAGENTA  "Number of Senators = %d"  ANSI_COLOR_RESET  "\n", numSenators);
+    
+
+
+
+    printf(MAGENTA  "Number of Customers = %d"  ANSI_COLOR_RESET  "\n", numCustomers);
+    printf(MAGENTA  "Number of ApplicationClerks = %d"  ANSI_COLOR_RESET  "\n", numAppClerks);
+    printf(MAGENTA  "Number of PictureClerks = %d"  ANSI_COLOR_RESET  "\n", numPicClerks);
+    printf(MAGENTA  "Number of PassportClerks = %d"  ANSI_COLOR_RESET  "\n", numPassportClerks);
+    printf(MAGENTA  "Number of Cashiers = %d"  ANSI_COLOR_RESET  "\n", numCashiers);
+    printf(MAGENTA  "Number of Senators = %d"  ANSI_COLOR_RESET  "\n", numSenators);
 }
 
 
@@ -1233,10 +1237,10 @@ void DecideLine(int ssn, int clerkType)
         clerkData[myLine].lineCount++; // Join the line
 
         switch(clerkType) {
-            case 0: printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
-            case 1: printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
-            case 2: printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
-            case 3: printf(ANSI_COLOR_GREEN  "Customer %d has gotten in regular line for Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
+            case 0: printf(GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
+            case 1: printf(GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
+            case 2: printf(GREEN  "Customer %d has gotten in regular line for PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
+            case 3: printf(GREEN  "Customer %d has gotten in regular line for Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
         }
 
         lineCV[myLine]->Wait(lineLock); // Waiting in line (Reacquires lock after getting woken up inside Wait.)
@@ -1355,7 +1359,11 @@ void Part2()
     passportClerkBreakCV = new Condition*[numPassportClerks];
     cashierBreakCV = new Condition*[numCashiers];
 
-    lineDecisionMonitors = new LineDecisionMonitor [4]; // Used to reference clerk data when making decision about which line to get in. 4 types of clerk
+    // Used to reference clerk data when making decision about which line to get in. 4 types of clerk
+    lineDecisionMonitors = new LineDecisionMonitor [4];
+
+
+    //  POLISH: If we have time, below could be done in two nested for loops.
 
 
     //  ================================================

@@ -28,12 +28,12 @@
 
 #include <stdio.h>
 
-#define ANSI_COLOR_RED     "\x1b[31m"
-#define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_YELLOW  "\x1b[33m"
-#define ANSI_COLOR_BLUE    "\x1b[34m"
-#define ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define RED     "\x1b[31m"
+#define GREEN   "\x1b[32m"
+#define YELLOW  "\x1b[33m"
+#define BLUE    "\x1b[34m"
+#define MAGENTA "\x1b[35m"
+#define CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 
@@ -133,7 +133,7 @@ Lock::~Lock()
 }
 void Lock::Acquire()
 {
-    if (debuggingLocks) printf(ANSI_COLOR_YELLOW  "[Lock::Acquire] (%s) %s called acquire."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+    if (debuggingLocks) printf(YELLOW  "[Lock::Acquire] (%s) %s called acquire."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
     
     IntStatus old = interrupt->SetLevel(IntOff);
     if (isHeldByCurrentThread())
@@ -148,11 +148,11 @@ void Lock::Acquire()
         //I can have it, make state busy, make myself the lock owner
         lockOwner=currentThread; //i am the lock owner
         state = 1; //set the lock state to busy
-        if (debuggingLocks) printf(ANSI_COLOR_YELLOW  "[Lock::Acquire] (%s) %s acquired the lock."   ANSI_COLOR_RESET "\n", name, lockOwner->getName());
+        if (debuggingLocks) printf(YELLOW  "[Lock::Acquire] (%s) %s acquired the lock."   ANSI_COLOR_RESET "\n", name, lockOwner->getName());
     }
     else 
     {
-        if (debuggingLocks) printf(ANSI_COLOR_YELLOW  "[Lock::Acquire] (%s) %s is trying to acquire a lock already owned by %s. %s is being put on lock's queue."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), lockOwner->getName(), currentThread->getName());
+        if (debuggingLocks) printf(YELLOW  "[Lock::Acquire] (%s) %s is trying to acquire a lock already owned by %s. %s is being put on lock's queue."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), lockOwner->getName(), currentThread->getName());
         
         sleepqueue->Append((void *)currentThread); //put current thread on lock’s wait Q
         currentThread->Sleep();
@@ -163,20 +163,20 @@ void Lock::Acquire()
 }
 void Lock::Release() 
 {
-    if (debuggingLocks) printf(ANSI_COLOR_YELLOW  "[Lock::Release] (%s) %s called release."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+    if (debuggingLocks) printf(YELLOW  "[Lock::Release] (%s) %s called release."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); //turn off interrupts
     
     if(!isHeldByCurrentThread())
     {
-        if (debuggingLocks) printf(ANSI_COLOR_RED  "[Lock::Release] (%s) ERROR: %s is trying to release a lock owned by %s. Returning."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), lockOwner->getName());
+        if (debuggingLocks) printf(RED  "[Lock::Release] (%s) ERROR: %s is trying to release a lock owned by %s. Returning."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), lockOwner->getName());
         interrupt->SetLevel(oldLevel);
 
         return;
     }
     if(isHeldByCurrentThread()) //if current thread is lockowner
     {
-        if (debuggingLocks) printf(ANSI_COLOR_YELLOW  "[Lock::Release] (%s) %s released the lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+        if (debuggingLocks) printf(YELLOW  "[Lock::Release] (%s) %s released the lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         
         state = 0;//free the lock
         lockOwner = NULL;//return lockOwner to NULL
@@ -210,26 +210,26 @@ Condition::~Condition()
 
 void Condition::Wait(Lock * conditionLock) 
 {
-    if (debuggingCVs) printf(ANSI_COLOR_BLUE  "[Condition::Wait] (%s) %s called wait."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+    if (debuggingCVs) printf(BLUE  "[Condition::Wait] (%s) %s called wait."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
     IntStatus oldLevel = interrupt->SetLevel(IntOff); //disable interrupts
     if(!conditionLock) //if condition lock is not owned by curr thread
     { 
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition::Wait] (%s) ERROR: %s passed in a invalid (null) lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+        if (debuggingCVs) printf(RED  "[Condition::Wait] (%s) ERROR: %s passed in a invalid (null) lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }
     if(!conditionLock->isHeldByCurrentThread()) //if condition lock is not owned by curr thread
     { 
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition::Wait] (%s) ERROR: %s is trying to wait on a condition using a lock it does not own (and therefore does not have access to the crit. sect.)."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+        if (debuggingCVs) printf(RED  "[Condition::Wait] (%s) ERROR: %s is trying to wait on a condition using a lock it does not own (and therefore does not have access to the crit. sect.)."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }    
     if (!waitingLock){
         waitingLock=conditionLock;
-        if (debuggingCVs) printf(ANSI_COLOR_BLUE  "[Condition::Wait] (%s) CV's waiting lock being set to %s."  ANSI_COLOR_RESET  "\n", name, conditionLock->getName());
+        if (debuggingCVs) printf(BLUE  "[Condition::Wait] (%s) CV's waiting lock being set to %s."  ANSI_COLOR_RESET  "\n", name, conditionLock->getName());
     }
     if (waitingLock != conditionLock){
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition::Wait] (%s) ERROR: CV already has a corresponding lock %s, but %s is trying to use lock %s."  ANSI_COLOR_RESET  "\n",  name, waitingLock->getName(), currentThread->getName(), conditionLock->getName());
+        if (debuggingCVs) printf(RED  "[Condition::Wait] (%s) ERROR: CV already has a corresponding lock %s, but %s is trying to use lock %s."  ANSI_COLOR_RESET  "\n",  name, waitingLock->getName(), currentThread->getName(), conditionLock->getName());
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }
@@ -242,27 +242,27 @@ void Condition::Wait(Lock * conditionLock)
 } 
 void Condition::Signal(Lock * conditionLock)
 {
-    if (debuggingCVs) printf(ANSI_COLOR_BLUE  "[Condition::Signal] (%s) %s called signal."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+    if (debuggingCVs) printf(BLUE  "[Condition::Signal] (%s) %s called signal."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
     IntStatus oldLevel = interrupt->SetLevel(IntOff);
     if(!conditionLock) //if condition lock is not owned by curr thread
     { 
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition::Signal] (%s) ERROR: %s passed in a invalid (null) lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+        if (debuggingCVs) printf(RED  "[Condition::Signal] (%s) ERROR: %s passed in a invalid (null) lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }
     if (!conditionLock->isHeldByCurrentThread())
     {
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition::Signal] (%s) ERROR: %s is trying to signal a condition using a lock it does not own (and therefore does not have access to the crit. sect.)."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+        if (debuggingCVs) printf(RED  "[Condition::Signal] (%s) ERROR: %s is trying to signal a condition using a lock it does not own (and therefore does not have access to the crit. sect.)."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         interrupt->SetLevel(oldLevel);
         return;
     }
     if (waitingLock && waitingLock != conditionLock) {
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition::Signal] (%s) ERROR: %s trying to signal a condition using the wrong lock. (%s = wrong lock, %s = proper lock)" ANSI_COLOR_RESET "\n", name, currentThread->getName(), conditionLock->getName(), waitingLock->getName());
+        if (debuggingCVs) printf(RED  "[Condition::Signal] (%s) ERROR: %s trying to signal a condition using the wrong lock. (%s = wrong lock, %s = proper lock)" ANSI_COLOR_RESET "\n", name, currentThread->getName(), conditionLock->getName(), waitingLock->getName());
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }
     if (waitqueue->IsEmpty()){
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition::Signal] (%s) %s signalled, but there were no waiting threads."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+        if (debuggingCVs) printf(RED  "[Condition::Signal] (%s) %s signalled, but there were no waiting threads."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         waitingLock = NULL;
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
@@ -271,7 +271,7 @@ void Condition::Signal(Lock * conditionLock)
     Thread *next = (Thread *)waitqueue->Remove();
     if(next!=NULL) //while waitqueue isn't empty
     {
-        if (debuggingCVs) printf(ANSI_COLOR_BLUE  "[Condition::Signal] (%s) %s signalled %s."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), next->getName());
+        if (debuggingCVs) printf(BLUE  "[Condition::Signal] (%s) %s signalled %s."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), next->getName());
         scheduler->ReadyToRun(next);
         interrupt->SetLevel(oldLevel);
     }
@@ -282,28 +282,28 @@ void Condition::Signal(Lock * conditionLock)
 } 
 void Condition::Broadcast(Lock* conditionLock)
 {
-    if (debuggingCVs) printf(ANSI_COLOR_BLUE  "[Condition::Broadcast] (%s) %s called broadcast."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+    if (debuggingCVs) printf(BLUE  "[Condition::Broadcast] (%s) %s called broadcast."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
     IntStatus oldLevel = interrupt->SetLevel(IntOff);
     if(!conditionLock) //if condition lock is not owned by curr thread
     { 
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition:Broadcast] (%s) ERROR: %s passed in a invalid (null) lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+        if (debuggingCVs) printf(RED  "[Condition:Broadcast] (%s) ERROR: %s passed in a invalid (null) lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }
     if(!conditionLock->isHeldByCurrentThread())
     {
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition:Broadcast] (%s) ERROR: %s is trying to broadcast a condition using a lock it does not own (and therefore does not have access to the crit. sect.)."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+        if (debuggingCVs) printf(RED  "[Condition:Broadcast] (%s) ERROR: %s is trying to broadcast a condition using a lock it does not own (and therefore does not have access to the crit. sect.)."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         interrupt->SetLevel(oldLevel); 
         return;
     }
     if (waitingLock && waitingLock != conditionLock) {
-        if (debuggingCVs) printf(ANSI_COLOR_RED  "[Condition:Broadcast] (%s) ERROR: %s trying to broadcast a condition using the wrong lock. (%s = wrong lock, %s = proper lock)" ANSI_COLOR_RESET "\n", name, currentThread->getName(), conditionLock->getName(), waitingLock->getName());
+        if (debuggingCVs) printf(RED  "[Condition:Broadcast] (%s) ERROR: %s trying to broadcast a condition using the wrong lock. (%s = wrong lock, %s = proper lock)" ANSI_COLOR_RESET "\n", name, currentThread->getName(), conditionLock->getName(), waitingLock->getName());
         interrupt->SetLevel(oldLevel);//restore interrupts
         return;
     }
     interrupt->SetLevel(oldLevel);
     while(!waitqueue->IsEmpty()) {
-        if (debuggingCVs) printf(ANSI_COLOR_BLUE  "[Condition::Broadcast] (%s) %s is signalling another thread."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+        if (debuggingCVs) printf(BLUE  "[Condition::Broadcast] (%s) %s is signalling another thread."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
         Signal(conditionLock);
     }
 }
