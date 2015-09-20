@@ -841,6 +841,8 @@ void DecidePictureLine(int ssn)
 {
     picLineLock.Acquire();
 
+
+
     int myLine = -1; // no line yet
     int lineSize = 1000; // bigger (bc we're finding shortest line) than # customers created
     
@@ -861,7 +863,7 @@ void DecidePictureLine(int ssn)
 
         // What if everyones on break?
         // Keep track of the longest line
-        if (picClerkData[i].lineCount > longestLineSize) 
+        if (picClerkData[i].lineCount > longestLineSize)
         {
             longestLine = i;
         }
@@ -912,13 +914,15 @@ void PictureClerkToCustomer(int lineNumber)
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
     printf(ANSI_COLOR_GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, ssn);
     picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
+    picClerkData[lineNumber].currentCustomer = -1;
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
     picClerkLock[lineNumber]->Release();
 }
 
 void PictureClerk(int lineNumber)
 {
-
+    picLineLock.Acquire();
+    PictureClerkToCustomer(lineNumber);
     while (true)
     {
         picLineLock.Acquire();
@@ -1070,15 +1074,18 @@ void DecidePassportLine(int ssn)
 void PassportClerkToCustomer(int lineNumber)
 {
     int ssn = 0;
-    picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
-    picLineLock.Release(); //clerk must know a customer left before starting over
-    picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-    printf("PictureClerk %d has taken a picture of Customer %d.\n", lineNumber, ssn);
-    picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
-    picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-    picClerkLock[lineNumber]->Release();
+    passportClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
+    passportLineLock.Release(); //clerk must know a customer left before starting over
+    passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
+    printf("PassportClerk %d has taken a picture of Customer %d.\n", lineNumber, ssn);
+    passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]);
+    passportClerkData[lineNumber].currentCustomer = -1;
+    passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
+    passportClerkLock[lineNumber]->Release();
 }
 void PassportClerk(int lineNumber){
+    passportLineLock.Acquire();
+    PassportClerkToCustomer(lineNumber);
     while (true)
         {
             passportLineLock.Acquire();
@@ -1222,9 +1229,19 @@ void DecideCashierLine(int ssn){
     CustomerData[ssn].passportCompleted=true;
 }*/
 void CashierToCustomer(int lineNumber){
-
+    int ssn = 0;
+    cashierLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
+    cashierLineLock.Release(); //clerk must know a customer left before starting over
+    cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
+    printf("Cashier %d has taken $100 from Customer %d.\n", lineNumber, ssn);
+    cashierCV[lineNumber]->Signal(cashierLock[lineNumber]);
+    cashierData[lineNumber].currentCustomer = -1;
+    cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
+    cashierLock[lineNumber]->Release();
 }
 void Cashier(int lineNumber){
+    cashierLineLock.Acquire();
+    CashierToCustomer(lineNumber);
     while (true)
     {
         cashierLineLock.Acquire();
