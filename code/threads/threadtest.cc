@@ -765,6 +765,7 @@ void PictureClerkToCustomer(int lineNumber)
     picClerkData[lineNumber].currentCustomer = -1;
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
     picClerkLock[lineNumber]->Release();
+
 }
 
 void PictureClerk(int lineNumber)
@@ -823,10 +824,42 @@ void PictureClerk(int lineNumber)
 
 
 
-
-
-
-
+// void CustomerToPictureClerk(int ssn, int myLine)
+// {
+//     //customer just got to window, wake up, wait to take picture
+//     picClerkLock[myLine]->Acquire();//simulating the line
+//     picClerkCV[myLine]->Signal(picClerkLock[myLine]);//take my picture
+//     picClerkData[myLine].currentCustomer = ssn;
+//     printf(GREEN  "Customer %d has given SSN %d to PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+//     picClerkCV[myLine]->Wait(picClerkLock[myLine]); //waiting for you to take my picture
+    
+//     int randomVal = (rand() % 100 + 1);
+//     if ( randomVal < 50 )
+//     {
+//         currentThread->Yield();
+//         customerData[ssn].acceptedPicture = true;
+//         printf(GREEN  "Customer %d does like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+//     }
+//     else
+//     {
+//         printf(GREEN  "Customer %d does not like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+//     }
+//     picClerkCV[myLine]->Signal(picClerkLock[myLine]); //leaving
+//     picClerkLock[myLine]->Release();
+    
+//     if (!customerData[ssn].acceptedPicture)
+//     {
+//         picLineLock.Acquire();
+//         // ApplicationClerk is not available, so wait in line
+//         picClerkData[myLine].lineCount++; // Join the line
+//         printf(GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+//         picClerkLineCV[myLine]->Wait(&picLineLock); // Waiting in line
+//         // Reacquires lock after getting woken up inside Wait.
+//         picClerkData[myLine].lineCount--; // Leaving the line
+//         picLineLock.Release();
+//         CustomerToPictureClerk(ssn, myLine);
+//     }
+// }
 
 
 
@@ -837,6 +870,7 @@ void CustomerToPassportClerk(int ssn, int myLine)
     passportClerkCV[myLine]->Signal(passportClerkLock[myLine]);
     passportClerkData[myLine].currentCustomer = ssn;
     printf(GREEN  "Customer %d has given SSN %d to PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+
     passportClerkCV[myLine]->Wait(passportClerkLock[myLine]);
         
     //customer pays the passport clerk $100
@@ -848,6 +882,8 @@ void CustomerToPassportClerk(int ssn, int myLine)
 
             //go to the back of the line and wait again
             passportLineLock.Acquire();
+            passportClerkCV[myLine]->Signal(passportClerkLock[myLine]); //leaving
+            passportClerkLock[myLine]->Release();
             passportClerkData[myLine].lineCount++; // rejoin the line
             printf(GREEN  "Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
             passportClerkLineCV[myLine]->Wait(&passportLineLock); // Waiting in line
@@ -859,6 +895,7 @@ void CustomerToPassportClerk(int ssn, int myLine)
             //thread yield until passportcertification
             //customer leaves counter
             //customer gets on line for cashier
+  
     passportClerkCV[myLine]->Signal(passportClerkLock[myLine]); //leaving
     passportClerkLock[myLine]->Release();
 }
@@ -879,11 +916,14 @@ void PassportClerkToCustomer(int lineNumber)
     passportClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     passportLineLock.Release(); //clerk must know a customer left before starting over
     passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
-    printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, passportClerkData[lineNumber].currentCustomer);
+    printf(GREEN  "PassportClerk %d has confirmed a picture and application was filed for Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, passportClerkData[lineNumber].currentCustomer);
     passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]);
     passportClerkData[lineNumber].currentCustomer = -1;
     passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
     passportClerkLock[lineNumber]->Release();
+
+
+
 }
 void PassportClerk(int lineNumber){
     passportLineLock.Acquire();
@@ -912,10 +952,6 @@ void PassportClerk(int lineNumber){
             }
         }
 }
-
-
-
-
 
 
 
