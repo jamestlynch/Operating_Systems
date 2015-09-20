@@ -474,7 +474,6 @@ struct CustomerData
         photoFiled = false;
         passportCertified = false;
         passportRecorded = false;
-        turnedInApplication = false;
         acceptedPicture = false;
         gotPassport = false;
         int RandIndex = rand() % 4;
@@ -502,6 +501,16 @@ struct ManagerData
 {
     int money;// = 0;
 };
+struct FilingJob
+{
+    int ssn;
+    int lineNumber;
+    FilingJob(int tempssn, int templineNumber)
+    {
+        ssn=tempssn;
+        lineNumber=templineNumber;
+    }
+};
 
 Condition ** appClerkCV;
 Condition ** picClerkCV;
@@ -525,6 +534,8 @@ Lock appLineLock("ApplicationLineLock");
 Lock picLineLock("PictureLineLock");
 Lock passportLineLock("PassportLineLock");
 Lock cashierLineLock("CashierLineLock");
+Lock filingPictureLock("FilingPictureLock");
+Lock filingApplicationLock("FilingApplicationLock");
 
 Condition ** appClerkBreakCV;
 Condition ** picClerkBreakCV;
@@ -620,15 +631,24 @@ senator enters: grabs every available semaphore slot  –––  can this get i
 */
 
 
-/*void fileApplication(int ssn) {
+void fileApplication(FilingJob* jobPointer) {
+
+    jobPointer = (FilingJob*)jobPointer;
+
     int filingTime = (rand() % 80) + 20;
+    printf(MAGENTA  "filingTime = %d" ANSI_COLOR_RESET "\n", filingTime);
     for (int i = 0; i < filingTime; i++)
     {
         currentThread->Yield();
+        //printf(MAGENTA  "FilingApplication back in scheduler %s"  ANSI_COLOR_RESET  "\n", currentThread->getName());
     }
+    filingApplicationLock.Acquire();
+    customerData[jobPointer->ssn].applicationFiled = true;
+    printf(GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", jobPointer->lineNumber, jobPointer->ssn);
+    
+    filingApplicationLock.Release();
 
-    CustomerData[ssn].turnedInApplication = true;
-}*/
+}
 
 
 
@@ -640,9 +660,9 @@ void ApplicationClerkToCustomer(int lineNumber)
     printf(GREEN  "ApplicationClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
     // do my job - customer nowwaiting
     currentThread->Yield();
-    //t = new Thread("ApplicationFilingThread");
-    //t->Fork((VoidFunctionPtr)fileApplication, ApplicationClerkData[lineNumber].currentCustomer); //think about where this should go!
-    printf(GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer);
+    FilingJob * applicationFiling = new FilingJob(appClerkData[lineNumber].currentCustomer, lineNumber);
+    Thread * t = new Thread("ApplicationFilingThread");
+    t->Fork((VoidFunctionPtr)fileApplication, (int)applicationFiling); //think about where this should go!
     appClerkCV[lineNumber]->Signal(appClerkLock[lineNumber]);
     appClerkData[lineNumber].currentCustomer = -1; //set current customer back to -1
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
@@ -769,6 +789,7 @@ void PictureClerkToCustomer(int lineNumber)
     picClerkData[lineNumber].currentCustomer = -1;
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
     picClerkLock[lineNumber]->Release();
+
 }
 
 void PictureClerk(int lineNumber)
@@ -830,11 +851,6 @@ void PictureClerk(int lineNumber)
 
 
 
-
-
-
-
-
 void CustomerToPassportClerk(int ssn, int myLine)
 {
     // TODO: TRANSMIT DATA FROM CUSTOMER TO PASSPORT CLERK
@@ -842,29 +858,52 @@ void CustomerToPassportClerk(int ssn, int myLine)
     passportClerkCV[myLine]->Signal(passportClerkLock[myLine]);
     passportClerkData[myLine].currentCustomer = ssn;
     printf(GREEN  "Customer %d has given SSN %d to PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+
     passportClerkCV[myLine]->Wait(passportClerkLock[myLine]);
         
     //customer pays the passport clerk $100
-    if(!customerData[ssn].applicationFiled || !customerData[ssn].photoFiled){
-            //customer went to counter too soon,
-            //wait an arbitrary amount of time
-            
-            //TO DO: PUNISHMENT OF 100 to 1000 currentThread->Yield() calls
 
-            //go to the back of the line and wait again
-            passportLineLock.Acquire();
-            passportClerkData[myLine].lineCount++; // rejoin the line
-            printf(GREEN  "Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
-            passportClerkLineCV[myLine]->Wait(&passportLineLock); // Waiting in line
-            // Reacquires lock after getting woken up inside Wait.
-            passportClerkData[myLine].lineCount--; // Leaving the line, going to the counter
-            passportLineLock.Release();
-            CustomerToPassportClerk(ssn, myLine);
-         }
+    filingApplicationLock.Acquire();
+    filingPictureLock.Acquire();
+    if(!customerData[ssn].applicationFiled) { //|| !customerData[ssn].photoFiled
+        printf("PassportClerk %d has determined that Customer %d does not have both their application and picture completed\n", myLine, ssn);
+        printf(MAGENTA  "release 1"  ANSI_COLOR_RESET  "\n");
+        filingApplicationLock.Release();
+        filingPictureLock.Release();
+        //customer went to counter too soon,
+        //wait an arbitrary amount of time
+        int filingTime = (rand() % 80) + 20;
+        //printf(MAGENTA  "filingTime = %d" ANSI_COLOR_RESET "\n", filingTime);
+        for (int i = 0; i < filingTime; i++)
+        {
+            currentThread->Yield();
+            //printf(MAGENTA  "FilingApplication back in scheduler %s"  ANSI_COLOR_RESET  "\n", currentThread->getName());
+        }
+
+
+        //go to the back of the line and wait again
+        passportLineLock.Acquire();
+        passportClerkCV[myLine]->Signal(passportClerkLock[myLine]); //leaving
+        passportClerkLock[myLine]->Release();
+        passportClerkData[myLine].lineCount++; // rejoin the line
+        printf(GREEN  "Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        passportClerkLineCV[myLine]->Wait(&passportLineLock); // Waiting in line
+        // Reacquires lock after getting woken up inside Wait.
+        passportClerkData[myLine].lineCount--; // Leaving the line, going to the counter
+        passportLineLock.Release();
+        CustomerToPassportClerk(ssn, myLine);
+        return;
+     }
+
+    printf(MAGENTA  "release 2"  ANSI_COLOR_RESET  "\n");
+    filingApplicationLock.Release();
+    filingPictureLock.Release();
             //thread yield until passportcertification
-            //customer leaves counter
+            //customer leaves co
             //customer gets on line for cashier
+  
     passportClerkCV[myLine]->Signal(passportClerkLock[myLine]); //leaving
+    printf(MAGENTA  "%s done with passport clerk"  ANSI_COLOR_RESET  "\n", currentThread->getName());
     passportClerkLock[myLine]->Release();
 }
 
@@ -883,14 +922,13 @@ void PassportClerkToCustomer(int lineNumber)
 {
     passportClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     passportLineLock.Release(); //clerk must know a customer left before starting over
-    printf(MAGENTA  "Passport Clerk waiting on first Customer"  ANSI_COLOR_RESET  "\n");
     passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
     printf(GREEN  "PassportClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, passportClerkData[lineNumber].currentCustomer, passportClerkData[lineNumber].currentCustomer);
-    printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, passportClerkData[lineNumber].currentCustomer);
     passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]);
     passportClerkData[lineNumber].currentCustomer = -1;
     passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
     passportClerkLock[lineNumber]->Release();
+
 }
 void PassportClerk(int lineNumber){
     passportLineLock.Acquire();
@@ -921,10 +959,6 @@ void PassportClerk(int lineNumber){
             }
         }
 }
-
-
-
-
 
 
 
@@ -1398,6 +1432,7 @@ void Part2()
     picClerkLock = new Lock*[numPicClerks];
     passportClerkLock = new Lock*[numPassportClerks];
     cashierLock = new Lock*[numCashiers];
+
     
     customerData = new CustomerData[numCustomers];
     appClerkData = new ClerkData[numAppClerks];
@@ -1485,6 +1520,7 @@ void Part2()
         t->Fork((VoidFunctionPtr)PictureClerk, i);
     }
 
+
     lineDecisionMonitors[1].lineLock = &picLineLock;
     lineDecisionMonitors[1].lineCV = picClerkLineCV;
     lineDecisionMonitors[1].breakCV = picClerkBreakCV;
@@ -1565,11 +1601,16 @@ void Part2()
     // lineDecisionMonitors[3].numClerks = numCashiers;
 
     //  ================================================
-    //      Customers
+    //      Managers
     //  ================================================
+
 
     t = new Thread("Manager");
     t->Fork((VoidFunctionPtr)Manager, 0);
+    //  ================================================
+    //      Customers
+    //  ================================================
+
 
     for(int i = 0; i < numCustomers; i++) 
     {
