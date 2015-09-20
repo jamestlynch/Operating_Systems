@@ -536,6 +536,7 @@ Lock passportLineLock("PassportLineLock");
 Lock cashierLineLock("CashierLineLock");
 Lock filingPictureLock("FilingPictureLock");
 Lock filingApplicationLock("FilingApplicationLock");
+Lock certifyingPassportLock("CertifyingPassportLock");
 
 Condition ** appClerkBreakCV;
 Condition ** picClerkBreakCV;
@@ -636,16 +637,14 @@ void fileApplication(FilingJob* jobPointer) {
     jobPointer = (FilingJob*)jobPointer;
 
     int filingTime = (rand() % 80) + 20;
-    printf(MAGENTA  "filingTime = %d" ANSI_COLOR_RESET "\n", filingTime);
     for (int i = 0; i < filingTime; i++)
     {
         currentThread->Yield();
-        //printf(MAGENTA  "FilingApplication back in scheduler %s"  ANSI_COLOR_RESET  "\n", currentThread->getName());
     }
+    
     filingApplicationLock.Acquire();
     customerData[jobPointer->ssn].applicationFiled = true;
     printf(GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", jobPointer->lineNumber, jobPointer->ssn);
-    
     filingApplicationLock.Release();
 
 }
@@ -732,6 +731,8 @@ void ApplicationClerk(int lineNumber)
 
 void CustomerToPictureClerk(int ssn, int myLine)
 {
+    bool acceptedPicture = false;
+
     //customer just got to window, wake up, wait to take picture
     picClerkLock[myLine]->Acquire();//simulating the line
     picClerkCV[myLine]->Signal(picClerkLock[myLine]);//take my picture
@@ -743,7 +744,7 @@ void CustomerToPictureClerk(int ssn, int myLine)
     if ( randomVal < 50 )
     {
         currentThread->Yield();
-        customerData[ssn].acceptedPicture = true;
+        acceptedPicture = true;
         printf(GREEN  "Customer %d does like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
     }
     else
@@ -849,7 +850,20 @@ void PictureClerk(int lineNumber)
 
 
 
+void certifyPassport(FilingJob * certifyingJobPointer){
+    certifyingJobPointer = (FilingJob *) certifyingJobPointer;
 
+    int filingTime = (rand() % 80) + 20;
+    for (int i = 0; i < filingTime; i++)
+    {
+        currentThread->Yield();
+    }
+
+    certifyingPassportLock.Acquire();
+    customerData[certifyingJobPointer->ssn].passportCertified = true;
+    printf(GREEN  "PassportClerk %d has has recorded Customer %d passport documentation."  ANSI_COLOR_RESET  "\n", certifyingJobPointer->lineNumber, certifyingJobPointer->ssn);
+    certifyingPassportLock.Release();
+}
 
 void CustomerToPassportClerk(int ssn, int myLine)
 {
@@ -866,19 +880,13 @@ void CustomerToPassportClerk(int ssn, int myLine)
     filingApplicationLock.Acquire();
     filingPictureLock.Acquire();
     if(!customerData[ssn].applicationFiled) { //|| !customerData[ssn].photoFiled
-        printf("PassportClerk %d has determined that Customer %d does not have both their application and picture completed\n", myLine, ssn);
-        printf(MAGENTA  "release 1"  ANSI_COLOR_RESET  "\n");
+        printf(GREEN  "PassportClerk %d has determined that Customer %d does not have both their application and picture completed."  ANSI_COLOR_RESET  "\n", myLine, ssn);
         filingApplicationLock.Release();
         filingPictureLock.Release();
         //customer went to counter too soon,
         //wait an arbitrary amount of time
-        int filingTime = (rand() % 80) + 20;
-        //printf(MAGENTA  "filingTime = %d" ANSI_COLOR_RESET "\n", filingTime);
-        for (int i = 0; i < filingTime; i++)
-        {
-            currentThread->Yield();
-            //printf(MAGENTA  "FilingApplication back in scheduler %s"  ANSI_COLOR_RESET  "\n", currentThread->getName());
-        }
+        int punishmentTime = (rand() % 900) + 100;
+        for (int i = 0; i < punishmentTime; i++) { currentThread->Yield(); }
 
 
         //go to the back of the line and wait again
@@ -893,40 +901,40 @@ void CustomerToPassportClerk(int ssn, int myLine)
         passportLineLock.Release();
         CustomerToPassportClerk(ssn, myLine);
         return;
-     }
+    }
 
-    printf(MAGENTA  "release 2"  ANSI_COLOR_RESET  "\n");
     filingApplicationLock.Release();
     filingPictureLock.Release();
             //thread yield until passportcertification
             //customer leaves co
             //customer gets on line for cashier
   
+    // TODO: Move the job creation below inside of Passport Clerk
+
+    // Create a FilingJob in the system for certifying the Customer's passport.
+    char * name = new char [40];
+    sprintf(name, "PassportCertifyingThread-PC%d-C%d", myLine, appClerkData[myLine].currentCustomer);
+    Thread * t = new Thread(name);
+    FilingJob * passportCertifyingJob = new FilingJob(appClerkData[myLine].currentCustomer, myLine);
+    t->Fork((VoidFunctionPtr)certifyPassport, (int)passportCertifyingJob); //think about where this should go!
+
     passportClerkCV[myLine]->Signal(passportClerkLock[myLine]); //leaving
     printf(MAGENTA  "%s done with passport clerk"  ANSI_COLOR_RESET  "\n", currentThread->getName());
     passportClerkLock[myLine]->Release();
 }
 
-
-
-/*void certifyApplication(int ssn, int lineNumber){
-    int filingTime = (rand() % 1000) + 100;
-    for (int i = 0; i < filingTime; i++)
-    {
-        currentThread->Yield();
-    }
-    CustomerData[ssn].passportCertified=true;
-}*/
-
 void PassportClerkToCustomer(int lineNumber)
 {
-    passportClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
-    passportLineLock.Release(); //clerk must know a customer left before starting over
-    passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
+    passportClerkLock[lineNumber]->Acquire();
+    passportLineLock.Release();
+    passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]); // Wait for a customer to signal he's ready for me to do work
     printf(GREEN  "PassportClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, passportClerkData[lineNumber].currentCustomer, passportClerkData[lineNumber].currentCustomer);
-    passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]);
+    
+    currentThread->Yield(); // One moment, I need to file in the system
+
+    passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]); // Signal the customer that I have done my work
+    passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]); // Wait for customer to tell me he is leaving
     passportClerkData[lineNumber].currentCustomer = -1;
-    passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
     passportClerkLock[lineNumber]->Release();
 
 }
@@ -989,39 +997,40 @@ void PassportClerk(int lineNumber){
 
 void CustomerToCashier(int ssn, int myLine)
 {
-    //int ssn = 0;
-
-    cashierLock[myLine]->Acquire();//simulating the line
-    cashierCV[myLine]->Signal(cashierLock[myLine]);
-
-    cashierData[myLine].currentCustomer = ssn;
+    cashierLock[myLine]->Acquire(); // Get access to the clerk's counter
+    cashierCV[myLine]->Signal(cashierLock[myLine]); // At the cashier's counter, let him know I'm ready to do work
+    cashierData[myLine].currentCustomer = ssn; // Give clerk my SSN
     printf(GREEN  "Customer %d has given SSN %d to Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+    cashierCV[myLine]->Wait(cashierLock[myLine]); // Wait for cashier to respond after doing work
+    
+    // Cashier did his work, "checking" if you've been certified...
+    certifyingPassportLock.Acquire();
+    if(!customerData[ssn].passportCertified){ // If you weren't, go back to end of line
+        certifyingPassportLock.Release();
+        
+        // Customer went to cashier too soon, "punish" -> wait an arbitrary amount of time
+        int punishmentTime = (rand() % 900) + 100;
+        for (int i = 0; i < punishmentTime; i++) { currentThread->Yield(); }
+        
+        // Go to the back of the line and wait again
+        cashierLineLock.Acquire();
+        cashierData[myLine].lineCount++; // rejoin the line
+        printf(GREEN  "Customer %d has gone to Cashier %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        cashierLineCV[myLine]->Wait(&cashierLineLock); // Waiting in line
+        cashierData[myLine].lineCount--; // Leaving the line, going to the counter
+        cashierLineLock.Release();
+        
+        CustomerToCashier(ssn, myLine); // Try again...
+        return;
+    }
 
-    cashierCV[myLine]->Wait(cashierLock[myLine]);
+    // I was certified, so now I pay.
+    certifyingPassportLock.Release();
+    customerData[ssn].money -= 100;
+    customerData[ssn].gotPassport = true;
 
-    //MAKE SURE MONEY IS DECREMENTED AT RIGHT TIME.
-     
-    if(!customerData[ssn].passportCertified){
-            //customer went to cashier too soon,
-            //wait an arbitrary amount of time
-            
-            //TO DO: PUNISHMENT OF 100 to 1000 currentThread->Yield() calls
-            //go to the back of the line and wait again
-            cashierLineLock.Acquire();
-            cashierData[myLine].lineCount++; // rejoin the line
-            printf(GREEN  "Customer %d has gone to Cashier %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
-            cashierLineCV[myLine]->Wait(&cashierLineLock); // Waiting in line
-            // Reacquires lock after getting woken up inside Wait.
-            cashierData[myLine].lineCount--; // Leaving the line, going to the counter
-            cashierLineLock.Release();
-            CustomerToCashier(ssn, myLine);
-            }
-            customerData[ssn].money -= 100;
-            //thread yield until passportcertification
-            //customer leaves counter
-            //customer gets on line for cashier
-            cashierCV[myLine]->Signal(cashierLock[myLine]); //leaving
-            cashierLock[myLine]->Release();
+    cashierCV[myLine]->Signal(cashierLock[myLine]); // Got my passport from the Cashier, so now I'm leaving
+    cashierLock[myLine]->Release();
 }
 
 /*void recordCompletion(int ssn, int lineNumber){
@@ -1037,10 +1046,11 @@ void CashierToCustomer(int lineNumber){
     cashierLineLock.Release(); //clerk must know a customer left before starting over
     cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
     printf(GREEN  "Cashier %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, cashierData[lineNumber].currentCustomer, cashierData[lineNumber].currentCustomer);
-    printf(GREEN  "Cashier %d has taken $100 from Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, cashierData[lineNumber].currentCustomer);
     cashierCV[lineNumber]->Signal(cashierLock[lineNumber]);
-    cashierData[lineNumber].currentCustomer = -1;
+
     cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
+    printf(GREEN  "Cashier %d has taken $100 from Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, cashierData[lineNumber].currentCustomer);
+    cashierData[lineNumber].currentCustomer = -1;
     cashierLock[lineNumber]->Release();
 }
 void Cashier(int lineNumber){
