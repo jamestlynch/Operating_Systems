@@ -668,10 +668,11 @@ void ApplicationClerk(int lineNumber)
             }
             else
             {
-                printf(GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
-                // nobody is waiting
+                // nobody is waiting –> Go on break.
                 appClerkData[lineNumber].state = ONBREAK;
+                printf(GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
                 appClerkBreakCV[lineNumber]->Wait(&appLineLock);
+                printf(GREEN  "ApplicationClerk %d is coming off break."  ANSI_COLOR_RESET  "\n", lineNumber);
                 // Go on break.
             }
         }
@@ -760,8 +761,9 @@ void PictureClerkToCustomer(int lineNumber)
     picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
-    printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, picClerkData[lineNumber].currentCustomer);
+    printf(GREEN  "PictureClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, picClerkData[lineNumber].currentCustomer, picClerkData[lineNumber].currentCustomer);
     picClerkCV[lineNumber]->Signal(picClerkLock[lineNumber]);
+    printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, picClerkData[lineNumber].currentCustomer);
     picClerkData[lineNumber].currentCustomer = -1;
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
     picClerkLock[lineNumber]->Release();
@@ -792,6 +794,7 @@ void PictureClerk(int lineNumber)
             picClerkData[lineNumber].state = ONBREAK;
             printf(GREEN  "PictureClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
             picClerkBreakCV[lineNumber]->Wait(&picLineLock);
+            printf(GREEN  "PictureClerk %d is coming off break."  ANSI_COLOR_RESET  "\n", lineNumber);
         }
     }
 }
@@ -878,7 +881,9 @@ void PassportClerkToCustomer(int lineNumber)
 {
     passportClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     passportLineLock.Release(); //clerk must know a customer left before starting over
+    printf(MAGENTA  "Passport Clerk waiting on first Customer"  ANSI_COLOR_RESET  "\n");
     passportClerkCV[lineNumber]->Wait(passportClerkLock[lineNumber]);
+    printf(GREEN  "PassportClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, passportClerkData[lineNumber].currentCustomer, passportClerkData[lineNumber].currentCustomer);
     printf(GREEN  "PictureClerk %d has taken a picture of Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, passportClerkData[lineNumber].currentCustomer);
     passportClerkCV[lineNumber]->Signal(passportClerkLock[lineNumber]);
     passportClerkData[lineNumber].currentCustomer = -1;
@@ -888,6 +893,7 @@ void PassportClerkToCustomer(int lineNumber)
 void PassportClerk(int lineNumber){
     passportLineLock.Acquire();
     PassportClerkToCustomer(lineNumber);
+    printf(MAGENTA  "PassportClerk checks his lines."  ANSI_COLOR_RESET  "\n");
     while (true)
         {
             passportLineLock.Acquire();
@@ -909,6 +915,7 @@ void PassportClerk(int lineNumber){
                 passportClerkData[lineNumber].state = ONBREAK;
                 printf(GREEN  "PassportClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
                 passportClerkBreakCV[lineNumber]->Wait(&passportLineLock);
+                printf(GREEN  "PassportClerk %d is coming off break."  ANSI_COLOR_RESET  "\n", lineNumber);
             }
         }
 }
@@ -993,6 +1000,7 @@ void CashierToCustomer(int lineNumber){
     cashierLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     cashierLineLock.Release(); //clerk must know a customer left before starting over
     cashierCV[lineNumber]->Wait(cashierLock[lineNumber]);
+    printf(GREEN  "Cashier %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, cashierData[lineNumber].currentCustomer, cashierData[lineNumber].currentCustomer);
     printf(GREEN  "Cashier %d has taken $100 from Customer %d."  ANSI_COLOR_RESET  "\n", lineNumber, cashierData[lineNumber].currentCustomer);
     cashierCV[lineNumber]->Signal(cashierLock[lineNumber]);
     cashierData[lineNumber].currentCustomer = -1;
@@ -1022,6 +1030,7 @@ void Cashier(int lineNumber){
             cashierData[lineNumber].state = ONBREAK;
             printf(GREEN  "Cashier %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
             cashierBreakCV[lineNumber]->Wait(&cashierLineLock);
+            printf(GREEN  "Cashier %d is coming off break."  ANSI_COLOR_RESET  "\n", lineNumber);
             // Go on break.
         }
     }
