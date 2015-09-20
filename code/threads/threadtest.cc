@@ -549,9 +549,9 @@ ClerkData * picClerkData;
 ClerkData * cashierData;
 ManagerData managerData;
 
-int numCustomers = 4;
+int numCustomers = 8;
 int numAppClerks = 2;
-int numPicClerks = 2;
+int numPicClerks = 1;
 int numPassportClerks = 1;
 int numCashiers = 1;
 int numSenators = 1;
@@ -563,6 +563,7 @@ int numSenators = 1;
 struct LineDecisionMonitor {
     Lock * lineLock;
     Condition ** lineCV;
+    Condition ** breakCV;
     ClerkData * clerkData;
     int numClerks;
 
@@ -1122,66 +1123,84 @@ void Cashier(int lineNumber){
 
 
 
+int ManageClerk(int clerkType)
+{
+    Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
+    ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
+    Condition ** breakCV = lineDecisionMonitors[clerkType].breakCV;
+    int numClerks = lineDecisionMonitors[clerkType].numClerks;
 
+    int clerkMoney = 0;
+    int wakeUpClerk = 0;
+    int clerksOnBreak = 0;
+
+    lineLock->Acquire();
+    for(int i = 0; i < numClerks; i++) 
+    {
+        clerkMoney += clerkData[i].bribeMoney;
+
+        if(clerkData[i].lineCount >= 3 && clerkData[i].state != ONBREAK) 
+        {
+            wakeUpClerk++;
+        }
+
+        if(clerkData[i].state == ONBREAK)
+        {
+            clerksOnBreak++;
+        }
+    }
+
+    for(int i = 0; i < numClerks; i++) 
+    {
+        // If all clerks are on break, but they have people in their line, wake up that clerk
+        if(clerksOnBreak == numClerks && clerkData[i].lineCount > 0)
+        {
+            clerkData[i].state = AVAILABLE;
+            breakCV[i]->Signal(lineLock);
+            switch(clerkType) 
+            {
+                case 0: printf(GREEN  "Manager has woken up ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
+                case 1: printf(GREEN  "Manager has woken up PictureClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
+                case 2: printf(GREEN  "Manager has woken up PassportClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
+                case 3: printf(GREEN  "Manager has woken up Cashier %d"  ANSI_COLOR_RESET  "\n", i); break;
+            }
+            continue;
+        }
+
+        // If a clerk is on break, and another clerk has 3+ people in their line, wake up that clerk
+        if(clerkData[i].state == ONBREAK && wakeUpClerk > 0) 
+        {
+            wakeUpClerk--;
+
+            clerkData[i].state = AVAILABLE;
+            breakCV[i]->Signal(lineLock);
+            switch(clerkType) 
+            {
+                case 0: printf(GREEN  "Manager has woken up ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
+                case 1: printf(GREEN  "Manager has woken up PictureClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
+                case 2: printf(GREEN  "Manager has woken up PassportClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
+                case 3: printf(GREEN  "Manager has woken up Cashier %d"  ANSI_COLOR_RESET  "\n", i); break;
+            }
+        }
+    }
+    lineLock->Release();
+
+    return clerkMoney;
+}
 
 // TODO: add a method for each lock that exists between passport clerks and X
 // TODO: Change clerksLineLock to clerkLineLock[i]
-void Manager(){
+void Manager()
+{
     // Wakes up the clerks when there are >3 people waiting
     // Counts each clerks money
-    while(true) {
-        int appClerkMoney = 0;
-        int picClerkMoney = 0;
-        int passportClerkMoney = 0;
-        int cashierMoney = 0;
-        int totalMoney = 0;
-
-        appLineLock.Acquire();
-        for(int i = 0; i < numAppClerks; i++) 
-        {
-            appClerkMoney += appClerkData[i].bribeMoney;
-
-            if(appClerkData[i].state == ONBREAK && appClerkData[i].lineCount >= 1) 
-            {
-                appClerkData[i].state = AVAILABLE;
-                appClerkBreakCV[i]->Signal(&appLineLock);
-                printf(GREEN  "Manager has woken up an ApplicationClerk."  ANSI_COLOR_RESET  "\n");
-            }
-        }
-        appLineLock.Release();
-
-        picLineLock.Acquire();
-        for(int i = 0; i < numPicClerks; i++) 
-        {
-            picClerkMoney += picClerkData[i].bribeMoney;
-
-            if(picClerkData[i].state == ONBREAK && picClerkData[i].lineCount >= 1)
-            {
-                picClerkData[i].state = AVAILABLE;
-                picClerkBreakCV[i]->Signal(&picLineLock);
-                printf(GREEN  "Manager has woken up an PictureClerk."  ANSI_COLOR_RESET  "\n");
-                
-
-
-                // TODO: I think this should be inside of ApplicationClerk
-                printf(GREEN  "ApplicationClerk %d is coming off break." ANSI_COLOR_RESET  "\n", i);
-            }
-        }
-        picLineLock.Release();
-
-        passportLineLock.Acquire();
-        for(int i = 0; i < numPassportClerks; i++)
-        {
-            passportClerkMoney += passportClerkData[i].bribeMoney;
-
-            if(passportClerkData[i].state == ONBREAK && passportClerkData[i].lineCount >= 1)
-            {
-                passportClerkData[i].state = AVAILABLE;
-                passportClerkBreakCV[i]->Signal(&passportLineLock);
-                printf(GREEN  "Manager has woken up an PassportClerk."  ANSI_COLOR_RESET  "\n");
-            }
-        }
-        passportLineLock.Release();
+    while(true) 
+    {
+        int appClerkMoney = ManageClerk(0);
+        int picClerkMoney = ManageClerk(1);
+        int passportClerkMoney = ManageClerk(2);
+        int cashierMoney = 0; //ManageClerk(3);
+        int totalMoney = appClerkMoney + picClerkMoney + passportClerkMoney + cashierMoney;
 
         printf(GREEN  "Manager has counted a total of $%d for ApplicationClerks."  ANSI_COLOR_RESET  "\n", appClerkMoney);
         printf(GREEN  "Manager has counted a total of $%d for PictureClerks."  ANSI_COLOR_RESET  "\n", picClerkMoney);
@@ -1304,15 +1323,15 @@ void DecideLine(int ssn, int clerkType)
             shortestLine = i;
             shortestLineSize = clerkData[i].lineCount;
         }
+    }
 
-        // What if everyones on break?
-        // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
-        // ^^^ Actually just pick the shortest because assignment says to
-        if (i == (numClerks - 1) && myLine == -1) // If this is the last ApplicationClerk(number of clerks -1) and we haven't picked a line
-        {
-            myLine = shortestLine; // Join the shortest line
-            lineSize = clerkData[i].lineCount;
-        }
+    // What if everyones on break?
+    // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
+    // ^^^ Actually just pick the shortest because assignment says to
+    if(myLine == -1) // If this is the last ApplicationClerk(number of clerks -1) and we haven't picked a line
+    {
+        myLine = shortestLine; // Join the shortest line
+        lineSize = clerkData[myLine].lineCount;
     }
 
     // I've selected a line...
@@ -1483,6 +1502,7 @@ void Part2()
 
     lineDecisionMonitors[0].lineLock = &appLineLock;
     lineDecisionMonitors[0].lineCV = appClerkLineCV;
+    lineDecisionMonitors[0].breakCV = appClerkBreakCV;
     lineDecisionMonitors[0].clerkData = appClerkData;
     lineDecisionMonitors[0].numClerks = numAppClerks;
 
@@ -1521,6 +1541,7 @@ void Part2()
 
     lineDecisionMonitors[1].lineLock = &picLineLock;
     lineDecisionMonitors[1].lineCV = picClerkLineCV;
+    lineDecisionMonitors[1].breakCV = picClerkBreakCV;
     lineDecisionMonitors[1].clerkData = picClerkData;
     lineDecisionMonitors[1].numClerks = numPicClerks;
 
@@ -1557,6 +1578,7 @@ void Part2()
 
     lineDecisionMonitors[2].lineLock = &passportLineLock;
     lineDecisionMonitors[2].lineCV = passportClerkLineCV;
+    lineDecisionMonitors[2].breakCV = passportClerkBreakCV;
     lineDecisionMonitors[2].clerkData = passportClerkData;
     lineDecisionMonitors[2].numClerks = numPassportClerks;
 
@@ -1592,6 +1614,7 @@ void Part2()
 
     // lineDecisionMonitors[3].lineLock = &cashierLineLock;
     // lineDecisionMonitors[3].lineCV = cashierLineCV;
+    // lineDecisionMonitors[3].breakCV = cashierBreakCV;
     // lineDecisionMonitors[3].clerkData = cashierData;
     // lineDecisionMonitors[3].numClerks = numCashiers;
 
@@ -1599,14 +1622,13 @@ void Part2()
     //      Managers
     //  ================================================
 
-    // name = new char[40];
-    // name = "Manager";
-    // t = new Thread(name);
-    // t->Fork((VoidFunctionPtr)Manager, 0);
 
+    t = new Thread("Manager");
+    t->Fork((VoidFunctionPtr)Manager, 0);
     //  ================================================
     //      Customers
     //  ================================================
+
 
     for(int i = 0; i < numCustomers; i++) 
     {
@@ -1627,7 +1649,6 @@ bribe lines
 yields- implement for all clerk processing
 passport
 cashier
-manager
 write all the tests
 on break
 user input menu
