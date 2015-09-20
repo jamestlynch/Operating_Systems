@@ -466,7 +466,8 @@ struct CustomerData
     bool photoFiled;
     bool passportCertified;
     bool passportRecorded;
-    CustomerData(){
+    CustomerData()
+    {
         //initialize money value of
         applicationFiled = false; //this needs to become true when gotPassport=true, acceptedPicture=true, and yield happens for a random amt of time  
         turnedInApplication = false;
@@ -651,30 +652,30 @@ void ApplicationClerk(int lineNumber)
 {
     appLineLock.Acquire();
     ApplicationClerkToCustomer(lineNumber);
-        while (true)
+    while (true)
+    {
+        appLineLock.Acquire();
+        //if (ClerkBribeLineCount[myLine] > 0)
+        //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
+        //appClerkData[lineNumber].state = BUSY;
+        //else
+        if (appClerkData[lineNumber].lineCount > 0) 
         {
-            appLineLock.Acquire();
-            //if (ClerkBribeLineCount[myLine] > 0)
-            //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-            //appClerkData[lineNumber].state = BUSY;
-            //else
-            if (appClerkData[lineNumber].lineCount > 0) 
-            {
-                // wake up next customer on may line
-                printf(GREEN  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
-                appClerkLineCV[lineNumber]->Signal(&appLineLock);
-                appClerkData[lineNumber].state = BUSY;
-                ApplicationClerkToCustomer(lineNumber);
-            }
-            else
-            {
-                printf(GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
-                // nobody is waiting
-                appClerkData[lineNumber].state = ONBREAK;
-                appClerkBreakCV[lineNumber]->Wait(&appLineLock);
-                // Go on break.
-            }
+            // wake up next customer on may line
+            printf(GREEN  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
+            appClerkLineCV[lineNumber]->Signal(&appLineLock);
+            appClerkData[lineNumber].state = BUSY;
+            ApplicationClerkToCustomer(lineNumber);
         }
+        else
+        {
+            printf(GREEN  "ApplicationClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
+            // nobody is waiting
+            appClerkData[lineNumber].state = ONBREAK;
+            appClerkBreakCV[lineNumber]->Wait(&appLineLock);
+            // Go on break.
+        }
+    }
 }
 
 
@@ -1067,19 +1068,19 @@ void Cashier(int lineNumber){
 void Manager(){
     // Wakes up the clerks when there are >3 people waiting
     // Counts each clerks money
-    int appClerkMoney = 0;
-    int picClerkMoney = 0;
-    int passportClerkMoney = 0;
-    int cashierMoney = 0;
-    int totalMoney = 0;
-
     while(true) {
+        int appClerkMoney = 0;
+        int picClerkMoney = 0;
+        int passportClerkMoney = 0;
+        int cashierMoney = 0;
+        int totalMoney = 0;
+
         appLineLock.Acquire();
         for(int i = 0; i < numAppClerks; i++) 
         {
             appClerkMoney += appClerkData[i].bribeMoney;
 
-            if(appClerkData[i].state == ONBREAK && appClerkData[i].lineCount >= 3) 
+            if(appClerkData[i].state == ONBREAK && appClerkData[i].lineCount >= 1) 
             {
                 appClerkData[i].state = AVAILABLE;
                 appClerkBreakCV[i]->Signal(&appLineLock);
@@ -1093,7 +1094,7 @@ void Manager(){
         {
             picClerkMoney += picClerkData[i].bribeMoney;
 
-            if(picClerkData[i].state == ONBREAK && picClerkData[i].lineCount >= 3)
+            if(picClerkData[i].state == ONBREAK && picClerkData[i].lineCount >= 1)
             {
                 picClerkData[i].state = AVAILABLE;
                 picClerkBreakCV[i]->Signal(&picLineLock);
@@ -1112,7 +1113,7 @@ void Manager(){
         {
             passportClerkMoney += passportClerkData[i].bribeMoney;
 
-            if(passportClerkData[i].state == ONBREAK && passportClerkData[i].lineCount >= 3)
+            if(passportClerkData[i].state == ONBREAK && passportClerkData[i].lineCount >= 1)
             {
                 passportClerkData[i].state = AVAILABLE;
                 passportClerkBreakCV[i]->Signal(&passportLineLock);
@@ -1534,6 +1535,11 @@ void Part2()
     //  ================================================
     //      Customers
     //  ================================================
+
+    name = new char[40];
+    name = "Manager";
+    t = new Thread(name);
+    t->Fork((VoidFunctionPtr)Manager, 0);
 
     for(int i = 0; i < numCustomers; i++) 
     {
