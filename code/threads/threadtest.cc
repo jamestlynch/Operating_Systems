@@ -458,7 +458,7 @@ const int moneyOptions[4] = {100, 600, 1100, 1600};
 
 struct CustomerData 
 {
-    int money;
+
     bool turnedInApplication;// = false;
     bool acceptedPicture;// = false;
     bool gotPassport;// = false;
@@ -466,6 +466,7 @@ struct CustomerData
     bool photoFiled;
     bool passportCertified;
     bool passportRecorded;
+    
     CustomerData()
     {
         //initialize money value of
@@ -476,14 +477,13 @@ struct CustomerData
         passportRecorded = false;
         acceptedPicture = false;
         gotPassport = false;
-        int RandIndex = rand() % 4;
-        money = moneyOptions[RandIndex];
     }
 };
 
 struct ClerkData 
 {
     int lineCount;
+    int bribeLineCount;
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
@@ -491,6 +491,7 @@ struct ClerkData
     ClerkData() 
     {
         lineCount = 0;
+        bribeLineCount = 0;
         bribeMoney = 0;
         currentCustomer = -1;
         state = AVAILABLE;
@@ -522,6 +523,12 @@ Condition ** appClerkLineCV;
 Condition ** picClerkLineCV;
 Condition ** passportClerkLineCV;
 Condition ** cashierLineCV;
+
+/* CONDITION VARIABLES FOR WAITING ON CLERKS' BRIBE LINE */
+Condition ** appClerkBribeLineCV;
+Condition ** picClerkBribeLineCV;
+Condition ** passportClerkBribeLineCV;
+Condition ** cashierBribeLineCV;
 
 /* LOCKS ON CLERK */
 Lock ** appClerkLock;
@@ -631,7 +638,8 @@ senator enters: grabs every available semaphore slot  –––  can this get i
 */
 
 
-void fileApplication(FilingJob* jobPointer) {
+void fileApplication(FilingJob* jobPointer) 
+{
 
     jobPointer = (FilingJob*)jobPointer;
 
@@ -1288,18 +1296,19 @@ void getInput()
 
 
 
-void DecideLine(int ssn, int clerkType) 
+void DecideLine(int ssn, int money, int clerkType) 
 {
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
     ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
     Condition ** lineCV = lineDecisionMonitors[clerkType].lineCV;
+    Condition ** bribeLineCV = lineDecisionMonitors[clerkType].lineCV;
     int numClerks = lineDecisionMonitors[clerkType].numClerks;
 
     // CS: Need to check the state of all application clerks' lines without them changing
     lineLock->Acquire();
     
-    int myLine = -1; // No line yet
-    int lineSize = 1000; // Larger (bc we're finding shortest line) than the number customers created
+    int currentLine = -1; // No line yet
+    int currentLineSize = 1000; // Larger (bc we're finding shortest line) than the number customers created
     
     // What if everyone's on break?
     int shortestLine = -1; // Store the shortest line    //(Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
@@ -1308,10 +1317,10 @@ void DecideLine(int ssn, int clerkType)
     for (int i = 0; i < numClerks; i++) //number of clerks
     {
         // Pick the shortest line with a clerk not on break
-        if (clerkData[i].lineCount < lineSize && clerkData[i].state != ONBREAK)
+        if (clerkData[i].lineCount < currentLineSize && clerkData[i].state != ONBREAK)
         {
-            myLine = i;
-            lineSize = clerkData[i].lineCount;
+            currentLine = i;
+            currentLineSize = clerkData[i].lineCount;
         }
 
         // What if everyones on break?
@@ -1325,57 +1334,82 @@ void DecideLine(int ssn, int clerkType)
     // What if everyones on break?
     // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
     // ^^^ Actually just pick the shortest because assignment says to
-    if(myLine == -1) // If this is the last ApplicationClerk(number of clerks -1) and we haven't picked a line
+    if (currentLine == -1) // If this is the last ApplicationClerk(number of clerks -1) and we haven't picked a line
     {
-        myLine = shortestLine; // Join the shortest line
-        lineSize = clerkData[myLine].lineCount;
+        currentLine = shortestLine; // Join the shortest line
+        currentLineSize = clerkData[currentLine].lineCount;
     }
 
     // I've selected a line...
-    if (clerkData[myLine].state == BUSY || clerkData[myLine].state == ONBREAK)// ApplicationClerk is not available, so wait in line
+    if (clerkData[currentLine].state == BUSY || clerkData[currentLine].state == ONBREAK)// ApplicationClerk is not available, so wait in line
     {
-        clerkData[myLine].lineCount++; // Join the line
+        // Decide if we want to bribe the clerk
+        if(clerkData[currentLine].lineCount >= 1 && money >= 600)
+        {
+            clerkData[currentLine].bribeLineCount++;
 
-        switch(clerkType) {
-            case 0: printf(GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
-            case 1: printf(GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
-            case 2: printf(GREEN  "Customer %d has gotten in regular line for PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
-            case 3: printf(GREEN  "Customer %d has gotten in regular line for Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, myLine); break;
+            switch(clerkType) 
+            {
+                case 0: printf(GREEN  "Customer %d has gotten in bribe line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
+                case 1: printf(GREEN  "Customer %d has gotten in bribe line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
+                case 2: printf(GREEN  "Customer %d has gotten in bribe line for PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
+                case 3: printf(GREEN  "Customer %d has gotten in bribe line for Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
+            }
+
+            bribeLineCV[currentLine]->Wait(lineLock);
+            clerkData[currentLine].bribeLineCount--;
+
         }
+        else 
+        {
+            // Join the line
+            clerkData[currentLine].lineCount++; 
 
-        lineCV[myLine]->Wait(lineLock); // Waiting in line (Reacquires lock after getting woken up inside Wait.)
-        clerkData[myLine].lineCount--; // Leaving the line
+            switch(clerkType) 
+            {
+                case 0: printf(GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
+                case 1: printf(GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
+                case 2: printf(GREEN  "Customer %d has gotten in regular line for PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
+                case 3: printf(GREEN  "Customer %d has gotten in regular line for Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
+            }
+
+            lineCV[currentLine]->Wait(lineLock); // Waiting in line (Reacquires lock after getting woken up inside Wait.)
+            clerkData[currentLine].lineCount--; // Leaving the line
+        }
     } 
-
     else // Line was empty to begin with. Clerk is available
     { 
-        clerkData[myLine].state = BUSY;
+        clerkData[currentLine].state = BUSY;
     }
-
     lineLock->Release();
     
-    switch(clerkType) {
-        case 0: CustomerToApplicationClerk(ssn, myLine); break;
-        case 1: CustomerToPictureClerk(ssn, myLine); break;
-        case 2: CustomerToPassportClerk(ssn, myLine); break;
-        case 3: CustomerToCashier(ssn, myLine); break;
+    switch(clerkType) 
+    {
+        case 0: CustomerToApplicationClerk(ssn, currentLine); break;
+        case 1: CustomerToPictureClerk(ssn, currentLine); break;
+        case 2: CustomerToPassportClerk(ssn, currentLine); break;
+        case 3: CustomerToCashier(ssn, currentLine); break;
     }
 }
+
 void Customer(int ssn) 
 {
+    int RandIndex = rand() % 4;
+    int money = moneyOptions[RandIndex];
+
     int randomVal = (rand() % 100 + 1);
     if (randomVal < 50)
     {
-        DecideLine(ssn, 0); // clerkType = 0 = ApplicationClerk
-        DecideLine(ssn, 1); // clerkType = 1 = PictureClerk
+        DecideLine(ssn, money, 0); // clerkType = 0 = ApplicationClerk
+        DecideLine(ssn, money, 1); // clerkType = 1 = PictureClerk
     } 
     else 
     {
-        DecideLine(ssn, 1); // clerkType = 1 = PictureClerk
-        DecideLine(ssn, 0); // clerkType = 0 = ApplicationClerk
+        DecideLine(ssn, money, 1); // clerkType = 1 = PictureClerk
+        DecideLine(ssn, money, 0); // clerkType = 0 = ApplicationClerk
     }
 
-    DecideLine(ssn, 2); // clerkType = 2 = PassportClerk
+    DecideLine(ssn, money, 2); // clerkType = 2 = PassportClerk
     //DecideLine(ssn, 3); // clerkType = 3 = Cashier
     //Leave();
 }
@@ -1438,10 +1472,16 @@ void Part2()
     appClerkCV = new Condition*[numAppClerks];
     picClerkCV = new Condition*[numPicClerks];
     passportClerkCV = new Condition*[numPassportClerks];
+    
     appClerkLineCV = new Condition*[numAppClerks];
     picClerkLineCV = new Condition*[numPicClerks];
     passportClerkLineCV = new Condition*[numPassportClerks];
     cashierLineCV = new Condition*[numCashiers];
+
+    appClerkBribeLineCV = new Condition*[numAppClerks];
+    picClerkBribeLineCV = new Condition*[numPicClerks];
+    passportClerkBribeLineCV = new Condition*[numPassportClerks];
+    cashierBribeLineCV = new Condition*[numCashiers];
     
     appClerkLock = new Lock*[numAppClerks];
     picClerkLock = new Lock*[numPicClerks];
@@ -1499,6 +1539,7 @@ void Part2()
 
     lineDecisionMonitors[0].lineLock = &appLineLock;
     lineDecisionMonitors[0].lineCV = appClerkLineCV;
+    lineDecisionMonitors[0].bribeLineCV = appClerkBribeLineCV;
     lineDecisionMonitors[0].breakCV = appClerkBreakCV;
     lineDecisionMonitors[0].clerkData = appClerkData;
     lineDecisionMonitors[0].numClerks = numAppClerks;
@@ -1538,6 +1579,7 @@ void Part2()
 
     lineDecisionMonitors[1].lineLock = &picLineLock;
     lineDecisionMonitors[1].lineCV = picClerkLineCV;
+    lineDecisionMonitors[1].bribeLineCV = picClerkBribeLineCV;
     lineDecisionMonitors[1].breakCV = picClerkBreakCV;
     lineDecisionMonitors[1].clerkData = picClerkData;
     lineDecisionMonitors[1].numClerks = numPicClerks;
@@ -1575,6 +1617,7 @@ void Part2()
 
     lineDecisionMonitors[2].lineLock = &passportLineLock;
     lineDecisionMonitors[2].lineCV = passportClerkLineCV;
+    lineDecisionMonitors[2].bribeLineCV = passportClerkBribeLineCV;
     lineDecisionMonitors[2].breakCV = passportClerkBreakCV;
     lineDecisionMonitors[2].clerkData = passportClerkData;
     lineDecisionMonitors[2].numClerks = numPassportClerks;
@@ -1611,6 +1654,7 @@ void Part2()
 
     // lineDecisionMonitors[3].lineLock = &cashierLineLock;
     // lineDecisionMonitors[3].lineCV = cashierLineCV;
+    // lineDecisionMonitors[3].bribeLineCV = cashierBribeLineCV;
     // lineDecisionMonitors[3].breakCV = cashierBreakCV;
     // lineDecisionMonitors[3].clerkData = cashierData;
     // lineDecisionMonitors[3].numClerks = numCashiers;
