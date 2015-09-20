@@ -775,6 +775,24 @@ void CustomerToPictureClerk(int ssn, int myLine)
     }
     CustomerData[ssn].photoFiled=true;
 }*/
+    void filePicture(FilingJob* jobPointer) {
+
+    jobPointer = (FilingJob*)jobPointer;
+
+    int filingTime = (rand() % 80) + 20;
+    printf(MAGENTA  "filingTime = %d" ANSI_COLOR_RESET "\n", filingTime);
+    for (int i = 0; i < filingTime; i++)
+    {
+        currentThread->Yield();
+        //printf(MAGENTA  "FilingApplication back in scheduler %s"  ANSI_COLOR_RESET  "\n", currentThread->getName());
+    }
+    filingApplicationLock.Acquire();
+    customerData[jobPointer->ssn].photoFiled = true;
+    printf(GREEN  "ApplicationClerk %d has recorded a completed application for Customer %d"  ANSI_COLOR_RESET  "\n", jobPointer->lineNumber, jobPointer->ssn);
+    
+    filingApplicationLock.Release();
+
+}
 
 void PictureClerkToCustomer(int lineNumber)
 {
