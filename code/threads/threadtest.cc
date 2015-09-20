@@ -832,8 +832,6 @@ void PictureClerk(int lineNumber)
 void CustomerToPassportClerk(int ssn, int myLine)
 {
     // TODO: TRANSMIT DATA FROM CUSTOMER TO PASSPORT CLERK
-    //int ssn = 0;
-
     passportClerkLock[myLine]->Acquire();//simulating the line
     passportClerkCV[myLine]->Signal(passportClerkLock[myLine]);
     passportClerkCV[myLine]->Wait(passportClerkLock[myLine]);
@@ -950,8 +948,8 @@ void CustomerToCashier(int ssn, int myLine)
     cashierCV[myLine]->Signal(cashierLock[myLine]);
     cashierCV[myLine]->Wait(cashierLock[myLine]);
 
-    //customer pays the cashier $100
-     customerData[ssn].money -= 100;
+    //MAKE SURE MONEY IS DECREMENTED AT RIGHT TIME.
+     
     if(!customerData[ssn].passportCertified){
             //customer went to cashier too soon,
             //wait an arbitrary amount of time
@@ -967,12 +965,12 @@ void CustomerToCashier(int ssn, int myLine)
             cashierLineLock.Release();
             CustomerToCashier(ssn, myLine);
             }
-
+            customerData[ssn].money -= 100;
             //thread yield until passportcertification
             //customer leaves counter
             //customer gets on line for cashier
-    cashierCV[myLine]->Signal(cashierLock[myLine]); //leaving
-    cashierLock[myLine]->Release();
+            cashierCV[myLine]->Signal(cashierLock[myLine]); //leaving
+            cashierLock[myLine]->Release();
 }
 
 /*void recordCompletion(int ssn, int lineNumber){
@@ -1013,6 +1011,7 @@ void Cashier(int lineNumber){
         { 
             // nobody is waiting
             cashierData[lineNumber].state = ONBREAK;
+
             cashierBreakCV[lineNumber]->Wait(&cashierLineLock);
             // Go on break.
         }
@@ -1287,7 +1286,7 @@ void Customer(int ssn)
         DecideLine(ssn, 0); // clerkType = 0 = ApplicationClerk
     }
 
-    //DecideLine(ssn, 2); // clerkType = 2 = PassportClerk
+    DecideLine(ssn, 2); // clerkType = 2 = PassportClerk
     //DecideLine(ssn, 3); // clerkType = 3 = Cashier
     //Leave();
 }
@@ -1530,4 +1529,21 @@ void Part2()
     }
 }
 #endif
+
+
+/*
+
+TO DO
+senators
+bribe lines
+yields- implement for all clerk processing
+passport
+cashier
+manager
+write all the tests
+on break
+user input menu
+write up
+
+*/
 
