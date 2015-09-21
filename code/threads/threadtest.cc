@@ -1641,10 +1641,9 @@ void Part2()
 {
     getInput();
 
-   //  Thread *t;
-   //  char *name;
+    Thread *t;
+    char *name;
 
-<<<<<<< HEAD
     appClerkCV = new Condition*[numAppClerks];
     picClerkCV = new Condition*[numPicClerks];
     passportClerkCV = new Condition*[numPassportClerks];
@@ -1664,6 +1663,34 @@ void Part2()
     picClerkBribeCV = new Condition*[numPicClerks];
     passportClerkBribeCV = new Condition*[numPassportClerks];
     cashierBribeCV = new Condition*[numCashiers];
+    
+    appClerkLock = new Lock*[numAppClerks];
+    picClerkLock = new Lock*[numPicClerks];
+    passportClerkLock = new Lock*[numPassportClerks];
+    cashierLock = new Lock*[numCashiers];
+
+    
+    customerData = new CustomerData[numCustomers];
+    appClerkData = new ClerkData[numAppClerks];
+    passportClerkData = new ClerkData[numPassportClerks];
+    picClerkData = new ClerkData[numPicClerks];
+    cashierData = new ClerkData[numCashiers];
+
+    appClerkBreakCV = new Condition*[numAppClerks];
+    picClerkBreakCV = new Condition*[numPicClerks];
+    passportClerkBreakCV = new Condition*[numPassportClerks];
+    cashierBreakCV = new Condition*[numCashiers];
+
+    // Used to reference clerk data when making decision about which line to get in. 4 types of clerk
+    lineDecisionMonitors = new LineDecisionMonitor [4];
+
+
+    //  POLISH: If we have time, below could be done in two nested for loops.
+
+
+    //  ================================================
+    //      Application Clerks
+    //  ================================================
 
     for (int i = 0; i < numAppClerks; i++)
     {
@@ -1679,7 +1706,15 @@ void Part2()
         name = new char [40];
         sprintf(name, "BribeCV-ApplicationClerk-%d", i);
         appClerkBribeCV[i] = new Condition(name);
-
+        
+        name = new char [40];
+        sprintf(name, "Lock-ApplicationClerk-%d", i);
+        appClerkLock[i] = new Lock(name);
+        
+        name = new char [40];
+        sprintf(name, "WorkCV-ApplicationClerk-%d", i);
+        appClerkCV[i] = new Condition(name);
+        
         name = new char [40];
         sprintf(name, "BreakCV-ApplicationClerk-%d", i);
         appClerkBreakCV[i] = new Condition(name);
@@ -1725,7 +1760,11 @@ void Part2()
         name = new char [40];
         sprintf(name, "Lock-PictureClerk-%d", i);
         picClerkLock[i] = new Lock(name);
-
+        
+        name = new char [40];
+        sprintf(name, "WorkCV-PictureClerk-%d", i);
+        picClerkCV[i] = new Condition(name);
+        
         name = new char [40];
         sprintf(name, "BreakCV-PictureClerk-%d", i);
         picClerkBreakCV[i] = new Condition(name);
@@ -1770,7 +1809,11 @@ void Part2()
         name = new char [40];
         sprintf(name, "Lock-PassportClerk-%d", i);
         passportClerkLock[i] = new Lock(name);
-
+        
+        name = new char [40];
+        sprintf(name, "WorkCV-PassportClerkCV-%d", i);
+        passportClerkCV[i] = new Condition(name);
+        
         name = new char [40];
         sprintf(name, "BreakCV-PassportClerkCV-%d", i);
         passportClerkBreakCV[i] = new Condition(name);
