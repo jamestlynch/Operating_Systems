@@ -457,14 +457,13 @@ const int moneyOptions[4] = {100, 600, 1100, 1600};
 
 struct CustomerData 
 {
-
-    bool turnedInApplication;// = false;
-    bool acceptedPicture;// = false;
-    bool gotPassport;// = false;
-    bool applicationFiled;
-    bool photoFiled;
-    bool passportCertified;
-    bool passportRecorded;
+    bool turnedInApplication; // filing cabinet
+    bool acceptedPicture; // filing cabinet
+    bool gotPassport; // filing cabinet
+    bool applicationFiled; // filing cabinet
+    bool photoFiled; // filing cabinet
+    bool passportCertified; // filing cabinet
+    bool passportRecorded; // filing cabinet
     
     CustomerData()
     {
@@ -503,10 +502,11 @@ struct FilingJob
 {
     int ssn;
     int lineNumber;
+
     FilingJob(int tempssn, int templineNumber)
     {
-        ssn=tempssn;
-        lineNumber=templineNumber;
+        ssn = tempssn;
+        lineNumber = templineNumber;
     }
 };
 
@@ -544,6 +544,7 @@ Lock appLineLock("ApplicationLineLock");
 Lock picLineLock("PictureLineLock");
 Lock passportLineLock("PassportLineLock");
 Lock cashierLineLock("CashierLineLock");
+
 Lock filingPictureLock("FilingPictureLock");
 Lock filingApplicationLock("FilingApplicationLock");
 Lock certifyingPassportLock("CertifyingPassportLock");
@@ -571,7 +572,6 @@ int numCustomersFinished = 0;
 
 
 // Monitors
-
 struct LineDecisionMonitor 
 {
     Lock * lineLock;
@@ -621,8 +621,7 @@ void AcceptBribe(int clerkType, int lineNumber)
     Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
 
-    lineLock->Acquire();
-    bribeCV[lineNumber]->Signal(lineLock);//wake up next customer on my line
+    bribeCV[lineNumber]->Signal(lineLock);
 
     bribeCV[lineNumber]->Wait(lineLock);
     clerkData[lineNumber].bribeMoney += 500;
@@ -674,7 +673,6 @@ senator enters: grabs every available semaphore slot  –––  can this get i
 
 void fileApplication(FilingJob* jobPointer) 
 {
-
     jobPointer = (FilingJob*)jobPointer;
 
     int filingTime = (rand() % 80) + 20;
@@ -700,9 +698,11 @@ void ApplicationClerkToCustomer(int lineNumber)
     printf(GREEN  "ApplicationClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
     // do my job - customer nowwaiting
     currentThread->Yield();
+
     FilingJob * applicationFiling = new FilingJob(appClerkData[lineNumber].currentCustomer, lineNumber);
     Thread * t = new Thread("ApplicationFilingThread");
     t->Fork((VoidFunctionPtr)fileApplication, (int)applicationFiling); //think about where this should go!
+    
     appClerkCV[lineNumber]->Signal(appClerkLock[lineNumber]);
     appClerkData[lineNumber].currentCustomer = -1; //set current customer back to -1
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
@@ -717,19 +717,15 @@ void ApplicationClerk(int lineNumber)
     ApplicationClerkToCustomer(lineNumber);
     while (true)
     {
+        
+
+        appLineLock.Acquire();
+        
         if(appClerkData[lineNumber].isBeingBribed)
         {
             AcceptBribe(0, lineNumber);
-            continue;
         }
-
-        appLineLock.Acquire();
-        //if (ClerkBribeLineCount[myLine] > 0)
-        //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-        //appClerkData[lineNumber].state = BUSY;
-        //else
-        
-        if(appClerkData[lineNumber].bribeLineCount > 0)
+        else if(appClerkData[lineNumber].bribeLineCount > 0)
         {
             printf(RED  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
             appClerkBribeLineCV[lineNumber]->Signal(&appLineLock);
@@ -815,6 +811,8 @@ void CustomerToPictureClerk(int ssn, int myLine)
         acceptedPicture = true;
         printf(GREEN  "Customer %d does like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         currentThread->Yield();
+
+        // TODO: MOVE THIS
         FilingJob * pictureFiling = new FilingJob(ssn, myLine);
         Thread * t = new Thread("PictureFilingThread");
         t->Fork((VoidFunctionPtr)filePicture, (int)pictureFiling);
@@ -826,6 +824,7 @@ void CustomerToPictureClerk(int ssn, int myLine)
     {
         printf(GREEN  "Customer %d does not like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
     }
+
     picClerkCV[myLine]->Signal(picClerkLock[myLine]); //leaving
     picClerkLock[myLine]->Release();
     
@@ -845,7 +844,6 @@ void CustomerToPictureClerk(int ssn, int myLine)
 
 void PictureClerkToCustomer(int lineNumber)
 {
-    // TODO: TRANSFER DATA BETWEEN PIC CLERK AND CUSTOMER
     picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
     picClerkCV[lineNumber]->Wait(picClerkLock[lineNumber]);
@@ -857,25 +855,20 @@ void PictureClerkToCustomer(int lineNumber)
     picClerkLock[lineNumber]->Release();
 
 }
+
 void PictureClerk(int lineNumber)
 {
     picLineLock.Acquire();
     PictureClerkToCustomer(lineNumber);
     while (true)
     {
+        picLineLock.Acquire();
+
         if(picClerkData[lineNumber].isBeingBribed)
         {
             AcceptBribe(1, lineNumber);
-            continue;
         }
-
-        picLineLock.Acquire();
-        //if (ClerkBribeLineCount[myLine] > 0)
-        //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-        //picClerkData[lineNumber].state = BUSY;
-        /*else*/
-
-        if(picClerkData[lineNumber].bribeLineCount > 0)
+        else if(picClerkData[lineNumber].bribeLineCount > 0)
         {
             picClerkBribeLineCV[lineNumber]->Signal(&picLineLock);//wake up next customer on my line
             printf(GREEN  "PictureClerk %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
@@ -928,7 +921,8 @@ void PictureClerk(int lineNumber)
 
 
 
-void certifyPassport(FilingJob * certifyingJobPointer){
+void certifyPassport(FilingJob * certifyingJobPointer)
+{
     certifyingJobPointer = (FilingJob *) certifyingJobPointer;
 
     int filingTime = (rand() % 80) + 20;
@@ -952,7 +946,6 @@ void CustomerToPassportClerk(int ssn, int myLine)
     printf(GREEN  "Customer %d has given SSN %d to PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
     passportClerkCV[myLine]->Wait(passportClerkLock[myLine]);
         
-    //customer pays the passport clerk $100
 
     filingApplicationLock.Acquire();
     filingPictureLock.Acquire();
@@ -985,9 +978,9 @@ void CustomerToPassportClerk(int ssn, int myLine)
 
     filingApplicationLock.Release();
     filingPictureLock.Release();
-            //thread yield until passportcertification
-            //customer leaves co
-            //customer gets on line for cashier
+    //thread yield until passportcertification
+    //customer leaves co
+    //customer gets on line for cashier
   
     // TODO: Move the job creation below inside of Passport Clerk
 
@@ -1023,19 +1016,13 @@ void PassportClerk(int lineNumber)
     PassportClerkToCustomer(lineNumber);
     while (true)
     {
+        passportLineLock.Acquire();
+        
         if(passportClerkData[lineNumber].isBeingBribed)
         {
             AcceptBribe(2, lineNumber);
-            continue;
         }
-
-        passportLineLock.Acquire();
-        //if (ClerkBribeLineCount[myLine] > 0)
-        //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-        //passportClerkData[lineNumber].state = BUSY;
-        /*else*/
-
-        if(passportClerkData[lineNumber].bribeLineCount > 0)
+        else if(passportClerkData[lineNumber].bribeLineCount > 0)
         {
             passportClerkBribeLineCV[lineNumber]->Signal(&passportLineLock);//wake up next customer on my line
             printf(GREEN  "PassportClerk %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
@@ -1124,10 +1111,10 @@ void CustomerToCashier(int ssn, int& money, int myLine)
     certifyingPassportLock.Release();
 
     money -= 100;
-    // TODO: Increment cashier's money
+
+    // TODO: Increment cashier's money and move this code block to cashier
     cashierData[myLine].bribeMoney += 100;
     printf(GREEN  "Cashier %d has taken $100 from Customer %d."  ANSI_COLOR_RESET  "\n", myLine, cashierData[myLine].currentCustomer);
-
     customerData[ssn].gotPassport = true;
 
     cashierCV[myLine]->Signal(cashierLock[myLine]); // Got my passport from the Cashier, so now I'm leaving
@@ -1142,6 +1129,7 @@ void CustomerToCashier(int ssn, int& money, int myLine)
     }
     CustomerData[ssn].passportCompleted=true;
 }*/
+
 void CashierToCustomer(int lineNumber)
 {
     cashierLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
@@ -1160,18 +1148,13 @@ void Cashier(int lineNumber){
     CashierToCustomer(lineNumber);
     while (true)
     {
+        cashierLineLock.Acquire();
+
         if(cashierData[lineNumber].isBeingBribed)
         {
             AcceptBribe(3, lineNumber);
-            continue;
         }
-
-        cashierLineLock.Acquire();
-        //if (ClerkBribeLineCount[myLine] > 0)
-        //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-        //cashierData[lineNumber].state = BUSY;
-
-        if (cashierData[lineNumber].bribeLineCount > 0) 
+        else if (cashierData[lineNumber].bribeLineCount > 0) 
         {
             cashierBribeLineCV[lineNumber]->Signal(&cashierLineLock);//wake up next customer on my line
             printf(GREEN  "Cashier %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
