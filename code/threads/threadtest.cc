@@ -24,6 +24,7 @@
 #define BLUE    "\x1b[34m"
 #define MAGENTA "\x1b[35m"
 #define CYAN    "\x1b[36m"
+#define WHITE   "\033[37m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 
@@ -1133,10 +1134,12 @@ void CustomerToCashier(int ssn, int& money, int myLine)
 
     // I was certified, so now I pay.
     certifyingPassportLock.Release();
+
     money -= 100;
     // TODO: Increment cashier's money
     cashierData[myLine].bribeMoney += 100;
     printf(GREEN  "Cashier %d has taken $100 from Customer %d."  ANSI_COLOR_RESET  "\n", myLine, cashierData[myLine].currentCustomer);
+
     customerData[ssn].gotPassport = true;
 
     cashierCV[myLine]->Signal(cashierLock[myLine]); // Got my passport from the Cashier, so now I'm leaving
@@ -1372,9 +1375,64 @@ void Senator()
 
 void getInput()
 {
+    bool invalidInput = false;
+    char * inputPointer, input[100];
+
+    printf(WHITE  "\n\nWelcome to the Passport Office"  ANSI_COLOR_RESET  "\n");
     
+    printf(WHITE  "How many Customers? [1-50]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numCustomers = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numCustomers <= 50 && numCustomers >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 50."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Customers? [1-50]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
 
+    printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numAppClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numAppClerks <= 5 && numAppClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
 
+    printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numPicClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numPicClerks <= 5 && numPicClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numPassportClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numPassportClerks <= 5 && numPassportClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numCashiers = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numCashiers <= 5 && numCashiers >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Senators? [0-10]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numSenators = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numSenators <= 10 && numSenators >= 0)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 0 and 10."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Senators? [0-10]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
 
     printf(MAGENTA  "Number of Customers = %d"  ANSI_COLOR_RESET  "\n", numCustomers);
     printf(MAGENTA  "Number of ApplicationClerks = %d"  ANSI_COLOR_RESET  "\n", numAppClerks);
@@ -1583,9 +1641,10 @@ void Part2()
 {
     getInput();
 
-    Thread *t;
-    char *name;
+   //  Thread *t;
+   //  char *name;
 
+<<<<<<< HEAD
     appClerkCV = new Condition*[numAppClerks];
     picClerkCV = new Condition*[numPicClerks];
     passportClerkCV = new Condition*[numPassportClerks];
@@ -1605,34 +1664,6 @@ void Part2()
     picClerkBribeCV = new Condition*[numPicClerks];
     passportClerkBribeCV = new Condition*[numPassportClerks];
     cashierBribeCV = new Condition*[numCashiers];
-    
-    appClerkLock = new Lock*[numAppClerks];
-    picClerkLock = new Lock*[numPicClerks];
-    passportClerkLock = new Lock*[numPassportClerks];
-    cashierLock = new Lock*[numCashiers];
-
-    
-    customerData = new CustomerData[numCustomers];
-    appClerkData = new ClerkData[numAppClerks];
-    passportClerkData = new ClerkData[numPassportClerks];
-    picClerkData = new ClerkData[numPicClerks];
-    cashierData = new ClerkData[numCashiers];
-
-    appClerkBreakCV = new Condition*[numAppClerks];
-    picClerkBreakCV = new Condition*[numPicClerks];
-    passportClerkBreakCV = new Condition*[numPassportClerks];
-    cashierBreakCV = new Condition*[numCashiers];
-
-    // Used to reference clerk data when making decision about which line to get in. 4 types of clerk
-    lineDecisionMonitors = new LineDecisionMonitor [4];
-
-
-    //  POLISH: If we have time, below could be done in two nested for loops.
-
-
-    //  ================================================
-    //      Application Clerks
-    //  ================================================
 
     for (int i = 0; i < numAppClerks; i++)
     {
@@ -1648,15 +1679,7 @@ void Part2()
         name = new char [40];
         sprintf(name, "BribeCV-ApplicationClerk-%d", i);
         appClerkBribeCV[i] = new Condition(name);
-        
-        name = new char [40];
-        sprintf(name, "Lock-ApplicationClerk-%d", i);
-        appClerkLock[i] = new Lock(name);
-        
-        name = new char [40];
-        sprintf(name, "WorkCV-ApplicationClerk-%d", i);
-        appClerkCV[i] = new Condition(name);
-        
+
         name = new char [40];
         sprintf(name, "BreakCV-ApplicationClerk-%d", i);
         appClerkBreakCV[i] = new Condition(name);
@@ -1702,11 +1725,7 @@ void Part2()
         name = new char [40];
         sprintf(name, "Lock-PictureClerk-%d", i);
         picClerkLock[i] = new Lock(name);
-        
-        name = new char [40];
-        sprintf(name, "WorkCV-PictureClerk-%d", i);
-        picClerkCV[i] = new Condition(name);
-        
+
         name = new char [40];
         sprintf(name, "BreakCV-PictureClerk-%d", i);
         picClerkBreakCV[i] = new Condition(name);
@@ -1751,11 +1770,7 @@ void Part2()
         name = new char [40];
         sprintf(name, "Lock-PassportClerk-%d", i);
         passportClerkLock[i] = new Lock(name);
-        
-        name = new char [40];
-        sprintf(name, "WorkCV-PassportClerkCV-%d", i);
-        passportClerkCV[i] = new Condition(name);
-        
+
         name = new char [40];
         sprintf(name, "BreakCV-PassportClerkCV-%d", i);
         passportClerkBreakCV[i] = new Condition(name);
