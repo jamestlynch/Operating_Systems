@@ -24,6 +24,7 @@
 #define BLUE    "\x1b[34m"
 #define MAGENTA "\x1b[35m"
 #define CYAN    "\x1b[36m"
+#define WHITE   "\033[37m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 
@@ -1051,7 +1052,7 @@ void CustomerToCashier(int ssn, int myLine)
 
     // I was certified, so now I pay.
     certifyingPassportLock.Release();
-    customerData[ssn].money -= 100;
+    //customerData[ssn].money -= 100;
     customerData[ssn].gotPassport = true;
 
     cashierCV[myLine]->Signal(cashierLock[myLine]); // Got my passport from the Cashier, so now I'm leaving
@@ -1267,9 +1268,64 @@ void Senator()
 
 void getInput()
 {
+    bool invalidInput = false;
+    char * inputPointer, input[100];
+
+    printf(WHITE  "\n\nWelcome to the Passport Office"  ANSI_COLOR_RESET  "\n");
     
+    printf(WHITE  "How many Customers? [1-50]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numCustomers = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numCustomers <= 50 && numCustomers >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 50."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Customers? [1-50]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
 
+    printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numAppClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numAppClerks <= 5 && numAppClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
 
+    printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numPicClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numPicClerks <= 5 && numPicClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numPassportClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numPassportClerks <= 5 && numPassportClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numCashiers = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numCashiers <= 5 && numCashiers >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Senators? [0-10]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numSenators = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numSenators <= 10 && numSenators >= 0)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 0 and 10."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Senators? [0-10]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
 
     printf(MAGENTA  "Number of Customers = %d"  ANSI_COLOR_RESET  "\n", numCustomers);
     printf(MAGENTA  "Number of ApplicationClerks = %d"  ANSI_COLOR_RESET  "\n", numAppClerks);
@@ -1478,218 +1534,218 @@ void Part2()
 {
     getInput();
 
-    Thread *t;
-    char *name;
+   //  Thread *t;
+   //  char *name;
 
-    appClerkCV = new Condition*[numAppClerks];
-    picClerkCV = new Condition*[numPicClerks];
-    passportClerkCV = new Condition*[numPassportClerks];
+   //  appClerkCV = new Condition*[numAppClerks];
+   //  picClerkCV = new Condition*[numPicClerks];
+   //  passportClerkCV = new Condition*[numPassportClerks];
     
-    appClerkLineCV = new Condition*[numAppClerks];
-    picClerkLineCV = new Condition*[numPicClerks];
-    passportClerkLineCV = new Condition*[numPassportClerks];
-    cashierLineCV = new Condition*[numCashiers];
+   //  appClerkLineCV = new Condition*[numAppClerks];
+   //  picClerkLineCV = new Condition*[numPicClerks];
+   //  passportClerkLineCV = new Condition*[numPassportClerks];
+   //  cashierLineCV = new Condition*[numCashiers];
 
-    appClerkBribeLineCV = new Condition*[numAppClerks];
-    picClerkBribeLineCV = new Condition*[numPicClerks];
-    passportClerkBribeLineCV = new Condition*[numPassportClerks];
-    cashierBribeLineCV = new Condition*[numCashiers];
+   //  appClerkBribeLineCV = new Condition*[numAppClerks];
+   //  picClerkBribeLineCV = new Condition*[numPicClerks];
+   //  passportClerkBribeLineCV = new Condition*[numPassportClerks];
+   //  cashierBribeLineCV = new Condition*[numCashiers];
     
-    appClerkLock = new Lock*[numAppClerks];
-    picClerkLock = new Lock*[numPicClerks];
-    passportClerkLock = new Lock*[numPassportClerks];
-    cashierLock = new Lock*[numCashiers];
+   //  appClerkLock = new Lock*[numAppClerks];
+   //  picClerkLock = new Lock*[numPicClerks];
+   //  passportClerkLock = new Lock*[numPassportClerks];
+   //  cashierLock = new Lock*[numCashiers];
 
     
-    customerData = new CustomerData[numCustomers];
-    appClerkData = new ClerkData[numAppClerks];
-    passportClerkData = new ClerkData[numPassportClerks];
-    picClerkData = new ClerkData[numPicClerks];
-    cashierData = new ClerkData[numCashiers];
+   //  customerData = new CustomerData[numCustomers];
+   //  appClerkData = new ClerkData[numAppClerks];
+   //  passportClerkData = new ClerkData[numPassportClerks];
+   //  picClerkData = new ClerkData[numPicClerks];
+   //  cashierData = new ClerkData[numCashiers];
 
-    appClerkBreakCV = new Condition*[numAppClerks];
-    picClerkBreakCV = new Condition*[numPicClerks];
-    passportClerkBreakCV = new Condition*[numPassportClerks];
-    cashierBreakCV = new Condition*[numCashiers];
+   //  appClerkBreakCV = new Condition*[numAppClerks];
+   //  picClerkBreakCV = new Condition*[numPicClerks];
+   //  passportClerkBreakCV = new Condition*[numPassportClerks];
+   //  cashierBreakCV = new Condition*[numCashiers];
 
-    // Used to reference clerk data when making decision about which line to get in. 4 types of clerk
-    lineDecisionMonitors = new LineDecisionMonitor [4];
-
-
-    //  POLISH: If we have time, below could be done in two nested for loops.
+   //  // Used to reference clerk data when making decision about which line to get in. 4 types of clerk
+   //  lineDecisionMonitors = new LineDecisionMonitor [4];
 
 
-    //  ================================================
-    //      Application Clerks
-    //  ================================================
+   //  //  POLISH: If we have time, below could be done in two nested for loops.
 
-    for (int i = 0; i < numAppClerks; i++)
-    {
-        // Create Locks and CVs tied to Clerk
-        name = new char [40];
-        sprintf(name, "LineCV-ApplicationClerk-%d", i);
-        appClerkLineCV[i] = new Condition(name);
+
+   //  //  ================================================
+   //  //      Application Clerks
+   //  //  ================================================
+
+   //  for (int i = 0; i < numAppClerks; i++)
+   //  {
+   //      // Create Locks and CVs tied to Clerk
+   //      name = new char [40];
+   //      sprintf(name, "LineCV-ApplicationClerk-%d", i);
+   //      appClerkLineCV[i] = new Condition(name);
         
-        name = new char [40];
-        sprintf(name, "Lock-ApplicationClerk-%d", i);
-        appClerkLock[i] = new Lock(name);
+   //      name = new char [40];
+   //      sprintf(name, "Lock-ApplicationClerk-%d", i);
+   //      appClerkLock[i] = new Lock(name);
         
-        name = new char [40];
-        sprintf(name, "WorkCV-ApplicationClerk-%d", i);
-        appClerkCV[i] = new Condition(name);
+   //      name = new char [40];
+   //      sprintf(name, "WorkCV-ApplicationClerk-%d", i);
+   //      appClerkCV[i] = new Condition(name);
         
-        name = new char [40];
-        sprintf(name, "BreakCV-ApplicationClerk-%d", i);
-        appClerkBreakCV[i] = new Condition(name);
+   //      name = new char [40];
+   //      sprintf(name, "BreakCV-ApplicationClerk-%d", i);
+   //      appClerkBreakCV[i] = new Condition(name);
 
-        // Create clerks
-        name = new char [40];
-        sprintf(name, "ApplicationClerk-%d", i);
-        t = new Thread(name);
-        t->Fork((VoidFunctionPtr)ApplicationClerk, i);
-    }
+   //      // Create clerks
+   //      name = new char [40];
+   //      sprintf(name, "ApplicationClerk-%d", i);
+   //      t = new Thread(name);
+   //      t->Fork((VoidFunctionPtr)ApplicationClerk, i);
+   //  }
 
-    lineDecisionMonitors[0].lineLock = &appLineLock;
-    lineDecisionMonitors[0].lineCV = appClerkLineCV;
-    lineDecisionMonitors[0].bribeLineCV = appClerkBribeLineCV;
-    lineDecisionMonitors[0].breakCV = appClerkBreakCV;
-    lineDecisionMonitors[0].clerkData = appClerkData;
-    lineDecisionMonitors[0].numClerks = numAppClerks;
-
-
-    //  ================================================
-    //      Picture Clerks
-    //  ================================================
+   //  lineDecisionMonitors[0].lineLock = &appLineLock;
+   //  lineDecisionMonitors[0].lineCV = appClerkLineCV;
+   //  lineDecisionMonitors[0].bribeLineCV = appClerkBribeLineCV;
+   //  lineDecisionMonitors[0].breakCV = appClerkBreakCV;
+   //  lineDecisionMonitors[0].clerkData = appClerkData;
+   //  lineDecisionMonitors[0].numClerks = numAppClerks;
 
 
-    for(int i = 0; i < numPicClerks; i++)
-    {
-        // Create Locks and CVs tied to Clerk
-        name = new char [40];
-        sprintf(name, "LineCV-PictureClerk-%d", i);
-        picClerkLineCV[i] = new Condition(name);
+   //  //  ================================================
+   //  //      Picture Clerks
+   //  //  ================================================
+
+
+   //  for(int i = 0; i < numPicClerks; i++)
+   //  {
+   //      // Create Locks and CVs tied to Clerk
+   //      name = new char [40];
+   //      sprintf(name, "LineCV-PictureClerk-%d", i);
+   //      picClerkLineCV[i] = new Condition(name);
         
-        name = new char [40];
-        sprintf(name, "Lock-PictureClerk-%d", i);
-        picClerkLock[i] = new Lock(name);
+   //      name = new char [40];
+   //      sprintf(name, "Lock-PictureClerk-%d", i);
+   //      picClerkLock[i] = new Lock(name);
         
-        name = new char [40];
-        sprintf(name, "WorkCV-PictureClerk-%d", i);
-        picClerkCV[i] = new Condition(name);
+   //      name = new char [40];
+   //      sprintf(name, "WorkCV-PictureClerk-%d", i);
+   //      picClerkCV[i] = new Condition(name);
         
-        name = new char [40];
-        sprintf(name, "BreakCV-PictureClerk-%d", i);
-        picClerkBreakCV[i] = new Condition(name);
+   //      name = new char [40];
+   //      sprintf(name, "BreakCV-PictureClerk-%d", i);
+   //      picClerkBreakCV[i] = new Condition(name);
 
-        // Create clerks
-        name = new char [40];
-        sprintf(name, "PictureClerk-%d",i);
-        t = new Thread(name);
-        t->Fork((VoidFunctionPtr)PictureClerk, i);
-    }
+   //      // Create clerks
+   //      name = new char [40];
+   //      sprintf(name, "PictureClerk-%d",i);
+   //      t = new Thread(name);
+   //      t->Fork((VoidFunctionPtr)PictureClerk, i);
+   //  }
 
 
-    lineDecisionMonitors[1].lineLock = &picLineLock;
-    lineDecisionMonitors[1].lineCV = picClerkLineCV;
-    lineDecisionMonitors[1].bribeLineCV = picClerkBribeLineCV;
-    lineDecisionMonitors[1].breakCV = picClerkBreakCV;
-    lineDecisionMonitors[1].clerkData = picClerkData;
-    lineDecisionMonitors[1].numClerks = numPicClerks;
+   //  lineDecisionMonitors[1].lineLock = &picLineLock;
+   //  lineDecisionMonitors[1].lineCV = picClerkLineCV;
+   //  lineDecisionMonitors[1].bribeLineCV = picClerkBribeLineCV;
+   //  lineDecisionMonitors[1].breakCV = picClerkBreakCV;
+   //  lineDecisionMonitors[1].clerkData = picClerkData;
+   //  lineDecisionMonitors[1].numClerks = numPicClerks;
 
-    //  ================================================
-    //      Passport Clerks
-    //  ================================================
+   //  //  ================================================
+   //  //      Passport Clerks
+   //  //  ================================================
 
-    for(int i = 0; i < numPassportClerks; i++)
-    {
-        // Create Locks and CVs tied to Clerk
-        name = new char [40];
-        sprintf(name, "LineCV-PassportClerk-%d", i);
-        passportClerkLineCV[i] = new Condition(name);
+   //  for(int i = 0; i < numPassportClerks; i++)
+   //  {
+   //      // Create Locks and CVs tied to Clerk
+   //      name = new char [40];
+   //      sprintf(name, "LineCV-PassportClerk-%d", i);
+   //      passportClerkLineCV[i] = new Condition(name);
         
-        name = new char [40];
-        sprintf(name, "Lock-PassportClerk-%d", i);
-        passportClerkLock[i] = new Lock(name);
+   //      name = new char [40];
+   //      sprintf(name, "Lock-PassportClerk-%d", i);
+   //      passportClerkLock[i] = new Lock(name);
         
-        name = new char [40];
-        sprintf(name, "WorkCV-PassportClerkCV-%d", i);
-        passportClerkCV[i] = new Condition(name);
+   //      name = new char [40];
+   //      sprintf(name, "WorkCV-PassportClerkCV-%d", i);
+   //      passportClerkCV[i] = new Condition(name);
         
-        name = new char [40];
-        sprintf(name, "BreakCV-PassportClerkCV-%d", i);
-        passportClerkBreakCV[i] = new Condition(name);
+   //      name = new char [40];
+   //      sprintf(name, "BreakCV-PassportClerkCV-%d", i);
+   //      passportClerkBreakCV[i] = new Condition(name);
 
-        // Create clerks
-        name = new char [40];
-        sprintf(name, "PassportClerk-%d",i);
-        t = new Thread(name);
+   //      // Create clerks
+   //      name = new char [40];
+   //      sprintf(name, "PassportClerk-%d",i);
+   //      t = new Thread(name);
 
-        t->Fork((VoidFunctionPtr)PassportClerk, i);
-    }
+   //      t->Fork((VoidFunctionPtr)PassportClerk, i);
+   //  }
 
-    lineDecisionMonitors[2].lineLock = &passportLineLock;
-    lineDecisionMonitors[2].lineCV = passportClerkLineCV;
-    lineDecisionMonitors[2].bribeLineCV = passportClerkBribeLineCV;
-    lineDecisionMonitors[2].breakCV = passportClerkBreakCV;
-    lineDecisionMonitors[2].clerkData = passportClerkData;
-    lineDecisionMonitors[2].numClerks = numPassportClerks;
+   //  lineDecisionMonitors[2].lineLock = &passportLineLock;
+   //  lineDecisionMonitors[2].lineCV = passportClerkLineCV;
+   //  lineDecisionMonitors[2].bribeLineCV = passportClerkBribeLineCV;
+   //  lineDecisionMonitors[2].breakCV = passportClerkBreakCV;
+   //  lineDecisionMonitors[2].clerkData = passportClerkData;
+   //  lineDecisionMonitors[2].numClerks = numPassportClerks;
 
-    //  ================================================
-    //      Cashiers
-    //  ================================================
+   //  //  ================================================
+   //  //      Cashiers
+   //  //  ================================================
 
-    // for(int i = 0; i < numCashiers; i++) 
-    // {
-    //     // Create Locks and CVs tied to Clerk
-    //     name = new char [40];
-    //     sprintf(name, "LineCV-Cashier-%d", i);
-    //     cashierLineCV[i] = new Condition(name);
+   //  // for(int i = 0; i < numCashiers; i++) 
+   //  // {
+   //  //     // Create Locks and CVs tied to Clerk
+   //  //     name = new char [40];
+   //  //     sprintf(name, "LineCV-Cashier-%d", i);
+   //  //     cashierLineCV[i] = new Condition(name);
         
-    //     name = new char [40];
-    //     sprintf(name, "Lock-Cashier-%d", i);
-    //     cashierLock[i] = new Lock(name);
+   //  //     name = new char [40];
+   //  //     sprintf(name, "Lock-Cashier-%d", i);
+   //  //     cashierLock[i] = new Lock(name);
         
-    //     name = new char [40];
-    //     sprintf(name, "WorkCV-CashierCV-%d", i);
-    //     cashierCV[i] = new Condition(name);
+   //  //     name = new char [40];
+   //  //     sprintf(name, "WorkCV-CashierCV-%d", i);
+   //  //     cashierCV[i] = new Condition(name);
             
-    //     name = new char [40];
-    //     sprintf(name, "BreakCV-Cashier-%d", i);
-    //     cashierBreakCV[i] = new Condition(name);
+   //  //     name = new char [40];
+   //  //     sprintf(name, "BreakCV-Cashier-%d", i);
+   //  //     cashierBreakCV[i] = new Condition(name);
 
-    //     // Create clerks
-    //     name = new char [40];
-    //     sprintf(name,"Cashier-%d",i);
-    //     t = new Thread(name);
-    //     t->Fork((VoidFunctionPtr)Cashier, i);
-    // }
+   //  //     // Create clerks
+   //  //     name = new char [40];
+   //  //     sprintf(name,"Cashier-%d",i);
+   //  //     t = new Thread(name);
+   //  //     t->Fork((VoidFunctionPtr)Cashier, i);
+   //  // }
 
-    // lineDecisionMonitors[3].lineLock = &cashierLineLock;
-    // lineDecisionMonitors[3].lineCV = cashierLineCV;
-    // lineDecisionMonitors[3].bribeLineCV = cashierBribeLineCV;
-    // lineDecisionMonitors[3].breakCV = cashierBreakCV;
-    // lineDecisionMonitors[3].clerkData = cashierData;
-    // lineDecisionMonitors[3].numClerks = numCashiers;
+   //  // lineDecisionMonitors[3].lineLock = &cashierLineLock;
+   //  // lineDecisionMonitors[3].lineCV = cashierLineCV;
+   //  // lineDecisionMonitors[3].bribeLineCV = cashierBribeLineCV;
+   //  // lineDecisionMonitors[3].breakCV = cashierBreakCV;
+   //  // lineDecisionMonitors[3].clerkData = cashierData;
+   //  // lineDecisionMonitors[3].numClerks = numCashiers;
 
-    //  ================================================
-    //      Managers
-    //  ================================================
-
-
-   // t = new Thread("Manager");
-    //t->Fork((VoidFunctionPtr)Manager, 0);
-    //  ================================================
-    //      Customers
-    //  ================================================
+   //  //  ================================================
+   //  //      Managers
+   //  //  ================================================
 
 
-    for(int i = 0; i < numCustomers; i++) 
-    {
-        name = new char [40];
-        sprintf(name, "Customer-%d", i);
-        t = new Thread(name);
-        t->Fork((VoidFunctionPtr)Customer, i);
-    }
+   // // t = new Thread("Manager");
+   //  //t->Fork((VoidFunctionPtr)Manager, 0);
+   //  //  ================================================
+   //  //      Customers
+   //  //  ================================================
+
+
+   //  for(int i = 0; i < numCustomers; i++) 
+   //  {
+   //      name = new char [40];
+   //      sprintf(name, "Customer-%d", i);
+   //      t = new Thread(name);
+   //      t->Fork((VoidFunctionPtr)Customer, i);
+   //  }
 }
 #endif
 
