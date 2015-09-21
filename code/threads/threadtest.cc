@@ -789,12 +789,8 @@ void filePicture(FilingJob* jobPointer)
     jobPointer = (FilingJob*)jobPointer;
 
     int filingTime = (rand() % 80) + 20;
-    printf(MAGENTA  "filingTime = %d" ANSI_COLOR_RESET "\n", filingTime);
-    for (int i = 0; i < filingTime; i++)
-    {
-        currentThread->Yield();
-        //printf(MAGENTA  "FilingPicture back in scheduler %s"  ANSI_COLOR_RESET  "\n", currentThread->getName());
-    }
+    for (int i = 0; i < filingTime; i++) { currentThread->Yield(); }
+
     filingPictureLock.Acquire();
     customerData[jobPointer->ssn].photoFiled = true;
     printf(GREEN  "PictureClerk %d has recorded a filed picture for Customer %d"  ANSI_COLOR_RESET  "\n", jobPointer->lineNumber, jobPointer->ssn);
@@ -822,13 +818,9 @@ void CustomerToPictureClerk(int ssn, int myLine)
         FilingJob * pictureFiling = new FilingJob(ssn, myLine);
         Thread * t = new Thread("PictureFilingThread");
         t->Fork((VoidFunctionPtr)filePicture, (int)pictureFiling);
+        
         int filingTime = (rand() % 80) + 20;
-        //printf(MAGENTA  "filingTime = %d" ANSI_COLOR_RESET "\n", filingTime);
-        for (int i = 0; i < filingTime; i++)
-        {
-            currentThread->Yield();
-            //printf(MAGENTA  "FilingApplication back in scheduler %s"  ANSI_COLOR_RESET  "\n", currentThread->getName());
-        }
+        for (int i = 0; i < filingTime; i++) { currentThread->Yield(); }
     }
     else
     {
@@ -1003,13 +995,10 @@ void CustomerToPassportClerk(int ssn, int myLine)
     char * name = new char [40];
     sprintf(name, "PassportCertifyingThread-PC%d-C%d", myLine, ssn);
     Thread * t = new Thread(name);
-    printf(MAGENTA  "appClerkData[myLine].currentCustomer = %d"  ANSI_COLOR_RESET  "\n", appClerkData[myLine].currentCustomer);
-    //FilingJob * passportCertifyingJob = new FilingJob(appClerkData[myLine].currentCustomer, myLine);
     FilingJob * passportCertifyingJob = new FilingJob(ssn, myLine);
     t->Fork((VoidFunctionPtr)certifyPassport, (int)passportCertifyingJob); //think about where this should go!
 
     passportClerkCV[myLine]->Signal(passportClerkLock[myLine]); //leaving
-    printf(MAGENTA  "%s done with passport clerk"  ANSI_COLOR_RESET  "\n", currentThread->getName());
     passportClerkLock[myLine]->Release();
 }
 
@@ -1032,7 +1021,6 @@ void PassportClerk(int lineNumber)
 {
     passportLineLock.Acquire();
     PassportClerkToCustomer(lineNumber);
-    printf(MAGENTA  "PassportClerk checks his lines."  ANSI_COLOR_RESET  "\n");
     while (true)
     {
         if(passportClerkData[lineNumber].isBeingBribed)
