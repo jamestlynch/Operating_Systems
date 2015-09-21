@@ -454,8 +454,6 @@ enum ClerkStatus {AVAILABLE, BUSY, ONBREAK};
 
 const int moneyOptions[4] = {100, 600, 1100, 1600};
 
-
-
 struct CustomerData 
 {
 
@@ -484,6 +482,7 @@ struct ClerkData
 {
     int lineCount;
     int bribeLineCount;
+    bool isBeingBribed;
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
@@ -493,15 +492,12 @@ struct ClerkData
         lineCount = 0;
         bribeLineCount = 0;
         bribeMoney = 0;
+        isBeingBribed = false;
         currentCustomer = -1;
         state = AVAILABLE;
     }
 };
 
-struct ManagerData 
-{
-    int money;// = 0;
-};
 struct FilingJob
 {
     int ssn;
@@ -530,6 +526,12 @@ Condition ** picClerkBribeLineCV;
 Condition ** passportClerkBribeLineCV;
 Condition ** cashierBribeLineCV;
 
+/* CONDITION VARIABLES FOR BRIBING */
+Condition ** appClerkBribeCV;
+Condition ** picClerkBribeCV;
+Condition ** passportClerkBribeCV;
+Condition ** cashierBribeCV;
+
 /* LOCKS ON CLERK */
 Lock ** appClerkLock;
 Lock ** picClerkLock;
@@ -554,7 +556,6 @@ ClerkData * appClerkData;
 ClerkData * passportClerkData;
 ClerkData * picClerkData;
 ClerkData * cashierData;
-ManagerData managerData;
 
 int numCustomers = 4;
 int numAppClerks = 1;
@@ -567,10 +568,15 @@ int numSenators = 1;
 
 // Monitors
 
-struct LineDecisionMonitor {
+struct LineDecisionMonitor 
+{
     Lock * lineLock;
     Condition ** lineCV;
+    Condition ** bribeLineCV;
+    Condition ** bribeCV;
     Condition ** breakCV;
+    Condition ** clerkCV;
+    Lock ** clerkLock;
     ClerkData * clerkData;
     int numClerks;
 
@@ -603,7 +609,29 @@ LineDecisionMonitor * lineDecisionMonitors;
 
 
 
+void AcceptBribe(int clerkType, int lineNumber)
+{
+    ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
+    Condition ** bribeCV = lineDecisionMonitors[clerkType].bribeCV;
+    Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
 
+    clerkLock[lineNumber]->Acquire();
+    bribeCV[lineNumber]->Signal(clerkLock[lineNumber]);//wake up next customer on my line
+
+    bribeCV[lineNumber]->Wait(clerkLock[lineNumber]);
+    clerkData[lineNumber].bribeMoney += 500;
+    switch(clerkType) 
+    {
+        case 0: printf(GREEN  "ApplicationClerk %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, clerkData[lineNumber].currentCustomer); break;
+        case 1: printf(GREEN  "PictureClerk %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, clerkData[lineNumber].currentCustomer); break;
+        case 2: printf(GREEN  "PassportClerk %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, clerkData[lineNumber].currentCustomer); break;
+        case 3: printf(GREEN  "Cashier %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, clerkData[lineNumber].currentCustomer);
+    }
+    bribeCV[lineNumber]->Signal(clerkLock[lineNumber]);
+    clerkData[lineNumber].isBeingBribed = false;
+    clerkData[lineNumber].currentCustomer = -1; //set current customer back to -1
+    clerkLock[lineNumber]->Release();
+}
 
 /*
     Simulates customer behavior:
@@ -676,18 +704,34 @@ void ApplicationClerkToCustomer(int lineNumber)
     appClerkLock[lineNumber]->Release();
 }
 
+
+
 void ApplicationClerk(int lineNumber)
 {
     appLineLock.Acquire();
     ApplicationClerkToCustomer(lineNumber);
     while (true)
     {
+        if(appClerkData[lineNumber].isBeingBribed)
+        {
+            AcceptBribe(0, lineNumber);
+            continue;
+        }
+
         appLineLock.Acquire();
         //if (ClerkBribeLineCount[myLine] > 0)
         //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
         //appClerkData[lineNumber].state = BUSY;
         //else
-        if (appClerkData[lineNumber].lineCount > 0) 
+        
+        if(appClerkData[lineNumber].bribeLineCount > 0)
+        {
+            printf(RED  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
+            appClerkBribeLineCV[lineNumber]->Signal(&appLineLock);
+            appClerkData[lineNumber].state = BUSY;
+            ApplicationClerkToCustomer(lineNumber);   
+        }
+        else if (appClerkData[lineNumber].lineCount > 0) 
         {
             // wake up next customer on may line
             printf(GREEN  "ApplicationClerk %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", lineNumber);
@@ -820,13 +864,26 @@ void PictureClerk(int lineNumber)
     PictureClerkToCustomer(lineNumber);
     while (true)
     {
+        if(picClerkData[lineNumber].isBeingBribed)
+        {
+            AcceptBribe(1, lineNumber);
+            continue;
+        }
+
         picLineLock.Acquire();
         //if (ClerkBribeLineCount[myLine] > 0)
         //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-        picClerkData[lineNumber].state = BUSY;
+        //picClerkData[lineNumber].state = BUSY;
         /*else*/
 
-        if (picClerkData[lineNumber].lineCount > 0) 
+        if(picClerkData[lineNumber].bribeLineCount > 0)
+        {
+            picClerkBribeLineCV[lineNumber]->Signal(&picLineLock);//wake up next customer on my line
+            printf(GREEN  "PictureClerk %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
+            picClerkData[lineNumber].state = BUSY;
+            PictureClerkToCustomer(lineNumber);
+        }
+        else if (picClerkData[lineNumber].lineCount > 0) 
         {
             picClerkLineCV[lineNumber]->Signal(&picLineLock);//wake up next customer on my line
             printf(GREEN  "PictureClerk %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
@@ -953,34 +1010,48 @@ void PassportClerkToCustomer(int lineNumber)
     passportClerkLock[lineNumber]->Release();
 
 }
-void PassportClerk(int lineNumber){
+void PassportClerk(int lineNumber)
+{
     passportLineLock.Acquire();
     PassportClerkToCustomer(lineNumber);
     printf(MAGENTA  "PassportClerk checks his lines."  ANSI_COLOR_RESET  "\n");
     while (true)
+    {
+        if(passportClerkData[lineNumber].isBeingBribed)
         {
-            passportLineLock.Acquire();
-            //if (ClerkBribeLineCount[myLine] > 0)
-            //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
-            passportClerkData[lineNumber].state = BUSY;
-            /*else*/
-
-            if (passportClerkData[lineNumber].lineCount > 0) 
-            {
-                passportClerkLineCV[lineNumber]->Signal(&passportLineLock);//wake up next customer on my line
-                printf(GREEN  "PassportClerk %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
-                passportClerkData[lineNumber].state = BUSY;
-                PassportClerkToCustomer(lineNumber);
-            }
-            else
-            { 
-                // Nobody is waiting –> Go on break.
-                passportClerkData[lineNumber].state = ONBREAK;
-                printf(GREEN  "PassportClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
-                passportClerkBreakCV[lineNumber]->Wait(&passportLineLock);
-                printf(GREEN  "PassportClerk %d is coming off break."  ANSI_COLOR_RESET  "\n", lineNumber);
-            }
+            AcceptBribe(2, lineNumber);
+            continue;
         }
+
+        passportLineLock.Acquire();
+        //if (ClerkBribeLineCount[myLine] > 0)
+        //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
+        //passportClerkData[lineNumber].state = BUSY;
+        /*else*/
+
+        if(passportClerkData[lineNumber].bribeLineCount > 0)
+        {
+            passportClerkBribeLineCV[lineNumber]->Signal(&passportLineLock);//wake up next customer on my line
+            printf(GREEN  "PassportClerk %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
+            passportClerkData[lineNumber].state = BUSY;
+            PassportClerkToCustomer(lineNumber);
+        }
+        else if (passportClerkData[lineNumber].lineCount > 0) 
+        {
+            passportClerkLineCV[lineNumber]->Signal(&passportLineLock);//wake up next customer on my line
+            printf(GREEN  "PassportClerk %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
+            passportClerkData[lineNumber].state = BUSY;
+            PassportClerkToCustomer(lineNumber);
+        }
+        else
+        { 
+            // Nobody is waiting –> Go on break.
+            passportClerkData[lineNumber].state = ONBREAK;
+            printf(GREEN  "PassportClerk %d is going on break."  ANSI_COLOR_RESET  "\n", lineNumber);
+            passportClerkBreakCV[lineNumber]->Wait(&passportLineLock);
+            printf(GREEN  "PassportClerk %d is coming off break."  ANSI_COLOR_RESET  "\n", lineNumber);
+        }
+    }
 }
 
 
@@ -1010,7 +1081,7 @@ void PassportClerk(int lineNumber){
 
 
 
-void CustomerToCashier(int ssn, int myLine)
+void CustomerToCashier(int ssn, int& money, int myLine)
 {
     //int ssn = 0;
 
@@ -1037,9 +1108,9 @@ void CustomerToCashier(int ssn, int myLine)
             // Reacquires lock after getting woken up inside Wait.
             cashierData[myLine].lineCount--; // Leaving the line, going to the counter
             cashierLineLock.Release();
-            CustomerToCashier(ssn, myLine);
+            CustomerToCashier(ssn, money, myLine);
             }
-            customerData[ssn].money -= 100;
+            money -= 100;
             //thread yield until passportcertification
             //customer leaves counter
             //customer gets on line for cashier
@@ -1071,12 +1142,25 @@ void Cashier(int lineNumber){
     CashierToCustomer(lineNumber);
     while (true)
     {
+        if(cashierData[lineNumber].isBeingBribed)
+        {
+            AcceptBribe(2, lineNumber);
+            continue;
+        }
+
         cashierLineLock.Acquire();
         //if (ClerkBribeLineCount[myLine] > 0)
         //clerkBribeLineCV[myLine]->Signal(applicationClerksLineLock);
         cashierData[lineNumber].state = BUSY;
 
-        if (cashierData[lineNumber].lineCount > 0) 
+        if (cashierData[lineNumber].bribeLineCount > 0) 
+        {
+            cashierBribeLineCV[lineNumber]->Signal(&cashierLineLock);//wake up next customer on my line
+            printf(GREEN  "Cashier %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
+            cashierData[lineNumber].state = BUSY;
+            CashierToCustomer(lineNumber);
+        }
+        else if (cashierData[lineNumber].lineCount > 0) 
         {
             cashierLineCV[lineNumber]->Signal(&cashierLineLock);//wake up next customer on my line
             printf(GREEN  "Cashier %d has signalled a Customer to come to their counter."  ANSI_COLOR_RESET  "\n", lineNumber);
@@ -1193,8 +1277,6 @@ int ManageClerk(int clerkType)
     return clerkMoney;
 }
 
-// TODO: add a method for each lock that exists between passport clerks and X
-// TODO: Change clerksLineLock to clerkLineLock[i]
 void Manager()
 {
     // Wakes up the clerks when there are >3 people waiting
@@ -1296,12 +1378,14 @@ void getInput()
 
 
 
-void DecideLine(int ssn, int money, int clerkType) 
+void DecideLine(int ssn, int& money, int clerkType) 
 {
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
     ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
     Condition ** lineCV = lineDecisionMonitors[clerkType].lineCV;
-    Condition ** bribeLineCV = lineDecisionMonitors[clerkType].lineCV;
+    Condition ** bribeLineCV = lineDecisionMonitors[clerkType].bribeLineCV;
+    Condition ** bribeCV = lineDecisionMonitors[clerkType].bribeCV;
+    Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
     int numClerks = lineDecisionMonitors[clerkType].numClerks;
 
     // CS: Need to check the state of all application clerks' lines without them changing
@@ -1341,13 +1425,20 @@ void DecideLine(int ssn, int money, int clerkType)
     }
 
     // I've selected a line...
-    if (clerkData[currentLine].state == BUSY || clerkData[currentLine].state == ONBREAK)// ApplicationClerk is not available, so wait in line
+    if (clerkData[currentLine].state != AVAILABLE)// ApplicationClerk is not available, so wait in line
     {
+        printf(RED  "ApplicationClerk %d unavailable."  ANSI_COLOR_RESET  "\n", currentLine);
         // Decide if we want to bribe the clerk
-        if(clerkData[currentLine].lineCount >= 1 && money >= 600)
+        if(clerkData[currentLine].lineCount >= 1 && money >= 600 && clerkData[currentLine].state != ONBREAK)
         {
-            clerkData[currentLine].bribeLineCount++;
-
+            //clerkLock, clerkCV, bribeCV
+            clerkLock[currentLine]->Acquire();
+            clerkData[currentLine].isBeingBribed = true;
+            bribeCV[currentLine]->Wait(clerkLock[currentLine]);
+            clerkData[currentLine].currentCustomer = ssn;
+            money -= 500;
+            bribeCV[currentLine]->Signal(clerkLock[currentLine]);
+            bribeCV[currentLine]->Wait(clerkLock[currentLine]);
             switch(clerkType) 
             {
                 case 0: printf(GREEN  "Customer %d has gotten in bribe line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
@@ -1355,7 +1446,9 @@ void DecideLine(int ssn, int money, int clerkType)
                 case 2: printf(GREEN  "Customer %d has gotten in bribe line for PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
                 case 3: printf(GREEN  "Customer %d has gotten in bribe line for Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
             }
-
+            clerkLock[currentLine]->Release();
+            
+            clerkData[currentLine].bribeLineCount++;
             bribeLineCV[currentLine]->Wait(lineLock);
             clerkData[currentLine].bribeLineCount--;
 
@@ -1379,6 +1472,7 @@ void DecideLine(int ssn, int money, int clerkType)
     } 
     else // Line was empty to begin with. Clerk is available
     { 
+        printf(RED  "ApplicationClerk %d is available."  ANSI_COLOR_RESET  "\n", currentLine);
         clerkData[currentLine].state = BUSY;
     }
     lineLock->Release();
@@ -1388,9 +1482,11 @@ void DecideLine(int ssn, int money, int clerkType)
         case 0: CustomerToApplicationClerk(ssn, currentLine); break;
         case 1: CustomerToPictureClerk(ssn, currentLine); break;
         case 2: CustomerToPassportClerk(ssn, currentLine); break;
-        case 3: CustomerToCashier(ssn, currentLine); break;
+        case 3: CustomerToCashier(ssn, money, currentLine); break;
     }
 }
+
+
 
 void Customer(int ssn) 
 {
@@ -1413,21 +1509,6 @@ void Customer(int ssn)
     //DecideLine(ssn, 3); // clerkType = 3 = Cashier
     //Leave();
 }
-
-/*
-    semaphore(numClerks)
-
-    semaphore.V();
-    
-    while(true) {
-        for(int i = 0; i < numClerks; i++) {
-            semaphore.V();
-        }
-
-        customer(senatorID);
-    }
-    semaphore.V(numCler)
-*/
 
 
 
@@ -1482,6 +1563,11 @@ void Part2()
     picClerkBribeLineCV = new Condition*[numPicClerks];
     passportClerkBribeLineCV = new Condition*[numPassportClerks];
     cashierBribeLineCV = new Condition*[numCashiers];
+
+    appClerkBribeCV = new Condition*[numAppClerks];
+    picClerkBribeCV = new Condition*[numPicClerks];
+    passportClerkBribeCV = new Condition*[numPassportClerks];
+    cashierBribeCV = new Condition*[numCashiers];
     
     appClerkLock = new Lock*[numAppClerks];
     picClerkLock = new Lock*[numPicClerks];
@@ -1517,6 +1603,14 @@ void Part2()
         name = new char [40];
         sprintf(name, "LineCV-ApplicationClerk-%d", i);
         appClerkLineCV[i] = new Condition(name);
+
+        name = new char [40];
+        sprintf(name, "BribeLineCV-ApplicationClerk-%d", i);
+        appClerkBribeLineCV[i] = new Condition(name);
+
+        name = new char [40];
+        sprintf(name, "BribeCV-ApplicationClerk-%d", i);
+        appClerkBribeCV[i] = new Condition(name);
         
         name = new char [40];
         sprintf(name, "Lock-ApplicationClerk-%d", i);
@@ -1540,7 +1634,10 @@ void Part2()
     lineDecisionMonitors[0].lineLock = &appLineLock;
     lineDecisionMonitors[0].lineCV = appClerkLineCV;
     lineDecisionMonitors[0].bribeLineCV = appClerkBribeLineCV;
+    lineDecisionMonitors[0].bribeCV = appClerkBribeCV;
     lineDecisionMonitors[0].breakCV = appClerkBreakCV;
+    lineDecisionMonitors[0].clerkCV = appClerkCV;
+    lineDecisionMonitors[0].clerkLock = appClerkLock;
     lineDecisionMonitors[0].clerkData = appClerkData;
     lineDecisionMonitors[0].numClerks = numAppClerks;
 
@@ -1557,6 +1654,14 @@ void Part2()
         sprintf(name, "LineCV-PictureClerk-%d", i);
         picClerkLineCV[i] = new Condition(name);
         
+        name = new char [40];
+        sprintf(name, "BribeLineCV-PictureClerk-%d", i);
+        picClerkBribeLineCV[i] = new Condition(name);
+
+        name = new char [40];
+        sprintf(name, "BribeCV-PictureClerk-%d", i);
+        picClerkBribeCV[i] = new Condition(name);
+
         name = new char [40];
         sprintf(name, "Lock-PictureClerk-%d", i);
         picClerkLock[i] = new Lock(name);
@@ -1580,7 +1685,10 @@ void Part2()
     lineDecisionMonitors[1].lineLock = &picLineLock;
     lineDecisionMonitors[1].lineCV = picClerkLineCV;
     lineDecisionMonitors[1].bribeLineCV = picClerkBribeLineCV;
+    lineDecisionMonitors[1].bribeCV = picClerkBribeCV;
     lineDecisionMonitors[1].breakCV = picClerkBreakCV;
+    lineDecisionMonitors[1].clerkCV = picClerkCV;
+    lineDecisionMonitors[1].clerkLock = picClerkLock;
     lineDecisionMonitors[1].clerkData = picClerkData;
     lineDecisionMonitors[1].numClerks = numPicClerks;
 
@@ -1594,7 +1702,15 @@ void Part2()
         name = new char [40];
         sprintf(name, "LineCV-PassportClerk-%d", i);
         passportClerkLineCV[i] = new Condition(name);
+
+        name = new char [40];
+        sprintf(name, "BribeLineCV-PassportClerk-%d", i);
+        passportClerkBribeLineCV[i] = new Condition(name);
         
+        name = new char [40];
+        sprintf(name, "BribeCV-PassportClerk-%d", i);
+        passportClerkBribeCV[i] = new Condition(name);
+
         name = new char [40];
         sprintf(name, "Lock-PassportClerk-%d", i);
         passportClerkLock[i] = new Lock(name);
@@ -1618,7 +1734,10 @@ void Part2()
     lineDecisionMonitors[2].lineLock = &passportLineLock;
     lineDecisionMonitors[2].lineCV = passportClerkLineCV;
     lineDecisionMonitors[2].bribeLineCV = passportClerkBribeLineCV;
+    lineDecisionMonitors[2].bribeCV = passportClerkBribeCV;
     lineDecisionMonitors[2].breakCV = passportClerkBreakCV;
+    lineDecisionMonitors[2].clerkCV = passportClerkCV;
+    lineDecisionMonitors[2].clerkLock = passportClerkLock;
     lineDecisionMonitors[2].clerkData = passportClerkData;
     lineDecisionMonitors[2].numClerks = numPassportClerks;
 
@@ -1632,6 +1751,14 @@ void Part2()
     //     name = new char [40];
     //     sprintf(name, "LineCV-Cashier-%d", i);
     //     cashierLineCV[i] = new Condition(name);
+
+    //     name = new char [40];
+    //     sprintf(name, "BribeLineCV-Cashier-%d", i);
+    //     cashierBribeLineCV[i] = new Condition(name);
+
+    //     name = new char [40];
+    //     sprintf(name, "BribeCV-Cashier-%d", i);
+    //     cashierBribeCV[i] = new Condition(name);
         
     //     name = new char [40];
     //     sprintf(name, "Lock-Cashier-%d", i);
@@ -1655,7 +1782,10 @@ void Part2()
     // lineDecisionMonitors[3].lineLock = &cashierLineLock;
     // lineDecisionMonitors[3].lineCV = cashierLineCV;
     // lineDecisionMonitors[3].bribeLineCV = cashierBribeLineCV;
+    // lineDecisionMonitors[3].bribeCV = cashierBribeCV;
     // lineDecisionMonitors[3].breakCV = cashierBreakCV;
+    // lineDecisionMonitors[3].clerkCV = cashierCV;
+    // lineDecisionMonitors[3].clerkLock = cashierLock;
     // lineDecisionMonitors[3].clerkData = cashierData;
     // lineDecisionMonitors[3].numClerks = numCashiers;
 
@@ -1664,8 +1794,8 @@ void Part2()
     //  ================================================
 
 
-   // t = new Thread("Manager");
-    //t->Fork((VoidFunctionPtr)Manager, 0);
+    t = new Thread("Manager");
+    t->Fork((VoidFunctionPtr)Manager, 0);
     //  ================================================
     //      Customers
     //  ================================================
@@ -1686,13 +1816,12 @@ void Part2()
 
 TO DO
 senators
-bribe lines
-yields- implement for all clerk processing
-passport
+
 cashier
+
 write all the tests
-on break
-user input menu
+
+
 write up
 
 */
