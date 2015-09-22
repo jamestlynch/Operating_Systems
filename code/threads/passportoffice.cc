@@ -5,6 +5,8 @@
 #endif
 #include <stdio.h>
 
+#ifdef CHANGED
+
 #define RED     "\x1b[31m"
 #define GREEN   "\x1b[32m"
 #define YELLOW  "\x1b[33m"
@@ -16,7 +18,9 @@
 
 enum ClerkStatus {AVAILABLE, BUSY, ONBREAK};
 
-const int moneyOptions[4] = {100, 600, 1100, 1600};
+const int MoneyOptions[4] = {100, 600, 1100, 1600};
+char ** ClerkTypes;
+
 
 struct CustomerData 
 {
@@ -68,8 +72,8 @@ struct FilingJob
     int lineNumber;
     FilingJob(int tempssn, int templineNumber)
     {
-        ssn=tempssn;
-        lineNumber=templineNumber;
+        ssn = tempssn;
+        lineNumber = templineNumber;
     }
 };
 
@@ -132,9 +136,9 @@ int numSenators = 1;
 int numCustomersFinished = 0;
 
 
-
-// Monitors
-
+/********************/
+/***** MONITORS *****/
+/********************/
 struct LineDecisionMonitor 
 {
     Lock * lineLock;
@@ -153,32 +157,11 @@ struct LineDecisionMonitor
 LineDecisionMonitor * lineDecisionMonitors;
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/*********************/
+/******* CLERK *******/
+/*********************/
 void AcceptBribe(int clerkType, int lineNumber)
 {
-
     ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
     Condition ** bribeCV = lineDecisionMonitors[clerkType].bribeCV;
     Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
@@ -189,18 +172,62 @@ void AcceptBribe(int clerkType, int lineNumber)
 
     bribeCV[lineNumber]->Wait(lineLock);
     clerkData[lineNumber].bribeMoney += 500;
-    switch(clerkType) 
-    {
-        case 0: printf(GREEN  "ApplicationClerk %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, clerkData[lineNumber].currentCustomer); break;
-        case 1: printf(GREEN  "PictureClerk %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, clerkData[lineNumber].currentCustomer); break;
-        case 2: printf(GREEN  "PassportClerk %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, clerkData[lineNumber].currentCustomer); break;
-        case 3: printf(GREEN  "Cashier %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, clerkData[lineNumber].currentCustomer);
-    }
+    printf(GREEN  "%s %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber, clerkData[lineNumber].currentCustomer);
     bribeCV[lineNumber]->Signal(lineLock);
     clerkData[lineNumber].isBeingBribed = false;
     clerkData[lineNumber].currentCustomer = -1; //set current customer back to -1
     lineLock->Release();
 }
+
+void Clerk(int clerkType, int lineNumber, VoidFunctionPtr interaction)
+{
+    Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
+    ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
+    Condition ** lineCV = lineDecisionMonitors[clerkType].lineCV;
+    Condition ** bribeLineCV = lineDecisionMonitors[clerkType].bribeLineCV;
+    Condition ** breakCV = lineDecisionMonitors[clerkType].breakCV;
+
+    lineLock->Acquire();
+    interaction(lineNumber);
+    //ApplicationClerkToCustomer(lineNumber);
+    while (true)
+    {
+        lineLock->Acquire();
+
+        if(clerkData[lineNumber].isBeingBribed)
+        {
+            AcceptBribe(clerkType, lineNumber);
+        }
+        else if(clerkData[lineNumber].bribeLineCount > 0)
+        {
+            printf(RED  "%s %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber);
+            bribeLineCV[lineNumber]->Signal(lineLock);
+            clerkData[lineNumber].state = BUSY;
+            interaction(lineNumber);
+            //ApplicationClerkToCustomer(lineNumber);   
+        }
+        else if (clerkData[lineNumber].lineCount > 0) 
+        {
+            // wake up next customer on may line
+            printf(GREEN  "%s %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber);
+            lineCV[lineNumber]->Signal(lineLock);
+            clerkData[lineNumber].state = BUSY;
+            interaction(lineNumber);
+            //ApplicationClerkToCustomer(lineNumber);
+        }
+        else
+        {
+            // nobody is waiting –> Go on break.
+            clerkData[lineNumber].state = ONBREAK;
+            printf(GREEN  "%s %d is going on break."  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber);
+            breakCV[lineNumber]->Wait(lineLock);
+            printf(GREEN  "%s %d is coming off break."  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber);
+            // Go on break.
+        }
+    }
+}
+
+
 
 /*
     Simulates customer behavior:
@@ -827,13 +854,7 @@ int ManageClerk(int clerkType)
         {
             clerkData[i].state = AVAILABLE;
             breakCV[i]->Signal(lineLock);
-            switch(clerkType) 
-            {
-                case 0: printf(GREEN  "Manager has woken up ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
-                case 1: printf(GREEN  "Manager has woken up PictureClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
-                case 2: printf(GREEN  "Manager has woken up PassportClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
-                case 3: printf(GREEN  "Manager has woken up Cashier %d"  ANSI_COLOR_RESET  "\n", i); break;
-            }
+            printf(GREEN  "Manager has woken up %s %d."  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], i);
             continue;
         }
 
@@ -844,13 +865,7 @@ int ManageClerk(int clerkType)
 
             clerkData[i].state = AVAILABLE;
             breakCV[i]->Signal(lineLock);
-            switch(clerkType) 
-            {
-                case 0: printf(GREEN  "Manager has woken up ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
-                case 1: printf(GREEN  "Manager has woken up PictureClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
-                case 2: printf(GREEN  "Manager has woken up PassportClerk %d."  ANSI_COLOR_RESET  "\n", i); break;
-                case 3: printf(GREEN  "Manager has woken up Cashier %d"  ANSI_COLOR_RESET  "\n", i); break;
-            }
+            printf(GREEN  "Manager has woken up %s %d."  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], i);
         }
     }
     lineLock->Release();
@@ -929,7 +944,7 @@ void getInput()
     bool invalidInput = false;
     char * inputPointer, input[100];
 
-    printf(WHITE  "\n\nWelcome to the Passport Office"  ANSI_COLOR_RESET  "\n");
+    printf(WHITE  "\n\nhello to the Passport Office"  ANSI_COLOR_RESET  "\n");
     
     printf(WHITE  "How many Customers? [1-50]\t\t"  ANSI_COLOR_RESET);
     while (fgets(input, sizeof(input), stdin)) {
@@ -1080,13 +1095,7 @@ void DecideLine(int ssn, int& money, int clerkType)
             money -= 500;
             bribeCV[currentLine]->Signal(lineLock);
             bribeCV[currentLine]->Wait(lineLock);
-            switch(clerkType) 
-            {
-                case 0: printf(GREEN  "Customer %d has gotten in bribe line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
-                case 1: printf(GREEN  "Customer %d has gotten in bribe line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
-                case 2: printf(GREEN  "Customer %d has gotten in bribe line for PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
-                case 3: printf(GREEN  "Customer %d has gotten in bribe line for Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
-            }
+            printf(GREEN  "Customer %d has gotten in bribe line for %s %d."  ANSI_COLOR_RESET  "\n", ssn, ClerkTypes[clerkType], currentLine);
 
             clerkData[currentLine].bribeLineCount++;
             bribeLineCV[currentLine]->Wait(lineLock);
@@ -1097,14 +1106,7 @@ void DecideLine(int ssn, int& money, int clerkType)
         {
             // Join the line
             clerkData[currentLine].lineCount++; 
-
-            switch(clerkType) 
-            {
-                case 0: printf(GREEN  "Customer %d has gotten in regular line for ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
-                case 1: printf(GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
-                case 2: printf(GREEN  "Customer %d has gotten in regular line for PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
-                case 3: printf(GREEN  "Customer %d has gotten in regular line for Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, currentLine); break;
-            }
+            printf(GREEN  "Customer %d has gotten in no line for %s %d."  ANSI_COLOR_RESET  "\n", ssn, ClerkTypes[clerkType], currentLine);
 
             lineCV[currentLine]->Wait(lineLock); // Waiting in line (Reacquires lock after getting woken up inside Wait.)
             clerkData[currentLine].lineCount--; // Leaving the line
@@ -1135,7 +1137,7 @@ void Leave(int ssn)
 void Customer(int ssn) 
 {
     int RandIndex = rand() % 4;
-    int money = moneyOptions[RandIndex];
+    int money = MoneyOptions[RandIndex];
     int randomVal = (rand() % 100 + 1);
     if (randomVal < 50)
     {
@@ -1255,9 +1257,14 @@ void Part2()
     // Used to reference clerk data when making decision about which line to get in. 4 types of clerk
     lineDecisionMonitors = new LineDecisionMonitor [4];
 
+    ClerkTypes = new char*[4];
+
+    ClerkTypes[0] = "fuckboy";
+    ClerkTypes[1] = "fuckboy2";
+    ClerkTypes[2] = "PassportClerk";
+    ClerkTypes[3] = "Cashier";
 
     //  POLISH: If we have time, below could be done in two nested for loops.
-
 
     //  ================================================
     //      Application Clerks
@@ -1475,7 +1482,7 @@ void Part2()
         t->Fork((VoidFunctionPtr)Customer, i);
     }
 }
-
+#endif
 /*
 
 TO DO
