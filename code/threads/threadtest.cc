@@ -16,7 +16,6 @@
 #include "synch.h"
 #endif
 
-
 #include <stdio.h>
 
 #define RED     "\x1b[31m"
@@ -587,14 +586,14 @@ void AcceptBribe(int clerkType, int lineNumber)
     Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
 
-    bribeCV[lineNumber]->Signal(lineLock);//wake up next customer on my line
+    bribeCV[lineNumber]->Signal(lineLock);// wake up next customer on my line
 
     bribeCV[lineNumber]->Wait(lineLock);
     clerkData[lineNumber].bribeMoney += 500;
     printf(GREEN  "%s %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber, clerkData[lineNumber].currentCustomer);
     bribeCV[lineNumber]->Signal(lineLock);
     clerkData[lineNumber].isBeingBribed = false;
-    clerkData[lineNumber].currentCustomer = -1; //set current customer back to -1
+    clerkData[lineNumber].currentCustomer = -1; // set current customer back to -1
     lineLock->Release();
 }
 
@@ -1134,131 +1133,6 @@ void Senator()
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void GetInput()
-{
-    bool invalidInput = false;
-    char * inputPointer, input[100];
-
-    printf(WHITE  "\n\nWelcome to the Passport Office"  ANSI_COLOR_RESET  "\n");
-    
-    printf(WHITE  "How many Customers? [1-50]\t\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numCustomers = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numCustomers <= 50 && numCustomers >= 1)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 1 and 50."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Customers? [1-50]\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numAppClerks = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numAppClerks <= 5 && numAppClerks >= 1)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numPicClerks = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numPicClerks <= 5 && numPicClerks >= 1)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numPassportClerks = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numPassportClerks <= 5 && numPassportClerks >= 1)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numCashiers = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numCashiers <= 5 && numCashiers >= 1)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(WHITE  "How many Senators? [0-10]\t\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numSenators = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numSenators <= 10 && numSenators >= 0)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 0 and 10."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Senators? [0-10]\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(MAGENTA  "Number of Customers = %d"  ANSI_COLOR_RESET  "\n", numCustomers);
-    printf(MAGENTA  "Number of ApplicationClerks = %d"  ANSI_COLOR_RESET  "\n", numAppClerks);
-    printf(MAGENTA  "Number of PictureClerks = %d"  ANSI_COLOR_RESET  "\n", numPicClerks);
-    printf(MAGENTA  "Number of PassportClerks = %d"  ANSI_COLOR_RESET  "\n", numPassportClerks);
-    printf(MAGENTA  "Number of Cashiers = %d"  ANSI_COLOR_RESET  "\n", numCashiers);
-    printf(MAGENTA  "Number of Senators = %d"  ANSI_COLOR_RESET  "\n", numSenators);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /************************/
 /******* CUSTOMER *******/
 /************************/
@@ -1380,66 +1254,107 @@ void Customer(int ssn)
 }
 
 
-/***********************/
-/******* TESTING *******/
-/***********************/
-ClerkData * testClerkData = new ClerkData[5];
 
-void shortestLine() {
-    Thread * t;
-    char * name;
 
-    // Initialize lines with lineCounts
-    for (int i = 0; i < 5; i++) {
-        testClerkData[i].lineCount = rand() % 10;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/******************************/
+/******* INITIALIZATION *******/
+/******************************/
+void GetInput()
+{
+    bool invalidInput = false;
+    char * inputPointer, input[100];
+
+    printf(WHITE  "\n\nWelcome to the Passport Office"  ANSI_COLOR_RESET  "\n");
+    
+    printf(WHITE  "How many Customers? [1-50]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numCustomers = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numCustomers <= 50 && numCustomers >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 50."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Customers? [1-50]\t"  ANSI_COLOR_RESET);
+        } else break;
     }
 
-    for(int i = 0; i < numCustomers; i++) 
-    {
-        name = new char [40];
-        sprintf(name, "Customer-%d", i);
-        t = new Thread(name);
-        t->Fork((VoidFunctionPtr)Customer, i);
+    printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numAppClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numAppClerks <= 5 && numAppClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
     }
+
+    printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numPicClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numPicClerks <= 5 && numPicClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numPassportClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numPassportClerks <= 5 && numPassportClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numCashiers = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numCashiers <= 5 && numCashiers >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Senators? [0-10]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numSenators = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numSenators <= 10 && numSenators >= 0)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 0 and 10."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Senators? [0-10]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(MAGENTA  "Number of Customers = %d"  ANSI_COLOR_RESET  "\n", numCustomers);
+    printf(MAGENTA  "Number of ApplicationClerks = %d"  ANSI_COLOR_RESET  "\n", numAppClerks);
+    printf(MAGENTA  "Number of PictureClerks = %d"  ANSI_COLOR_RESET  "\n", numPicClerks);
+    printf(MAGENTA  "Number of PassportClerks = %d"  ANSI_COLOR_RESET  "\n", numPassportClerks);
+    printf(MAGENTA  "Number of Cashiers = %d"  ANSI_COLOR_RESET  "\n", numCashiers);
+    printf(MAGENTA  "Number of Senators = %d"  ANSI_COLOR_RESET  "\n", numSenators);
 }
 
-
-// Customers do not leave until they are given passport
-// Senator
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void Part2()
+void InitializeData()
 {
-    GetInput();
-
-    Thread *t;
-    char *name;
 
     appClerkCV = new Condition*[numAppClerks];
     picClerkCV = new Condition*[numPicClerks];
@@ -1487,12 +1402,12 @@ void Part2()
     ClerkTypes[1] = "PictureClerk";
     ClerkTypes[2] = "PassportClerk";
     ClerkTypes[3] = "Cashier";
+}
 
-    //  POLISH: If we have time, below could be done in two nested for loops.
-
-    //  ================================================
-    //      Application Clerks
-    //  ================================================
+void InitializeAppClerks () 
+{
+    Thread * t;
+    char * name;
 
     for (int i = 0; i < numAppClerks; i++)
     {
@@ -1540,12 +1455,12 @@ void Part2()
     lineDecisionMonitors[0].clerkLock = appClerkLock;
     lineDecisionMonitors[0].clerkData = appClerkData;
     lineDecisionMonitors[0].numClerks = numAppClerks;
+}
 
-
-    //  ================================================
-    //      Picture Clerks
-    //  ================================================
-
+void InitializePicClerks () 
+{
+    Thread * t;
+    char * name;
 
     for(int i = 0; i < numPicClerks; i++)
     {
@@ -1593,10 +1508,12 @@ void Part2()
     lineDecisionMonitors[1].clerkLock = picClerkLock;
     lineDecisionMonitors[1].clerkData = picClerkData;
     lineDecisionMonitors[1].numClerks = numPicClerks;
+}
 
-    //  ================================================
-    //      Passport Clerks
-    //  ================================================
+void InitializePassportClerks () 
+{
+    Thread * t;
+    char * name;
 
     for(int i = 0; i < numPassportClerks; i++)
     {
@@ -1643,10 +1560,12 @@ void Part2()
     lineDecisionMonitors[2].clerkLock = passportClerkLock;
     lineDecisionMonitors[2].clerkData = passportClerkData;
     lineDecisionMonitors[2].numClerks = numPassportClerks;
+}
 
-    //  ================================================
-    //      Cashiers
-    //  ================================================
+void InitializeCashiers() 
+{
+    Thread * t;
+    char * name;
 
     for(int i = 0; i < numCashiers; i++) 
     {
@@ -1694,17 +1613,20 @@ void Part2()
     lineDecisionMonitors[3].clerkData = cashierData;
     lineDecisionMonitors[3].numClerks = numCashiers;
 
-    //  ================================================
-    //      Managers
-    //  ================================================
+}
 
+void InitializeManager()
+{
+    Thread * t;
 
     t = new Thread("Manager");
     t->Fork((VoidFunctionPtr)Manager, 0);
-    //  ================================================
-    //      Customers
-    //  ================================================
+}
 
+void InitializeCustomers()
+{
+    Thread * t;
+    char * name;
 
     for(int i = 0; i < numCustomers; i++) 
     {
@@ -1713,6 +1635,198 @@ void Part2()
         t = new Thread(name);
         t->Fork((VoidFunctionPtr)Customer, i);
     }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/***********************/
+/******* TESTING *******/
+/***********************/
+ClerkData * testClerkData;
+
+void shortestLine() {
+    Thread * t;
+    char * name;
+
+    testClerkData = new ClerkData[5];
+
+    // Initialize lines with lineCounts
+    for (int i = 0; i < 5; i++) {
+        testClerkData[i].lineCount = rand() % 10;
+    }
+
+    for(int i = 0; i < numCustomers; i++) 
+    {
+        name = new char [40];
+        sprintf(name, "Customer-%d", i);
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)Customer, i);
+    }
+}
+
+// Customers do not leave until they are given passport
+// Senator
+
+void ClerksGoOnBreak_Customer(int i)
+{
+    int money = 100;
+    DecideLine(i, money, 0);
+}
+
+void ClerksGoOnBreak() 
+{
+    numCustomers = 1;
+    numAppClerks = 1;
+
+    InitializeData();
+
+    InitializeAppClerks();
+
+    Thread * t;
+    char * name;
+
+    int money = 100;
+
+    for(int i = 0; i < numCustomers; i++) 
+    {
+        name = new char [40];
+        sprintf(name, "Customer-%d", i);
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)ClerksGoOnBreak_Customer, i);
+    }
+}
+
+
+void ManagerTakesClerkOffBreak_Customer(int i)
+{
+    int money = 100;
+    DecideLine(i, money, 0);
+    DecideLine(i, money, 1);
+}
+
+void ManagerTakesClerkOffBreak()
+{
+    numCustomers = 5;
+    numAppClerks = 1;
+    numPicClerks = 2;
+
+    InitializeData();
+
+    InitializeAppClerks();
+
+    InitializePicClerks();
+
+    InitializePassportClerks();
+
+    InitializeCashiers();
+
+    InitializeManager();
+
+    Thread * t;
+    char * name;
+
+    int money = 100;
+
+    for(int i = 0; i < numCustomers; i++) 
+    {
+        name = new char [40];
+        sprintf(name, "Customer-%d", i);
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)ManagerTakesClerkOffBreak_Customer, i);
+    }
+}
+
+void Test2()
+{
+    ClerksGoOnBreak();
+    //ManagerTakesClerkOffBreak();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void Part2()
+{
+    GetInput();
+
+    InitializeData();
+
+    //  POLISH: If we have time, below could be done in two nested for loops.
+
+    //  ================================================
+    //      Application Clerks
+    //  ================================================
+
+    InitializeAppClerks();
+
+    //  ================================================
+    //      Picture Clerks
+    //  ================================================
+
+    InitializePicClerks();
+    
+
+    //  ================================================
+    //      Passport Clerks
+    //  ================================================
+
+    InitializePassportClerks();
+
+    //  ================================================
+    //      Cashiers
+    //  ================================================
+
+    InitializeCashiers();
+
+    //  ================================================
+    //      Managers
+    //  ================================================
+
+    InitializeManager();
+
+    //  ================================================
+    //      Customers
+    //  ================================================
+
+    InitializeCustomers();
 }
 #endif
 /*
