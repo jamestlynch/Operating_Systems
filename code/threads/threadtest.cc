@@ -1262,7 +1262,7 @@ void GetInput()
 /************************/
 /******* CUSTOMER *******/
 /************************/
-void DecideLine(int ssn, int& money, int clerkType) 
+int DecideLine(int ssn, int& money, int clerkType) 
 {
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
     ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
@@ -1314,7 +1314,10 @@ void DecideLine(int ssn, int& money, int clerkType)
         // Decide if we want to bribe the clerk
         if(clerkData[currentLine].lineCount >= 1 && money >= 600 && clerkData[currentLine].state != ONBREAK)
         {
+                printf(GREEN  "here too, currentLine = %d\n"  ANSI_COLOR_RESET, currentLine);
             clerkData[currentLine].isBeingBribed = true;
+                printf(GREEN  "here too two, currentLine = %d\n"  ANSI_COLOR_RESET, currentLine);
+
             bribeCV[currentLine]->Wait(lineLock);
             clerkData[currentLine].currentCustomer = ssn;
             money -= 500;
@@ -1329,11 +1332,16 @@ void DecideLine(int ssn, int& money, int clerkType)
         }
         else 
         {
+                            printf(GREEN  "too here, currentLine = %d\n"  ANSI_COLOR_RESET, currentLine);
+
             // Join the line
             clerkData[currentLine].lineCount++; 
             printf(GREEN  "Customer %d has gotten in a line for %s %d."  ANSI_COLOR_RESET  "\n", ssn, ClerkTypes[clerkType], currentLine);
 
             lineCV[currentLine]->Wait(lineLock); // Waiting in line (Reacquires lock after getting woken up inside Wait.)
+            
+                                        printf(GREEN  "too here too, currentLine = %d\n"  ANSI_COLOR_RESET, currentLine);
+
             clerkData[currentLine].lineCount--; // Leaving the line
         }
     } 
@@ -1341,15 +1349,11 @@ void DecideLine(int ssn, int& money, int clerkType)
     { 
         clerkData[currentLine].state = BUSY;
     }
+
+
     lineLock->Release();
     
-    switch(clerkType) 
-    {
-        case 0: CustomerToApplicationClerk(ssn, currentLine); break;
-        case 1: CustomerToPictureClerk(ssn, currentLine); break;
-        case 2: CustomerToPassportClerk(ssn, currentLine); break;
-        case 3: CustomerToCashier(ssn, money, currentLine); break;
-    }
+    return currentLine;
 }
 
 void Leave(int ssn)
@@ -1362,20 +1366,28 @@ void Customer(int ssn)
 {
     int RandIndex = rand() % 4;
     int money = MoneyOptions[RandIndex];
+    int currentLine = -1;
+
     int randomVal = (rand() % 100 + 1);
     if (randomVal < 50)
     {
-        DecideLine(ssn, money, 0); // clerkType = 0 = ApplicationClerk
-        DecideLine(ssn, money, 1); // clerkType = 1 = PictureClerk
+        currentLine = DecideLine(ssn, money, 0); // clerkType = 0 = ApplicationClerk
+        CustomerToApplicationClerk(ssn, currentLine);
+        currentLine = DecideLine(ssn, money, 1); // clerkType = 1 = PictureClerk
+        CustomerToPictureClerk(ssn, currentLine);
     } 
     else 
     {
-        DecideLine(ssn, money, 1); // clerkType = 1 = PictureClerk
-        DecideLine(ssn, money, 0); // clerkType = 0 = ApplicationClerk
+        currentLine = DecideLine(ssn, money, 1); // clerkType = 1 = PictureClerk
+        CustomerToPictureClerk(ssn, currentLine);
+        currentLine = DecideLine(ssn, money, 0); // clerkType = 0 = ApplicationClerk
+        CustomerToApplicationClerk(ssn, currentLine);
     }
 
-    DecideLine(ssn, money, 2); // clerkType = 2 = PassportClerk
-    DecideLine(ssn, money, 3); // clerkType = 3 = Cashier
+    currentLine = DecideLine(ssn, money, 2); // clerkType = 2 = PassportClerk
+    CustomerToPassportClerk(ssn, currentLine);
+    currentLine = DecideLine(ssn, money, 3); // clerkType = 3 = Cashier
+    CustomerToCashier(ssn, money, currentLine);
     Leave(ssn);
 }
 
@@ -1383,30 +1395,108 @@ void Customer(int ssn)
 /***********************/
 /******* TESTING *******/
 /***********************/
-ClerkData * testClerkData = new ClerkData[5];
 
-void shortestLine() {
+/***********************/
+/*  SHORTEST LINE TEST */
+/*   Customers always take the shortest line, but no 2 customers */ 
+/*   ever choose the same shortest line at the same time. */
+/***********************/
+
+void ShortestLineTest(int numLineDecisions, bool useRandomMoney, int defaultMoney, int numLines, bool useRandomLineCounts, int defaultLineCount, bool useRandomClerkStates, ClerkStatus defaultStatus) {
+    printf(WHITE  "\n\nShortest Line Test"  ANSI_COLOR_RESET  "\n");
+    printf(YELLOW  "\tNumber of customers: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numLineDecisions);
+    printf(YELLOW  "\tNumber of lines: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numLines);
+    printf(YELLOW  "\tInitial line conditions: "  ANSI_COLOR_RESET  "\n");
+    printf(YELLOW  "\t\tLine\tCount\tState"  ANSI_COLOR_RESET  "\n");
+
     Thread * t;
     char * name;
+    int clerkType = 0;
+
+    lineDecisionMonitors = new LineDecisionMonitor [clerkType];
+
+    Lock lineLock("LineLock–ShortestLineTest");
+    ClerkData * clerkData = new ClerkData[numLines];
+    Condition ** lineCV = new Condition*[numLines];
+    Condition ** bribeLineCV = new Condition*[numLines];
+    Condition ** bribeCV =  new Condition*[numLines];
+    Lock ** clerkLock = new Lock*[numLines];
 
     // Initialize lines with lineCounts
-    for (int i = 0; i < 5; i++) {
-        testClerkData[i].lineCount = rand() % 10;
+    int clerkState;
+    for (int i = 0; i < numLines; i++) 
+    {
+        /******************************/
+
+
+        name = new char [40];
+        sprintf(name, "LineCV-ApplicationClerk-%d", i);
+        lineCV[i] = new Condition(name);
+
+        name = new char [40];
+        sprintf(name, "BribeLineCV-ApplicationClerk-%d", i);
+        bribeLineCV[i] = new Condition(name);
+
+        name = new char [40];
+        sprintf(name, "BribeCV-ApplicationClerk-%d", i);
+        bribeCV[i] = new Condition(name);
+
+        name = new char [40];
+        sprintf(name, "Lock-ApplicationClerk-%d", i);
+        clerkLock[i] = new Lock(name);
+
+
+        /******************************/
+
+
+        if (useRandomClerkStates) 
+        {
+            clerkState = rand() % 3;
+            switch(clerkState) {
+                case 0: clerkData[i].state = AVAILABLE; break;
+                case 1: clerkData[i].state = BUSY; break;
+                case 2: clerkData[i].state = ONBREAK; break;
+            }
+        } 
+        else { clerkData[i].state = defaultStatus; }
+
+        if (useRandomLineCounts) { clerkData[i].lineCount = rand() % 10; }
+        else { clerkData[i].lineCount = defaultLineCount; }
+
+        printf(MAGENTA  "\t\t  %d\t  %d\t  %d"  ANSI_COLOR_RESET  "\n", i, clerkData[i].lineCount, (int)clerkData[i].state);
     }
 
-    for(int i = 0; i < numCustomers; i++) 
+    lineDecisionMonitors[clerkType].lineLock = &lineLock;
+    lineDecisionMonitors[clerkType].clerkData = clerkData;
+    lineDecisionMonitors[clerkType].lineCV = lineCV;
+    lineDecisionMonitors[clerkType].bribeLineCV = bribeLineCV;
+    lineDecisionMonitors[clerkType].bribeCV = bribeCV;
+    lineDecisionMonitors[clerkType].clerkLock = clerkLock;
+    lineDecisionMonitors[clerkType].numClerks = numLines;
+
+
+    printf(YELLOW  "\tLine Decision Results: "  ANSI_COLOR_RESET  "\n");
+
+    for (int i = 0; i < numLineDecisions; i++) 
     {
-        name = new char [40];
-        sprintf(name, "Customer-%d", i);
-        t = new Thread(name);
-        t->Fork((VoidFunctionPtr)Customer, i);
+        int money = defaultMoney;
+
+        if (useRandomMoney) {
+            int RandIndex = rand() % 4;
+            money = MoneyOptions[RandIndex];
+        }
+
+        printf(MAGENTA  "\t\tCustomer %d chose line %d."  ANSI_COLOR_RESET  "\n", i, DecideLine(i, money, clerkType));
     }
 }
 
 
-// Customers do not leave until they are given passport
-// Senator
-
+/***********************/
+/* PASSPORT FIRST TEST */
+/*   Customers do not leave until they are given their passport by the Cashier. */ 
+/*   The Cashier does not start on another customer until they know that the last */
+/*   Customer has left their area. */
+/***********************/
 
 
 
@@ -1436,6 +1526,9 @@ void shortestLine() {
 
 void Part2()
 {
+    // ShortestLineTest(numLineDecisions, useRandomMoney, defaultMoney, numLines, useRandomLineCounts, defaultLineCount, useRandomClerkStates, defaultStatus) {
+    ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
+
     GetInput();
 
     Thread *t;
