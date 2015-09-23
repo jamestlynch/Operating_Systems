@@ -61,7 +61,7 @@ extern void Print(char *file), PerformanceTest(void);
 extern void StartProcess(char *file), ConsoleTest(char *in, char *out);
 extern void MailTest(int networkID);
 #ifdef THREADS
-extern void Part2(void), TestSuite(void);
+extern void Part2(void), TestSuite(void), Test2(void);
 #endif //THREADS
 
 //----------------------------------------------------------------------
@@ -101,6 +101,9 @@ main(int argc, char **argv)
             TestSuite();
         if (!strcmp(*argv, "-P2"))               // Problem 2
             Part2();
+        if(!strcmp(*argv, "-T2"))
+        	Test2();
+
 #endif 	//THREADS
 #ifdef USER_PROGRAM
         if (!strcmp(*argv, "-x")) {        	// run a user program

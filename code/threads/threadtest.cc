@@ -16,7 +16,6 @@
 #include "synch.h"
 #endif
 
-
 #include <stdio.h>
 
 #define RED     "\x1b[31m"
@@ -587,14 +586,14 @@ void AcceptBribe(int clerkType, int lineNumber)
     Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
 
-    bribeCV[lineNumber]->Signal(lineLock);//wake up next customer on my line
+    bribeCV[lineNumber]->Signal(lineLock);// wake up next customer on my line
 
     bribeCV[lineNumber]->Wait(lineLock);
     clerkData[lineNumber].bribeMoney += 500;
     printf(GREEN  "%s %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber, clerkData[lineNumber].currentCustomer);
     bribeCV[lineNumber]->Signal(lineLock);
     clerkData[lineNumber].isBeingBribed = false;
-    clerkData[lineNumber].currentCustomer = -1; //set current customer back to -1
+    clerkData[lineNumber].currentCustomer = -1; // set current customer back to -1
     lineLock->Release();
 }
 
@@ -1134,131 +1133,6 @@ void Senator()
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void GetInput()
-{
-    bool invalidInput = false;
-    char * inputPointer, input[100];
-
-    printf(WHITE  "\n\nWelcome to the Passport Office"  ANSI_COLOR_RESET  "\n");
-    
-    printf(WHITE  "How many Customers? [1-50]\t\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numCustomers = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numCustomers <= 50 && numCustomers >= 1)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 1 and 50."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Customers? [1-50]\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numAppClerks = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numAppClerks <= 5 && numAppClerks >= 1)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numPicClerks = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numPicClerks <= 5 && numPicClerks >= 1)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numPassportClerks = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numPassportClerks <= 5 && numPassportClerks >= 1)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numCashiers = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numCashiers <= 5 && numCashiers >= 1)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(WHITE  "How many Senators? [0-10]\t\t"  ANSI_COLOR_RESET);
-    while (fgets(input, sizeof(input), stdin)) {
-        numSenators = strtol(input, &inputPointer, 10); // Base-10
-        if ((inputPointer == input || *inputPointer != '\n') || !(numSenators <= 10 && numSenators >= 0)) { // strtol did not advance pointer to an int
-            printf(RED  "Please enter an integer between 0 and 10."  ANSI_COLOR_RESET  "\n");
-            printf(WHITE  "How many Senators? [0-10]\t"  ANSI_COLOR_RESET);
-        } else break;
-    }
-
-    printf(MAGENTA  "Number of Customers = %d"  ANSI_COLOR_RESET  "\n", numCustomers);
-    printf(MAGENTA  "Number of ApplicationClerks = %d"  ANSI_COLOR_RESET  "\n", numAppClerks);
-    printf(MAGENTA  "Number of PictureClerks = %d"  ANSI_COLOR_RESET  "\n", numPicClerks);
-    printf(MAGENTA  "Number of PassportClerks = %d"  ANSI_COLOR_RESET  "\n", numPassportClerks);
-    printf(MAGENTA  "Number of Cashiers = %d"  ANSI_COLOR_RESET  "\n", numCashiers);
-    printf(MAGENTA  "Number of Senators = %d"  ANSI_COLOR_RESET  "\n", numSenators);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /************************/
 /******* CUSTOMER *******/
 /************************/
@@ -1392,147 +1266,101 @@ void Customer(int ssn)
 }
 
 
-/***********************/
-/******* TESTING *******/
-/***********************/
-
-/***********************/
-/*  SHORTEST LINE TEST */
-/*   Customers always take the shortest line, but no 2 customers */ 
-/*   ever choose the same shortest line at the same time. */
-/***********************/
-
-void ShortestLineTest(int numLineDecisions, bool useRandomMoney, int defaultMoney, int numLines, bool useRandomLineCounts, int defaultLineCount, bool useRandomClerkStates, ClerkStatus defaultStatus) {
-    printf(WHITE  "\n\nShortest Line Test"  ANSI_COLOR_RESET  "\n");
-    printf(YELLOW  "\tNumber of customers: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numLineDecisions);
-    printf(YELLOW  "\tNumber of lines: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numLines);
-    printf(YELLOW  "\tInitial line conditions: "  ANSI_COLOR_RESET  "\n");
-    printf(YELLOW  "\t\tLine\tCount\tState"  ANSI_COLOR_RESET  "\n");
-
-    Thread * t;
-    char * name;
-    int clerkType = 0;
-
-    lineDecisionMonitors = new LineDecisionMonitor [clerkType];
-
-    Lock lineLock("LineLock–ShortestLineTest");
-    ClerkData * clerkData = new ClerkData[numLines];
-    Condition ** lineCV = new Condition*[numLines];
-    Condition ** bribeLineCV = new Condition*[numLines];
-    Condition ** bribeCV =  new Condition*[numLines];
-    Lock ** clerkLock = new Lock*[numLines];
-
-    // Initialize lines with lineCounts
-    int clerkState;
-    for (int i = 0; i < numLines; i++) 
-    {
-        /******************************/
 
 
-        name = new char [40];
-        sprintf(name, "LineCV-ApplicationClerk-%d", i);
-        lineCV[i] = new Condition(name);
-
-        name = new char [40];
-        sprintf(name, "BribeLineCV-ApplicationClerk-%d", i);
-        bribeLineCV[i] = new Condition(name);
-
-        name = new char [40];
-        sprintf(name, "BribeCV-ApplicationClerk-%d", i);
-        bribeCV[i] = new Condition(name);
-
-        name = new char [40];
-        sprintf(name, "Lock-ApplicationClerk-%d", i);
-        clerkLock[i] = new Lock(name);
 
 
-        /******************************/
 
 
-        if (useRandomClerkStates) 
-        {
-            clerkState = rand() % 3;
-            switch(clerkState) {
-                case 0: clerkData[i].state = AVAILABLE; break;
-                case 1: clerkData[i].state = BUSY; break;
-                case 2: clerkData[i].state = ONBREAK; break;
-            }
-        } 
-        else { clerkData[i].state = defaultStatus; }
 
-        if (useRandomLineCounts) { clerkData[i].lineCount = rand() % 10; }
-        else { clerkData[i].lineCount = defaultLineCount; }
 
-        printf(MAGENTA  "\t\t  %d\t  %d\t  %d"  ANSI_COLOR_RESET  "\n", i, clerkData[i].lineCount, (int)clerkData[i].state);
+
+
+
+
+
+
+
+
+
+
+
+
+
+/******************************/
+/******* INITIALIZATION *******/
+/******************************/
+void GetInput()
+{
+    bool invalidInput = false;
+    char * inputPointer, input[100];
+
+    printf(WHITE  "\n\nWelcome to the Passport Office"  ANSI_COLOR_RESET  "\n");
+    
+    printf(WHITE  "How many Customers? [1-50]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numCustomers = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numCustomers <= 50 && numCustomers >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 50."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Customers? [1-50]\t"  ANSI_COLOR_RESET);
+        } else break;
     }
 
-    lineDecisionMonitors[clerkType].lineLock = &lineLock;
-    lineDecisionMonitors[clerkType].clerkData = clerkData;
-    lineDecisionMonitors[clerkType].lineCV = lineCV;
-    lineDecisionMonitors[clerkType].bribeLineCV = bribeLineCV;
-    lineDecisionMonitors[clerkType].bribeCV = bribeCV;
-    lineDecisionMonitors[clerkType].clerkLock = clerkLock;
-    lineDecisionMonitors[clerkType].numClerks = numLines;
-
-
-    printf(YELLOW  "\tLine Decision Results: "  ANSI_COLOR_RESET  "\n");
-
-    for (int i = 0; i < numLineDecisions; i++) 
-    {
-        int money = defaultMoney;
-
-        if (useRandomMoney) {
-            int RandIndex = rand() % 4;
-            money = MoneyOptions[RandIndex];
-        }
-
-        printf(MAGENTA  "\t\tCustomer %d chose line %d."  ANSI_COLOR_RESET  "\n", i, DecideLine(i, money, clerkType));
+    printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numAppClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numAppClerks <= 5 && numAppClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Application Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
     }
+
+    printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numPicClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numPicClerks <= 5 && numPicClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Picture Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numPassportClerks = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numPassportClerks <= 5 && numPassportClerks >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Passport Clerks? [1-5]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numCashiers = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numCashiers <= 5 && numCashiers >= 1)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 1 and 5."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Cashiers? [1-5]\t\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(WHITE  "How many Senators? [0-10]\t\t"  ANSI_COLOR_RESET);
+    while (fgets(input, sizeof(input), stdin)) {
+        numSenators = strtol(input, &inputPointer, 10); // Base-10
+        if ((inputPointer == input || *inputPointer != '\n') || !(numSenators <= 10 && numSenators >= 0)) { // strtol did not advance pointer to an int
+            printf(RED  "Please enter an integer between 0 and 10."  ANSI_COLOR_RESET  "\n");
+            printf(WHITE  "How many Senators? [0-10]\t"  ANSI_COLOR_RESET);
+        } else break;
+    }
+
+    printf(MAGENTA  "Number of Customers = %d"  ANSI_COLOR_RESET  "\n", numCustomers);
+    printf(MAGENTA  "Number of ApplicationClerks = %d"  ANSI_COLOR_RESET  "\n", numAppClerks);
+    printf(MAGENTA  "Number of PictureClerks = %d"  ANSI_COLOR_RESET  "\n", numPicClerks);
+    printf(MAGENTA  "Number of PassportClerks = %d"  ANSI_COLOR_RESET  "\n", numPassportClerks);
+    printf(MAGENTA  "Number of Cashiers = %d"  ANSI_COLOR_RESET  "\n", numCashiers);
+    printf(MAGENTA  "Number of Senators = %d"  ANSI_COLOR_RESET  "\n", numSenators);
 }
 
-
-/***********************/
-/* PASSPORT FIRST TEST */
-/*   Customers do not leave until they are given their passport by the Cashier. */ 
-/*   The Cashier does not start on another customer until they know that the last */
-/*   Customer has left their area. */
-/***********************/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void Part2()
+void InitializeData()
 {
-    // ShortestLineTest(numLineDecisions, useRandomMoney, defaultMoney, numLines, useRandomLineCounts, defaultLineCount, useRandomClerkStates, defaultStatus) {
-    ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-
-    GetInput();
-
-    Thread *t;
-    char *name;
 
     appClerkCV = new Condition*[numAppClerks];
     picClerkCV = new Condition*[numPicClerks];
@@ -1580,12 +1408,12 @@ void Part2()
     ClerkTypes[1] = "PictureClerk";
     ClerkTypes[2] = "PassportClerk";
     ClerkTypes[3] = "Cashier";
+}
 
-    //  POLISH: If we have time, below could be done in two nested for loops.
-
-    //  ================================================
-    //      Application Clerks
-    //  ================================================
+void InitializeAppClerks () 
+{
+    Thread * t;
+    char * name;
 
     for (int i = 0; i < numAppClerks; i++)
     {
@@ -1633,12 +1461,12 @@ void Part2()
     lineDecisionMonitors[0].clerkLock = appClerkLock;
     lineDecisionMonitors[0].clerkData = appClerkData;
     lineDecisionMonitors[0].numClerks = numAppClerks;
+}
 
-
-    //  ================================================
-    //      Picture Clerks
-    //  ================================================
-
+void InitializePicClerks () 
+{
+    Thread * t;
+    char * name;
 
     for(int i = 0; i < numPicClerks; i++)
     {
@@ -1686,10 +1514,12 @@ void Part2()
     lineDecisionMonitors[1].clerkLock = picClerkLock;
     lineDecisionMonitors[1].clerkData = picClerkData;
     lineDecisionMonitors[1].numClerks = numPicClerks;
+}
 
-    //  ================================================
-    //      Passport Clerks
-    //  ================================================
+void InitializePassportClerks () 
+{
+    Thread * t;
+    char * name;
 
     for(int i = 0; i < numPassportClerks; i++)
     {
@@ -1736,10 +1566,12 @@ void Part2()
     lineDecisionMonitors[2].clerkLock = passportClerkLock;
     lineDecisionMonitors[2].clerkData = passportClerkData;
     lineDecisionMonitors[2].numClerks = numPassportClerks;
+}
 
-    //  ================================================
-    //      Cashiers
-    //  ================================================
+void InitializeCashiers() 
+{
+    Thread * t;
+    char * name;
 
     for(int i = 0; i < numCashiers; i++) 
     {
@@ -1787,17 +1619,20 @@ void Part2()
     lineDecisionMonitors[3].clerkData = cashierData;
     lineDecisionMonitors[3].numClerks = numCashiers;
 
-    //  ================================================
-    //      Managers
-    //  ================================================
+}
 
+void InitializeManager()
+{
+    Thread * t;
 
     t = new Thread("Manager");
     t->Fork((VoidFunctionPtr)Manager, 0);
-    //  ================================================
-    //      Customers
-    //  ================================================
+}
 
+void InitializeCustomers()
+{
+    Thread * t;
+    char * name;
 
     for(int i = 0; i < numCustomers; i++) 
     {
@@ -1806,6 +1641,247 @@ void Part2()
         t = new Thread(name);
         t->Fork((VoidFunctionPtr)Customer, i);
     }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/***********************/
+/******* TESTING *******/
+/***********************/
+
+
+/***********************/
+/*  SHORTEST LINE TEST */
+/*   Customers always take the shortest line, but no 2 customers */ 
+/*   ever choose the same shortest line at the same time. */
+/***********************/
+
+void ShortestLineTest(int numLineDecisions, bool useRandomMoney, int defaultMoney, int numLines, bool useRandomLineCounts, int defaultLineCount, bool useRandomClerkStates, ClerkStatus defaultStatus) {
+    printf(WHITE  "\n\nShortest Line Test"  ANSI_COLOR_RESET  "\n");
+    printf(YELLOW  "\tNumber of customers: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numLineDecisions);
+    printf(YELLOW  "\tNumber of lines: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numLines);
+    printf(YELLOW  "\tInitial line conditions: "  ANSI_COLOR_RESET  "\n");
+    printf(YELLOW  "\t\tLine\tCount\tState"  ANSI_COLOR_RESET  "\n");
+
+    printf("Makes it out of the initialization functions");
+
+    int clerkType = 0;
+
+    printf("Makes it out of the initialization functions");
+
+    lineDecisionMonitors = new LineDecisionMonitor [clerkType];
+
+    printf("Makes it out of the initialization functions");
+
+    InitializeAppClerks();
+    numAppClerks = numLines;
+
+    // Initialize lines with lineCounts
+    int clerkState;
+    for (int i = 0; i < numLines; i++) 
+    {
+        if (useRandomClerkStates) 
+        {
+            clerkState = rand() % 3;
+            switch(clerkState) {
+                case 0: lineDecisionMonitors[clerkType].clerkData[i].state = AVAILABLE; break;
+                case 1: lineDecisionMonitors[clerkType].clerkData[i].state = BUSY; break;
+                case 2: lineDecisionMonitors[clerkType].clerkData[i].state = ONBREAK; break;
+            }
+        } 
+        else { lineDecisionMonitors[clerkType].clerkData[i].state = defaultStatus; }
+
+        if (useRandomLineCounts) { lineDecisionMonitors[clerkType].clerkData[i].lineCount = rand() % 10; }
+        else { lineDecisionMonitors[clerkType].clerkData[i].lineCount = defaultLineCount; }
+
+        printf(MAGENTA  "\t\t  %d\t  %d\t  %d"  ANSI_COLOR_RESET  "\n", i, lineDecisionMonitors[clerkType].clerkData[i].lineCount, (int)lineDecisionMonitors[clerkType].clerkData[i].state);
+    }
+
+    printf(YELLOW  "\tLine Decision Results: "  ANSI_COLOR_RESET  "\n");
+
+    for (int i = 0; i < numLineDecisions; i++) 
+    {
+        int money = defaultMoney;
+
+        if (useRandomMoney) {
+            int RandIndex = rand() % 4;
+            money = MoneyOptions[RandIndex];
+        }
+
+        printf(MAGENTA  "\t\tCustomer %d chose line %d."  ANSI_COLOR_RESET  "\n", i, DecideLine(i, money, clerkType));
+    }
+}
+
+
+/***********************/
+/* PASSPORT FIRST TEST */
+/*   Customers do not leave until they are given their passport by the Cashier. */ 
+/*   The Cashier does not start on another customer until they know that the last */
+/*   Customer has left their area. */
+/***********************/
+
+void ClerksGoOnBreak_Customer(int i)
+{
+    int money = 100;
+    DecideLine(i, money, 0);
+}
+
+void ClerksGoOnBreak() 
+{
+    numCustomers = 1;
+    numAppClerks = 1;
+
+    InitializeData();
+
+    InitializeAppClerks();
+
+    Thread * t;
+    char * name;
+
+    int money = 100;
+
+    for(int i = 0; i < numCustomers; i++) 
+    {
+        name = new char [40];
+        sprintf(name, "Customer-%d", i);
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)ClerksGoOnBreak_Customer, i);
+    }
+}
+
+
+void ManagerTakesClerkOffBreak_Customer(int i)
+{
+    int money = 100;
+    DecideLine(i, money, 0);
+    DecideLine(i, money, 1);
+}
+
+void ManagerTakesClerkOffBreak()
+{
+    numCustomers = 5;
+    numAppClerks = 1;
+    numPicClerks = 2;
+
+    InitializeData();
+
+    InitializeAppClerks();
+
+    InitializePicClerks();
+
+    InitializePassportClerks();
+
+    InitializeCashiers();
+
+    InitializeManager();
+
+    Thread * t;
+    char * name;
+
+    int money = 100;
+
+    for(int i = 0; i < numCustomers; i++) 
+    {
+        name = new char [40];
+        sprintf(name, "Customer-%d", i);
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)ManagerTakesClerkOffBreak_Customer, i);
+    }
+}
+
+void Test2()
+{
+    ClerksGoOnBreak();
+    //ManagerTakesClerkOffBreak();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void Part2()
+{
+    ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
+
+    GetInput();
+
+    InitializeData();
+
+    //  POLISH: If we have time, below could be done in two nested for loops.
+
+    //  ================================================
+    //      Application Clerks
+    //  ================================================
+
+    InitializeAppClerks();
+
+    //  ================================================
+    //      Picture Clerks
+    //  ================================================
+
+    InitializePicClerks();
+    
+
+    //  ================================================
+    //      Passport Clerks
+    //  ================================================
+
+    InitializePassportClerks();
+
+    //  ================================================
+    //      Cashiers
+    //  ================================================
+
+    InitializeCashiers();
+
+    //  ================================================
+    //      Managers
+    //  ================================================
+
+    InitializeManager();
+
+    //  ================================================
+    //      Customers
+    //  ================================================
+
+    InitializeCustomers();
 }
 #endif
 /*

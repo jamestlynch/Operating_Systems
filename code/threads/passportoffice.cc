@@ -135,6 +135,7 @@ int numSenators = 1;
 
 int numCustomersFinished = 0;
 
+Semaphore * customerSemaphore;
 
 /********************/
 /***** MONITORS *****/
