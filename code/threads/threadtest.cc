@@ -1894,7 +1894,7 @@ void CashierTest(int defaultMoney, int numCashier, int numCustomer, ClerkStatus 
         printf("forked thread %d\n", i);
         customerData[i].passportCertified=false;
     }
-    for (int i = 0; i < 1000; i++)
+    for (int i = 0; i < 2000; i++)
     {
         currentThread->Yield();
     }
