@@ -1141,6 +1141,7 @@ int DecideLine(int ssn, int& money, int clerkType)
     printf("%d making a line decision.\n", ssn);
 
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
+    printf("test");
     ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
     Condition ** lineCV = lineDecisionMonitors[clerkType].lineCV;
     Condition ** bribeLineCV = lineDecisionMonitors[clerkType].bribeLineCV;
@@ -1680,7 +1681,7 @@ struct DecideLineParams {
         clerkType = -1;
     }
 };
-
+/*
 void ShortestLineTest_Customer(DecideLineParams* decideLineParamsPointer) {
     decideLineParamsPointer = (DecideLineParams *) decideLineParamsPointer;
     int ssn = decideLineParamsPointer->ssn;
@@ -1711,6 +1712,7 @@ void ShortestLineTest(int numLineDecisions, bool useRandomMoney, int defaultMone
     {
         if (useRandomClerkStates) 
         {
+
             clerkState = rand() % 3;
             switch(clerkState) {
                 case 0: lineDecisionMonitors[clerkType].clerkData[i].state = AVAILABLE; break;
@@ -1730,6 +1732,7 @@ void ShortestLineTest(int numLineDecisions, bool useRandomMoney, int defaultMone
 
     for (int i = 0; i < numLineDecisions; i++) 
     {
+
         printf("%d\n", i);
         int money = defaultMoney;
 
@@ -1751,22 +1754,69 @@ void ShortestLineTest(int numLineDecisions, bool useRandomMoney, int defaultMone
 
         printf("forked thread %d\n", i);
 
-        printf(MAGENTA  "\t\tCustomer %d chose line %d."  ANSI_COLOR_RESET  "\n", i, DecideLine(i, money, clerkType));
+        printf(MAGENTA  "\t\tCustomer %d chose line %d."  ANSI_COLOR_RESET  "\n", i, DecideLineParams(i, money, clerkType));
     }
-}
+}*/
 
 
 /***********************/
-/* PASSPORT FIRST TEST */
+/* PASSPORT THIRD TEST */
 /*   Customers do not leave until they are given their passport by the Cashier. */ 
 /*   The Cashier does not start on another customer until they know that the last */
 /*   Customer has left their area. */
 /***********************/
 
+//needs to show the cashier yields until the customer signals that it is leaving
+//needs to show the customer does not leave the passport office until the cashier gave the passport.
+//must show that the customer's app hasn't been filed/the customers picture hasn't been filed.
+
+void CashierTest_Customer(int ssn){
+    int RandIndex = rand() % 4;
+    int money = MoneyOptions[RandIndex];
+    DecideLine(ssn, money, 3);
+    CustomerToCashier(ssn, money, 3);
+
+}
+
+void CashierTest(int defaultMoney, int numCashier, int numCustomer, ClerkStatus defaultStatus){
+    printf(WHITE  "\n\nCashier Test"  ANSI_COLOR_RESET  "\n");
+    printf(YELLOW  "\tNumber of customers: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numCustomer);
+    printf(YELLOW  "\tNumber of cashiers: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numCashier);
+
+    InitializeData();
+
+    InitializeCashiers();
+
+    for (int i = 0; i < numCustomer; i++) 
+    {
+        char * name = new char [40];
+        sprintf(name, "Customer-%d", i);
+        Thread * t = new Thread(name);
+        t->Fork((VoidFunctionPtr)CashierTest_Customer, i);
+        printf("forked thread %d\n", i);
+        //printf("%d\n", i);
+        customerData[i].turnedInApplication=true;
+        customerData[i].acceptedPicture=true;
+        customerData[i].gotPassport=false;
+        customerData[i].applicationFiled=false;
+        customerData[i].photoFiled=false;
+        customerData[i].passportCertified=false;
+        customerData[i].passportRecorded=false;
+        //printf(MAGENTA  "\t\tCustomer %d chose line %d."  ANSI_COLOR_RESET  "\n", i, DecideLineParams(i, money, clerkType));
+    }
+
+    currentThread->Yield();
+}
+
+
+
+
+
+/*)
 void ClerksGoOnBreak_Customer(int i)
 {
     int money = 100;
-    DecideLine(i, money, 0);
+    DecideLine(i, 100, 0);
 }
 
 void ClerksGoOnBreak() 
@@ -1831,10 +1881,10 @@ void ManagerTakesClerkOffBreak()
         t->Fork((VoidFunctionPtr)ManagerTakesClerkOffBreak_Customer, i);
     }
 }
-
+*/
 void Test2()
 {
-    ClerksGoOnBreak();
+    //ClerksGoOnBreak();
     //ManagerTakesClerkOffBreak();
 }
 
@@ -1854,15 +1904,10 @@ void Test2()
 
 
 
-
-
-
-
-
 void Part2()
 {
-    ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-
+    //ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
+    CashierTest(100, 1, 2, BUSY); //
     GetInput();
 
     InitializeData();
