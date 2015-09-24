@@ -522,6 +522,8 @@ Lock filingPictureLock("FilingPictureLock");
 Lock filingApplicationLock("FilingApplicationLock");
 Lock certifyingPassportLock("CertifyingPassportLock");
 
+Semaphore * customersFinished;
+
 Condition ** appClerkBreakCV;
 Condition ** picClerkBreakCV;
 Condition ** passportClerkBreakCV;
@@ -590,7 +592,14 @@ void AcceptBribe(int clerkType, int lineNumber)
 
     bribeCV[lineNumber]->Signal(lineLock);// wake up next customer on my line
 
+    printf("signalled CV\n");
+
     bribeCV[lineNumber]->Wait(lineLock);
+
+    printf("%s\n", bribeCV[lineNumber]->getName());
+
+    printf("waiting.......\n");
+
     clerkData[lineNumber].bribeMoney += 500;
     printf(GREEN  "%s %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber, clerkData[lineNumber].currentCustomer);
     bribeCV[lineNumber]->Signal(lineLock);
@@ -614,18 +623,23 @@ void Clerk(ClerkFunctionStruct * clerkFunctionStruct)
     Condition ** breakCV = lineDecisionMonitors[clerkType].breakCV;
 
     lineLock->Acquire();
+
+
     interaction(lineNumber);
     while (true)
     {
         lineLock->Acquire();
 
+        printf("got lock\n");
+
         if(clerkData[lineNumber].isBeingBribed)
         {
+            printf("being bribed\n");
             AcceptBribe(clerkType, lineNumber);
         }
         else if(clerkData[lineNumber].bribeLineCount > 0)
         {
-            printf(RED  "%s %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber);
+            printf(GREEN  "%s %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber);
             bribeLineCV[lineNumber]->Signal(lineLock);
             clerkData[lineNumber].state = BUSY;
             interaction(lineNumber);
@@ -692,6 +706,7 @@ void FileApplication(FilingJob* jobPointer)
 
 void ApplicationClerkToCustomer(int lineNumber)
 {
+
     appClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     appLineLock.Release(); // clerk must know a customer left before starting over
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
@@ -795,6 +810,7 @@ void CustomerToPictureClerk(int ssn, int myLine)
 
 void PictureClerkToCustomer(int lineNumber)
 {
+
     // TODO: TRANSFER DATA BETWEEN PIC CLERK AND CUSTOMER
     picClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
     picLineLock.Release(); //clerk must know a customer left before starting over
@@ -965,11 +981,11 @@ void CustomerToCashier(int ssn, int& money, int myLine)
 
     if(!customerData[ssn].passportCertified){ // If you weren't, go back to end of line
         certifyingPassportLock.Release();
+
         
         // Customer went to cashier too soon, "punish" -> wait an arbitrary amount of time
         int punishmentTime = (rand() % 900) + 100;
         for (int i = 0; i < punishmentTime; i++) { currentThread->Yield(); }
-        
         // Go to the back of the line and wait again
         cashierLineLock.Acquire();
         cashierCV[myLine]->Signal(cashierLock[myLine]); //leaving
@@ -1120,10 +1136,7 @@ void Manager()
             return;
         }
 
-        for(int i = 0; i < 1000; i++)
-        {
-            currentThread->Yield();
-        }
+        currentThread->Yield();
     }
 }
 
@@ -1141,7 +1154,6 @@ void Senator()
 int DecideLine(int ssn, int& money, int clerkType) 
 {
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
-    printf("test");
     ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
     Condition ** lineCV = lineDecisionMonitors[clerkType].lineCV;
     Condition ** bribeLineCV = lineDecisionMonitors[clerkType].bribeLineCV;
@@ -1158,6 +1170,8 @@ int DecideLine(int ssn, int& money, int clerkType)
     // What if everyone's on break?
     int shortestLine = -1; // Store the shortest line    //(Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
     int shortestLineSize = 1000; // Larger than any line could possibly be because we are searching for shortest line.
+
+
 
     for (int i = 0; i < numClerks; i++) //number of clerks
     {
@@ -1226,8 +1240,6 @@ int DecideLine(int ssn, int& money, int clerkType)
     { 
         clerkData[currentLine].state = BUSY;
     }
-
-
     lineLock->Release();
     
     return currentLine;
@@ -1411,6 +1423,13 @@ void InitializeData()
     ClerkTypes[1] = "PictureClerk";
     ClerkTypes[2] = "PassportClerk";
     ClerkTypes[3] = "Cashier";
+
+    //customersFinished = new Semaphore("", numCustomers)
+}
+
+void CleanUpData()
+{
+
 }
 
 void InitializeAppClerks () 
@@ -1464,6 +1483,52 @@ void InitializeAppClerks ()
     lineDecisionMonitors[0].clerkLock = appClerkLock;
     lineDecisionMonitors[0].clerkData = appClerkData;
     lineDecisionMonitors[0].numClerks = numAppClerks;
+}
+
+void CleanUpAppClerks()
+{
+    Thread * t;
+    char * name;
+
+    Condition * tempCV;
+    Lock * tempLock;
+
+    for (int i = 0; i < numAppClerks; i++)
+    {
+        tempCV = appClerkLineCV[i];
+        delete tempCV;
+        appClerkLineCV[i] = NULL;
+
+        tempCV = appClerkBribeLineCV[i];
+        delete tempCV;
+        appClerkBribeLineCV[i] = NULL;
+
+        tempCV = appClerkBribeCV[i];
+        delete tempCV;
+        appClerkBribeCV[i] = NULL;
+
+        tempLock = appClerkLock[i];
+        delete tempLock;
+        appClerkLock[i] = NULL;
+        
+        tempCV = appClerkCV[i];
+        delete tempCV;
+        appClerkCV[i] = NULL;
+
+        tempCV = appClerkBreakCV[i];
+        delete tempCV;
+        appClerkBreakCV[i] = NULL;
+    }
+
+    lineDecisionMonitors[0].lineLock = NULL;
+    lineDecisionMonitors[0].lineCV = NULL;
+    lineDecisionMonitors[0].bribeLineCV = NULL;
+    lineDecisionMonitors[0].bribeCV = NULL;
+    lineDecisionMonitors[0].breakCV = NULL;
+    lineDecisionMonitors[0].clerkCV = NULL;
+    lineDecisionMonitors[0].clerkLock = NULL;
+    lineDecisionMonitors[0].clerkData = NULL;
+    lineDecisionMonitors[0].numClerks = 0;
 }
 
 void InitializePicClerks () 
@@ -1677,8 +1742,6 @@ void InitializeCustomers()
 /*   ever choose the same shortest line at the same time. */
 /***********************/
 
-Semaphore ShortestLineTestDone("ShortestLineTestDone",0);       // Wait for all threads to finish
-
 struct DecideLineParams {
     int ssn;
     int money;
@@ -1785,6 +1848,8 @@ void ShortestLineTest(int numLineDecisions, int defaultMoney, int numLines, int 
 /*   The Cashier does not start on another customer until they know that the last */
 /*   Customer has left their area. */
 /***********************/
+Semaphore ClerksGoOnBreak_Semaphore("ClerksGoOnBreak_Semaphore", 0);
+Semaphore CashierTest_Semaphore("CashierTest_Semaphore", 0);
 
 //needs to show the cashier yields until the customer signals that it is leaving
 //needs to show the customer does not leave the passport office until the cashier gave the passport.
@@ -1793,19 +1858,22 @@ void ShortestLineTest(int numLineDecisions, int defaultMoney, int numLines, int 
 void CashierTest_Customer(int ssn){
     int RandIndex = rand() % 4;
     int money = MoneyOptions[RandIndex];
-    DecideLine(ssn, money, 3);
-    CustomerToCashier(ssn, money, 3);
+    int num = DecideLine(ssn, money, 3);
+    CustomerToCashier(ssn, money, num);
+    Leave(ssn);
+    CashierTest_Semaphore.P();
 
 }
 
 void CashierTest(int defaultMoney, int numCashier, int numCustomer, ClerkStatus defaultStatus){
+    
     printf(WHITE  "\n\nCashier Test"  ANSI_COLOR_RESET  "\n");
     printf(YELLOW  "\tNumber of customers: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numCustomer);
     printf(YELLOW  "\tNumber of cashiers: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numCashier);
 
     InitializeData();
-
     InitializeCashiers();
+
 
     for (int i = 0; i < numCustomer; i++) 
     {
@@ -1814,24 +1882,29 @@ void CashierTest(int defaultMoney, int numCashier, int numCustomer, ClerkStatus 
         Thread * t = new Thread(name);
         t->Fork((VoidFunctionPtr)CashierTest_Customer, i);
         printf("forked thread %d\n", i);
-        //printf("%d\n", i);
-        customerData[i].turnedInApplication=true;
-        customerData[i].acceptedPicture=true;
-        customerData[i].gotPassport=false;
-        customerData[i].applicationFiled=false;
-        customerData[i].photoFiled=false;
         customerData[i].passportCertified=false;
-        customerData[i].passportRecorded=false;
-        //printf(MAGENTA  "\t\tCustomer %d chose line %d."  ANSI_COLOR_RESET  "\n", i, DecideLineParams(i, money, clerkType));
+    }
+    for (int i = 0; i < 1000; i++)
+    {
+        currentThread->Yield();
+    }
+    for (int i=0; i<numCustomer; i++){
+        printf("Setting customer %d passport certified to true.\n", i);
+        customerData[i].passportCertified=true;
     }
 
-    currentThread->Yield();
+    CashierTest_Semaphore.P();
+
+    //gcurrentThread->Yield();
 }
 
 void ClerksGoOnBreak_Customer(int i)
 {
     int money = 100;
-    DecideLine(i, 100, 0);
+
+    int currentLine = DecideLine(i, money, 0);
+    CustomerToApplicationClerk(i, currentLine);
+    ClerksGoOnBreak_Semaphore.V();
 }
 
 void ClerksGoOnBreak() 
@@ -1840,36 +1913,54 @@ void ClerksGoOnBreak()
     numAppClerks = 1;
 
     InitializeData();
-
     InitializeAppClerks();
 
     Thread * t;
     char * name;
 
-    int money = 100;
+    name = new char [40];
+    sprintf(name, "Customer-%d", 0);
+    t = new Thread(name);
+    t->Fork((VoidFunctionPtr)ClerksGoOnBreak_Customer, 0);
 
-    for(int i = 0; i < numCustomers; i++) 
-    {
-        name = new char [40];
-        sprintf(name, "Customer-%d", i);
-        t = new Thread(name);
-        t->Fork((VoidFunctionPtr)ClerksGoOnBreak_Customer, i);
-    }
+    ClerksGoOnBreak_Semaphore.P();
+
+    // Make sure nobody is in line
+    ASSERT(appClerkData[0].lineCount == 0);
+    // Make sure clerk is on break
+    ASSERT(appClerkData[0].state == ONBREAK);
+    
+
+    //CleanUpAppClerks();
 }
 
+Semaphore ManagerTakesClerkOffBreak_Semaphore("ManagerTakesClerkOffBreak_Semaphore", 0);
 
-void ManagerTakesClerkOffBreak_Customer(int i)
+void ManagerTakesClerkOffBreak_MultipleCustomers(int i)
 {
     int money = 100;
-    DecideLine(i, money, 0);
-    DecideLine(i, money, 1);
+    int currentLine = DecideLine(i, money, 0);
+    CustomerToApplicationClerk(i, currentLine);
+    ManagerTakesClerkOffBreak_Semaphore.V();
 }
+
+void ManagerTakesClerkOffBreak_SingleCustomer(int i)
+{
+    int money = 100;
+    int currentLine = DecideLine(i, money, 0);
+    ManagerTakesClerkOffBreak_Semaphore.V();
+    CustomerToApplicationClerk(i, currentLine);
+}
+
+
 
 void ManagerTakesClerkOffBreak()
 {
-    numCustomers = 5;
-    numAppClerks = 1;
-    numPicClerks = 2;
+    numCustomers = 6;
+    numAppClerks = 2;
+    numPicClerks = 1;
+    numPassportClerks = 1;
+    numCashiers = 1;
 
     InitializeData();
 
@@ -1886,23 +1977,56 @@ void ManagerTakesClerkOffBreak()
     Thread * t;
     char * name;
 
-    int money = 100;
+    name = new char [40];
+    sprintf(name, "Customer-%d", 0);
+    t = new Thread(name);
+    t->Fork((VoidFunctionPtr)ManagerTakesClerkOffBreak_MultipleCustomers, 0);
+    
+    ManagerTakesClerkOffBreak_Semaphore.P();
 
-    for(int i = 0; i < numCustomers; i++) 
+    // Make sure nobody is in line 0
+    ASSERT(appClerkData[0].lineCount == 0);
+    // Make sure clerk 0 is on break
+    ASSERT(appClerkData[0].state == ONBREAK);
+
+    for(int i = 1; i < 5; i++)
     {
         name = new char [40];
         sprintf(name, "Customer-%d", i);
         t = new Thread(name);
-        t->Fork((VoidFunctionPtr)ManagerTakesClerkOffBreak_Customer, i);
+        t->Fork((VoidFunctionPtr)ManagerTakesClerkOffBreak_MultipleCustomers, i);
     }
+
+    ManagerTakesClerkOffBreak_Semaphore.P();
+
+    // Make sure clerk 0 is available
+    ASSERT(appClerkData[0].state == AVAILABLE);
+
+    for(int i = 0; i < 3; i++)
+    {
+        ManagerTakesClerkOffBreak_Semaphore.P();
+    }
+
+    ASSERT(appClerkData[0].state == ONBREAK);
+    ASSERT(appClerkData[1].state == ONBREAK);
+
+    name = new char [40];
+    sprintf(name, "Customer-%d", 0);
+    t = new Thread(name);
+    t->Fork((VoidFunctionPtr)ManagerTakesClerkOffBreak_SingleCustomer, 0);
+    
+    ManagerTakesClerkOffBreak_Semaphore.P();
+
+    ASSERT(appClerkData[0].state == BUSY);
+    numCustomersFinished = numCustomers;
 }
 
 void Test2()
 {
-    ClerksGoOnBreak();
-    ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
+    //ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
 
-    //ManagerTakesClerkOffBreak();
+    //ClerksGoOnBreak();
+    ManagerTakesClerkOffBreak();
 }
 
 
@@ -1911,7 +2035,7 @@ void Test2()
 void Part2()
 {
     //ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-    CashierTest(100, 1, 2, BUSY); //
+    CashierTest(100, 2, 5, BUSY); //
    // ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
 
     GetInput();
