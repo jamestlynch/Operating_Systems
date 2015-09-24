@@ -457,7 +457,7 @@ struct ClerkData
 {
     int lineCount;
     int bribeLineCount;
-    bool isBeingBribed;
+    int isBeingBribed;
     int bribeMoney;
     int currentCustomer;
     ClerkStatus state;
@@ -587,14 +587,33 @@ void AcceptBribe(int clerkType, int lineNumber)
 {
     ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
     Condition ** bribeCV = lineDecisionMonitors[clerkType].bribeCV;
+    Condition ** clerkCV = lineDecisionMonitors[clerkType].clerkCV;
     Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
 
+    // appClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
+    // appLineLock.Release(); // clerk must know a customer left before starting over
+    // appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
+    // printf(GREEN  "ApplicationClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
+    // // do my job - customer nowwaiting
+    // currentThread->Yield();
+    // FilingJob * applicationFiling = new FilingJob(appClerkData[lineNumber].currentCustomer, lineNumber);
+    // Thread * t = new Thread("ApplicationFilingThread");
+    // t->Fork((VoidFunctionPtr)FileApplication, (int)applicationFiling); //think about where this should go!
+    // appClerkCV[lineNumber]->Signal(appClerkLock[lineNumber]);
+    // appClerkData[lineNumber].currentCustomer = -1; //set current customer back to -1
+    // appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
+    // appClerkLock[lineNumber]->Release();
+    
+
     bribeCV[lineNumber]->Signal(lineLock);// wake up next customer on my line
 
-    printf("signalled CV\n");
+    clerkLock[lineNumber]->Acquire();
+    lineLock->Release();
 
-    bribeCV[lineNumber]->Wait(lineLock);
+    printf("signalled CV %d\n", clerkData[lineNumber].isBeingBribed);
+
+    clerkCV[lineNumber]->Wait(clerkLock[lineNumber]);
 
     printf("%s\n", bribeCV[lineNumber]->getName());
 
@@ -602,10 +621,10 @@ void AcceptBribe(int clerkType, int lineNumber)
 
     clerkData[lineNumber].bribeMoney += 500;
     printf(GREEN  "%s %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber, clerkData[lineNumber].currentCustomer);
-    bribeCV[lineNumber]->Signal(lineLock);
-    clerkData[lineNumber].isBeingBribed = false;
+    clerkCV[lineNumber]->Signal(clerkLock[lineNumber]);
+    //clerkData[lineNumber].isBeingBribed = false;
     clerkData[lineNumber].currentCustomer = -1; // set current customer back to -1
-    lineLock->Release();
+    clerkLock[lineNumber]->Release();
 }
 
 void Clerk(ClerkFunctionStruct * clerkFunctionStruct)
@@ -624,12 +643,11 @@ void Clerk(ClerkFunctionStruct * clerkFunctionStruct)
 
     lineLock->Acquire();
 
-
     interaction(lineNumber);
     while (true)
     {
         lineLock->Acquire();
-        if(clerkData[lineNumber].isBeingBribed)
+        if(clerkData[lineNumber].isBeingBribed > 0)
         {
             printf("being bribed\n");
             AcceptBribe(clerkType, lineNumber);
@@ -1072,11 +1090,11 @@ int ManageClerk(int clerkType)
     lineLock->Acquire();
     for(int i = 0; i < numClerks; i++) 
     {
-        //if (clerkType == 3) clerkLock[i]->Acquire();
+        //clerkLock[i]->Acquire();
 
         clerkMoney += clerkData[i].bribeMoney;
 
-        //if (clerkType == 3) clerkLock[i]->Release();
+        //clerkLock[i]->Release();
 
 
         if(clerkData[i].lineCount >= 3 && clerkData[i].state != ONBREAK) 
@@ -1123,9 +1141,13 @@ void Manager()
     while(true) 
     {
         int appClerkMoney = ManageClerk(0);
+        //currentThread->Yield();
         int picClerkMoney = ManageClerk(1);
+        //currentThread->Yield();
         int passportClerkMoney = ManageClerk(2);
+        //currentThread->Yield();
         int cashierMoney = ManageClerk(3);
+        //currentThread->Yield();
         int totalMoney = appClerkMoney + picClerkMoney + passportClerkMoney + cashierMoney;
 
         printf(GREEN  "Manager has counted a total of $%d for ApplicationClerks."  ANSI_COLOR_RESET  "\n", appClerkMoney);
@@ -1139,7 +1161,7 @@ void Manager()
             return;
         }
 
-        for(int i = 0; i < 100; i++)
+        //for(int i = 0; i < 100; i++)
         {
             currentThread->Yield();
         }
@@ -1164,6 +1186,7 @@ int DecideLine(int ssn, int& money, int clerkType)
     Condition ** lineCV = lineDecisionMonitors[clerkType].lineCV;
     Condition ** bribeLineCV = lineDecisionMonitors[clerkType].bribeLineCV;
     Condition ** bribeCV = lineDecisionMonitors[clerkType].bribeCV;
+    Condition ** clerkCV = lineDecisionMonitors[clerkType].clerkCV;
     Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
     int numClerks = lineDecisionMonitors[clerkType].numClerks;
 
@@ -1218,15 +1241,35 @@ int DecideLine(int ssn, int& money, int clerkType)
         if(clerkData[currentLine].lineCount >= 1 && money >= 600 && clerkData[currentLine].state != ONBREAK)
         {
             
+            // appClerkLock[myLine]->Acquire();
+            // //Give my data to my clerk
+            // appClerkData[myLine].currentCustomer = ssn;
+            // printf(GREEN  "Customer %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+            // //task is give my data to the clerk using customerData[5]
+            // appClerkCV[myLine]->Signal(appClerkLock[myLine]);
+            // //wait for clerk to do their job
+            // appClerkCV[myLine]->Wait(appClerkLock[myLine]);
+            // //Read my data
+            // appClerkCV[myLine]->Signal(appClerkLock[myLine]);
+            // appClerkLock[myLine]->Release();
 
-            clerkData[currentLine].isBeingBribed = true;
+            clerkData[currentLine].isBeingBribed++;
+            printf("bribe waiting.......\n");
             bribeCV[currentLine]->Wait(lineLock);
+            clerkData[currentLine].isBeingBribed--;
+            printf("austin waiting.......\n");
+            lineLock->Release();
+
+            clerkLock[currentLine]->Acquire();
+
             clerkData[currentLine].currentCustomer = ssn;
             money -= 500;
-            bribeCV[currentLine]->Signal(lineLock);
-            bribeCV[currentLine]->Wait(lineLock);
+            clerkCV[currentLine]->Signal(clerkLock[currentLine]);
+            clerkCV[currentLine]->Wait(clerkLock[currentLine]);
             printf(GREEN  "Customer %d has gotten in bribe line for %s %d."  ANSI_COLOR_RESET  "\n", ssn, ClerkTypes[clerkType], currentLine);
-            
+            clerkLock[currentLine]->Release();
+
+            lineLock->Acquire();
             clerkData[currentLine].bribeLineCount++;
             bribeLineCV[currentLine]->Wait(lineLock);
             printf("Customer %d \n", ssn);
@@ -2043,7 +2086,7 @@ void Test2()
 void Part2()
 {
     //ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-    CashierTest(100, 2, 5, BUSY); //
+    //CashierTest(100, 2, 5, BUSY); //
    // ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
 
     GetInput();
