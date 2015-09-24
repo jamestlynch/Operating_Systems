@@ -1556,7 +1556,6 @@ void InitializePassportClerks ()
         t = new Thread(name);
         t->Fork((VoidFunctionPtr)Clerk, (int) clerkFunctionStruct);
     }
-
     lineDecisionMonitors[2].lineLock = &passportLineLock;
     lineDecisionMonitors[2].lineCV = passportClerkLineCV;
     lineDecisionMonitors[2].bribeLineCV = passportClerkBribeLineCV;
@@ -1618,7 +1617,6 @@ void InitializeCashiers()
     lineDecisionMonitors[3].clerkLock = cashierLock;
     lineDecisionMonitors[3].clerkData = cashierData;
     lineDecisionMonitors[3].numClerks = numCashiers;
-
 }
 
 void InitializeManager()
