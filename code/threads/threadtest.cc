@@ -1138,6 +1138,8 @@ void Senator()
 /************************/
 int DecideLine(int ssn, int& money, int clerkType) 
 {
+    printf("%d making a line decision.\n", ssn);
+
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
     ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
     Condition ** lineCV = lineDecisionMonitors[clerkType].lineCV;
@@ -1188,10 +1190,7 @@ int DecideLine(int ssn, int& money, int clerkType)
         // Decide if we want to bribe the clerk
         if(clerkData[currentLine].lineCount >= 1 && money >= 600 && clerkData[currentLine].state != ONBREAK)
         {
-                printf(GREEN  "here too, currentLine = %d\n"  ANSI_COLOR_RESET, currentLine);
             clerkData[currentLine].isBeingBribed = true;
-                printf(GREEN  "here too two, currentLine = %d\n"  ANSI_COLOR_RESET, currentLine);
-
             bribeCV[currentLine]->Wait(lineLock);
             clerkData[currentLine].currentCustomer = ssn;
             money -= 500;
@@ -1206,16 +1205,12 @@ int DecideLine(int ssn, int& money, int clerkType)
         }
         else 
         {
-                            printf(GREEN  "too here, currentLine = %d\n"  ANSI_COLOR_RESET, currentLine);
-
             // Join the line
             clerkData[currentLine].lineCount++; 
             printf(GREEN  "Customer %d has gotten in a line for %s %d."  ANSI_COLOR_RESET  "\n", ssn, ClerkTypes[clerkType], currentLine);
 
             lineCV[currentLine]->Wait(lineLock); // Waiting in line (Reacquires lock after getting woken up inside Wait.)
             
-                                        printf(GREEN  "too here too, currentLine = %d\n"  ANSI_COLOR_RESET, currentLine);
-
             clerkData[currentLine].lineCount--; // Leaving the line
         }
     } 
@@ -1676,6 +1671,27 @@ void InitializeCustomers()
 /*   ever choose the same shortest line at the same time. */
 /***********************/
 
+struct DecideLineParams {
+    int ssn;
+    int money;
+    int clerkType;
+
+    DecideLineParams() {
+        ssn = -1;
+        money = 0;
+        clerkType = -1;
+    }
+};
+
+void ShortestLineTest_Customer(DecideLineParams* decideLineParamsPointer) {
+    decideLineParamsPointer = (DecideLineParams *) decideLineParamsPointer;
+    int ssn = decideLineParamsPointer->ssn;
+    int money = decideLineParamsPointer->money;
+    int clerkType = decideLineParamsPointer->clerkType;
+
+    DecideLine(ssn, money, clerkType);
+}
+
 void ShortestLineTest(int numLineDecisions, bool useRandomMoney, int defaultMoney, int numLines, bool useRandomLineCounts, int defaultLineCount, bool useRandomClerkStates, ClerkStatus defaultStatus) {
     printf(WHITE  "\n\nShortest Line Test"  ANSI_COLOR_RESET  "\n");
     printf(YELLOW  "\tNumber of customers: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numLineDecisions);
@@ -1683,21 +1699,16 @@ void ShortestLineTest(int numLineDecisions, bool useRandomMoney, int defaultMone
     printf(YELLOW  "\tInitial line conditions: "  ANSI_COLOR_RESET  "\n");
     printf(YELLOW  "\t\tLine\tCount\tState"  ANSI_COLOR_RESET  "\n");
 
-    printf("Makes it out of the initialization functions");
+    numAppClerks = numLines;
 
-    int clerkType = 0;
-
-    printf("Makes it out of the initialization functions");
-
-    lineDecisionMonitors = new LineDecisionMonitor [clerkType];
-
-    printf("Makes it out of the initialization functions");
-
+    InitializeData();
     InitializeAppClerks();
+    
+    int clerkType = 0;
+    int clerkState = (int)defaultStatus;
     numAppClerks = numLines;
 
     // Initialize lines with lineCounts
-    int clerkState;
     for (int i = 0; i < numLines; i++) 
     {
         if (useRandomClerkStates) 
@@ -1709,7 +1720,7 @@ void ShortestLineTest(int numLineDecisions, bool useRandomMoney, int defaultMone
                 case 2: lineDecisionMonitors[clerkType].clerkData[i].state = ONBREAK; break;
             }
         } 
-        else { lineDecisionMonitors[clerkType].clerkData[i].state = defaultStatus; }
+        else { lineDecisionMonitors[clerkType].clerkData[i].state = (ClerkStatus)clerkState; }
 
         if (useRandomLineCounts) { lineDecisionMonitors[clerkType].clerkData[i].lineCount = rand() % 10; }
         else { lineDecisionMonitors[clerkType].clerkData[i].lineCount = defaultLineCount; }
@@ -1721,12 +1732,26 @@ void ShortestLineTest(int numLineDecisions, bool useRandomMoney, int defaultMone
 
     for (int i = 0; i < numLineDecisions; i++) 
     {
+        printf("%d\n", i);
         int money = defaultMoney;
 
         if (useRandomMoney) {
             int RandIndex = rand() % 4;
             money = MoneyOptions[RandIndex];
         }
+
+        DecideLineParams * decideLineParamsPointer = new DecideLineParams();
+
+        decideLineParamsPointer->ssn = i;
+        decideLineParamsPointer->money = money;
+        decideLineParamsPointer->clerkType = clerkType;
+
+        char * name = new char [40];
+        sprintf(name, "Customer-%d", i);
+        Thread * t = new Thread(name);
+        t->Fork((VoidFunctionPtr)ShortestLineTest_Customer, (int)decideLineParamsPointer);
+
+        printf("forked thread %d\n", i);
 
         printf(MAGENTA  "\t\tCustomer %d chose line %d."  ANSI_COLOR_RESET  "\n", i, DecideLine(i, money, clerkType));
     }
