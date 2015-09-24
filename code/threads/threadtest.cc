@@ -1063,6 +1063,7 @@ void CashierToCustomer(int lineNumber)
 int ManageClerk(int clerkType)
 {
     Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
+    Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
     ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
     Condition ** breakCV = lineDecisionMonitors[clerkType].breakCV;
     int numClerks = lineDecisionMonitors[clerkType].numClerks;
@@ -1074,7 +1075,12 @@ int ManageClerk(int clerkType)
     lineLock->Acquire();
     for(int i = 0; i < numClerks; i++) 
     {
+        //if (clerkType == 3) clerkLock[i]->Acquire();
+
         clerkMoney += clerkData[i].bribeMoney;
+
+        //if (clerkType == 3) clerkLock[i]->Release();
+
 
         if(clerkData[i].lineCount >= 3 && clerkData[i].state != ONBREAK) 
         {
@@ -1136,7 +1142,10 @@ void Manager()
             return;
         }
 
-        currentThread->Yield();
+        //for(int i = 0; i < 10; i++)
+        {
+            currentThread->Yield();
+        }
     }
 }
 
@@ -1211,8 +1220,7 @@ int DecideLine(int ssn, int& money, int clerkType)
         // Decide if we want to bribe the clerk
         if(clerkData[currentLine].lineCount >= 1 && money >= 600 && clerkData[currentLine].state != ONBREAK)
         {
-            clerkData[currentLine].bribeLineCount++;
-            printf(GREEN  "Customer %d has gotten in bribe line for %s %d."  ANSI_COLOR_RESET  "\n", ssn, ClerkTypes[clerkType], currentLine);
+            
 
             clerkData[currentLine].isBeingBribed = true;
             bribeCV[currentLine]->Wait(lineLock);
@@ -1220,6 +1228,8 @@ int DecideLine(int ssn, int& money, int clerkType)
             money -= 500;
             bribeCV[currentLine]->Signal(lineLock);
             bribeCV[currentLine]->Wait(lineLock);
+            printf(GREEN  "Customer %d has gotten in bribe line for %s %d."  ANSI_COLOR_RESET  "\n", ssn, ClerkTypes[clerkType], currentLine);
+            clerkData[currentLine].bribeLineCount++;
 
             bribeLineCV[currentLine]->Wait(lineLock);
             clerkData[currentLine].bribeLineCount--;
