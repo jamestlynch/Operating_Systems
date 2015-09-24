@@ -1712,8 +1712,6 @@ void ShortestLineTest_Customer(DecideLineParams* decideLineParamsPointer) {
     int myLine = DecideLine(ssn, money, clerkType);
 
     printf(GREEN  "Customer %d went directly to the counter for ApplicationClerk %d.\n"  ANSI_COLOR_RESET, ssn, myLine);
-
-    ShortestLineTestDone.V();
 }
 
 void ShortestLineTest(int numLineDecisions, int defaultMoney, int numLines, int defaultLineCount, bool useRandomClerkStates, bool useRandomLineCounts, bool useRandomMoney, ClerkStatus defaultStatus) {
@@ -1724,8 +1722,6 @@ void ShortestLineTest(int numLineDecisions, int defaultMoney, int numLines, int 
     printf(CYAN  "\t2.  Customers decide their clerk based ONLY on the length of the regular line.\n"  ANSI_COLOR_RESET);
     printf(CYAN  "\t3.  Customers always bribe if they have enough money (>= $600).\n"  ANSI_COLOR_RESET);
     printf(CYAN  "\t4.  Customers will join a long bribe line if the clerk's regular line is shortest. (Restatement of Assumption 2)\n\n"  ANSI_COLOR_RESET);
-
-    numAppClerks = numLines;
 
     InitializeData();
     InitializeAppClerks();
@@ -1859,6 +1855,8 @@ void ManagerTakesClerkOffBreak()
 void Test2()
 {
     ClerksGoOnBreak();
+    ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
+
     //ManagerTakesClerkOffBreak();
 }
 
@@ -1885,8 +1883,6 @@ void Test2()
 
 void Part2()
 {
-    ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-
     GetInput();
 
     InitializeData();
