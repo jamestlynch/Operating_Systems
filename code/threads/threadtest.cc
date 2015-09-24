@@ -1691,8 +1691,6 @@ struct DecideLineParams {
     }
 };
 
-/*
-=======
 
 void ShortestLineTest_PrintResults(int numDecisionsSoFar, int numLines) {
     currentThread->Yield();
@@ -1704,7 +1702,6 @@ void ShortestLineTest_PrintResults(int numDecisionsSoFar, int numLines) {
     }
 }
 
->>>>>>> 9dada956c4b94e3caea776249026dc84aa9b8628
 void ShortestLineTest_Customer(DecideLineParams* decideLineParamsPointer) {
     decideLineParamsPointer = (DecideLineParams *) decideLineParamsPointer;
     int ssn = decideLineParamsPointer->ssn;
@@ -1783,7 +1780,7 @@ void ShortestLineTest(int numLineDecisions, int defaultMoney, int numLines, int 
         // Print results with every 5 customers
         ShortestLineTest_PrintResults(i + 1, numLines);
     }
-}*/
+}
 
 
 /***********************/
