@@ -1139,7 +1139,7 @@ void Manager()
             return;
         }
 
-        //for(int i = 0; i < 10; i++)
+        for(int i = 0; i < 100; i++)
         {
             currentThread->Yield();
         }
@@ -1226,9 +1226,10 @@ int DecideLine(int ssn, int& money, int clerkType)
             bribeCV[currentLine]->Signal(lineLock);
             bribeCV[currentLine]->Wait(lineLock);
             printf(GREEN  "Customer %d has gotten in bribe line for %s %d."  ANSI_COLOR_RESET  "\n", ssn, ClerkTypes[clerkType], currentLine);
+            
             clerkData[currentLine].bribeLineCount++;
-
             bribeLineCV[currentLine]->Wait(lineLock);
+            printf("Customer %d \n", ssn);
             clerkData[currentLine].bribeLineCount--;
 
         }
