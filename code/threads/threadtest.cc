@@ -629,9 +629,6 @@ void Clerk(ClerkFunctionStruct * clerkFunctionStruct)
     while (true)
     {
         lineLock->Acquire();
-
-        printf("got lock\n");
-
         if(clerkData[lineNumber].isBeingBribed)
         {
             printf("being bribed\n");
@@ -1867,7 +1864,7 @@ Semaphore CashierTest_Semaphore("CashierTest_Semaphore", 0);
 
 void CashierTest_Customer(int ssn){
     int RandIndex = rand() % 4;
-    int money = MoneyOptions[RandIndex];
+    int money = MoneyOptions[0];
     int num = DecideLine(ssn, money, 3);
     CustomerToCashier(ssn, money, num);
     Leave(ssn);
