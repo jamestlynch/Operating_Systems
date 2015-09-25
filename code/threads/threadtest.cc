@@ -473,6 +473,26 @@ struct ClerkData
     }
 };
 
+struct ManagerData
+{
+    int appClerkMoney;
+    int picClerkMoney;
+    int passportClerkMoney;
+    int cashierMoney;
+    int totalMoney;
+
+    ManagerData()
+    {
+        appClerkMoney = 0;
+        picClerkMoney = 0;
+        passportClerkMoney = 0;
+        cashierMoney = 0;
+        totalMoney = 0;
+    }
+};
+
+ManagerData managerData;
+
 struct FilingJob
 {
     int ssn;
@@ -522,6 +542,11 @@ Lock filingPictureLock("FilingPictureLock");
 Lock filingApplicationLock("FilingApplicationLock");
 Lock certifyingPassportLock("CertifyingPassportLock");
 
+Lock appMoneyLock("ApplicationMoneyLock");
+Lock picMoneyLock("PictureMoneyLock");
+Lock passportMoneyLock("PassportMoneyLock");
+Lock cashierMoneyLock("CashierMoneyLock");
+
 Semaphore * customersFinished;
 
 Condition ** appClerkBreakCV;
@@ -544,11 +569,13 @@ int numSenators = 1;
 
 int numCustomersFinished = 0;
 
+Semaphore CustomersFinished("CustomersFinished", 0);
+
 
 /********************/
 /***** MONITORS *****/
 /********************/
-struct LineDecisionMonitor 
+struct ClerkGroupData 
 {
     Lock * lineLock;
     Condition ** lineCV;
@@ -557,14 +584,16 @@ struct LineDecisionMonitor
     Condition ** breakCV;
     Condition ** clerkCV;
     Lock ** clerkLock;
+    Lock * moneyLock;
     ClerkData * clerkData;
+    
     int numClerks;
+    int totalMoney;
 
-    LineDecisionMonitor() {}
+    ClerkGroupData() {}
 };
 
-LineDecisionMonitor * lineDecisionMonitors;
-
+ClerkGroupData * clerkGroupData;
 
 /*********************/
 /******* CLERK *******/
@@ -585,41 +614,27 @@ struct ClerkFunctionStruct
 
 void AcceptBribe(int clerkType, int lineNumber)
 {
-    ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
-    Condition ** bribeCV = lineDecisionMonitors[clerkType].bribeCV;
-    Condition ** clerkCV = lineDecisionMonitors[clerkType].clerkCV;
-    Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
-    Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
+    ClerkData * clerkData = clerkGroupData[clerkType].clerkData;
+    Condition ** bribeCV = clerkGroupData[clerkType].bribeCV;
+    Condition ** clerkCV = clerkGroupData[clerkType].clerkCV;
+    Lock ** clerkLock = clerkGroupData[clerkType].clerkLock;
+    Lock * lineLock = clerkGroupData[clerkType].lineLock;
 
-    // appClerkLock[lineNumber]->Acquire(); // acquire the lock for my line to pause time.
-    // appLineLock.Release(); // clerk must know a customer left before starting over
-    // appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
-    // printf(GREEN  "ApplicationClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
-    // // do my job - customer nowwaiting
-    // currentThread->Yield();
-    // FilingJob * applicationFiling = new FilingJob(appClerkData[lineNumber].currentCustomer, lineNumber);
-    // Thread * t = new Thread("ApplicationFilingThread");
-    // t->Fork((VoidFunctionPtr)FileApplication, (int)applicationFiling); //think about where this should go!
-    // appClerkCV[lineNumber]->Signal(appClerkLock[lineNumber]);
-    // appClerkData[lineNumber].currentCustomer = -1; //set current customer back to -1
-    // appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
-    // appClerkLock[lineNumber]->Release();
-    
+    Lock * moneyLock = clerkGroupData[clerkType].moneyLock;
 
     bribeCV[lineNumber]->Signal(lineLock);// wake up next customer on my line
 
     clerkLock[lineNumber]->Acquire();
     lineLock->Release();
 
-    printf("signalled CV %d\n", clerkData[lineNumber].isBeingBribed);
-
     clerkCV[lineNumber]->Wait(clerkLock[lineNumber]);
 
-    printf("%s\n", bribeCV[lineNumber]->getName());
+    //clerkData[lineNumber].bribeMoney += 500;
 
-    printf("waiting.......\n");
+    moneyLock->Acquire();
+    clerkGroupData[clerkType].totalMoney += 500;
+    moneyLock->Release();
 
-    clerkData[lineNumber].bribeMoney += 500;
     printf(GREEN  "%s %d has received $500 from Customer %d"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber, clerkData[lineNumber].currentCustomer);
     clerkCV[lineNumber]->Signal(clerkLock[lineNumber]);
     //clerkData[lineNumber].isBeingBribed = false;
@@ -635,11 +650,11 @@ void Clerk(ClerkFunctionStruct * clerkFunctionStruct)
     int lineNumber = clerkFunctionStruct->lineNumber;
     VoidFunctionPtr interaction = clerkFunctionStruct->interaction;
 
-    Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
-    ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
-    Condition ** lineCV = lineDecisionMonitors[clerkType].lineCV;
-    Condition ** bribeLineCV = lineDecisionMonitors[clerkType].bribeLineCV;
-    Condition ** breakCV = lineDecisionMonitors[clerkType].breakCV;
+    Lock * lineLock = clerkGroupData[clerkType].lineLock;
+    ClerkData * clerkData = clerkGroupData[clerkType].clerkData;
+    Condition ** lineCV = clerkGroupData[clerkType].lineCV;
+    Condition ** bribeLineCV = clerkGroupData[clerkType].bribeLineCV;
+    Condition ** breakCV = clerkGroupData[clerkType].breakCV;
 
     lineLock->Acquire();
 
@@ -997,7 +1012,6 @@ void CustomerToCashier(int ssn, int& money, int myLine)
     if(!customerData[ssn].passportCertified){ // If you weren't, go back to end of line
         certifyingPassportLock.Release();
 
-        
         // Customer went to cashier too soon, "punish" -> wait an arbitrary amount of time
         int punishmentTime = (rand() % 900) + 100;
         for (int i = 0; i < punishmentTime; i++) { currentThread->Yield(); }
@@ -1021,7 +1035,12 @@ void CustomerToCashier(int ssn, int& money, int myLine)
 
     money -= 100;
     // TODO: Increment cashier's money
-    cashierData[myLine].bribeMoney += 100;
+    //cashierData[myLine].bribeMoney += 100;
+
+    cashierMoneyLock.Acquire();
+    clerkGroupData[3].totalMoney += 100;
+    cashierMoneyLock.Release();
+
     printf(GREEN  "Cashier %d has taken $100 from Customer %d."  ANSI_COLOR_RESET  "\n", myLine, cashierData[myLine].currentCustomer);
 
     customerData[ssn].gotPassport = true;
@@ -1077,26 +1096,26 @@ void CashierToCustomer(int lineNumber)
 /***********************/
 int ManageClerk(int clerkType)
 {
-    Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
-    Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
-    ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
-    Condition ** breakCV = lineDecisionMonitors[clerkType].breakCV;
-    int numClerks = lineDecisionMonitors[clerkType].numClerks;
+    Lock * lineLock = clerkGroupData[clerkType].lineLock;
+    Lock ** clerkLock = clerkGroupData[clerkType].clerkLock;
+    ClerkData * clerkData = clerkGroupData[clerkType].clerkData;
+    Condition ** breakCV = clerkGroupData[clerkType].breakCV;
+    int numClerks = clerkGroupData[clerkType].numClerks;
+
+    Lock * moneyLock = clerkGroupData[clerkType].moneyLock;
 
     int clerkMoney = 0;
     int wakeUpClerk = 0;
     int clerksOnBreak = 0;
 
     lineLock->Acquire();
+
+    moneyLock->Acquire();
+    clerkMoney = clerkGroupData[clerkType].totalMoney;
+    moneyLock->Release();
+
     for(int i = 0; i < numClerks; i++) 
     {
-        //clerkLock[i]->Acquire();
-
-        clerkMoney += clerkData[i].bribeMoney;
-
-        //clerkLock[i]->Release();
-
-
         if(clerkData[i].lineCount >= 3 && clerkData[i].state != ONBREAK) 
         {
             wakeUpClerk++;
@@ -1140,21 +1159,21 @@ void Manager()
     // Counts each clerks money
     while(true) 
     {
-        int appClerkMoney = ManageClerk(0);
+        managerData.appClerkMoney = ManageClerk(0);
         //currentThread->Yield();
-        int picClerkMoney = ManageClerk(1);
+        managerData.picClerkMoney= ManageClerk(1);
         //currentThread->Yield();
-        int passportClerkMoney = ManageClerk(2);
+        managerData.passportClerkMoney = ManageClerk(2);
         //currentThread->Yield();
-        int cashierMoney = ManageClerk(3);
+        managerData.cashierMoney = ManageClerk(3);
         //currentThread->Yield();
-        int totalMoney = appClerkMoney + picClerkMoney + passportClerkMoney + cashierMoney;
+        managerData.totalMoney = managerData.appClerkMoney + managerData.picClerkMoney + managerData.passportClerkMoney + managerData.cashierMoney;
 
-        printf(GREEN  "Manager has counted a total of $%d for ApplicationClerks."  ANSI_COLOR_RESET  "\n", appClerkMoney);
-        printf(GREEN  "Manager has counted a total of $%d for PictureClerks."  ANSI_COLOR_RESET  "\n", picClerkMoney);
-        printf(GREEN  "Manager has counted a total of $%d for PassportClerks."  ANSI_COLOR_RESET  "\n", passportClerkMoney);
-        printf(GREEN  "Manager has counted a total of $%d for Cashier."  ANSI_COLOR_RESET  "\n", cashierMoney);
-        printf(GREEN  "Manager has counted a total of $%d for the passport office."  ANSI_COLOR_RESET  "\n", totalMoney);
+        printf(GREEN  "Manager has counted a total of $%d for ApplicationClerks."  ANSI_COLOR_RESET  "\n", managerData.appClerkMoney);
+        printf(GREEN  "Manager has counted a total of $%d for PictureClerks."  ANSI_COLOR_RESET  "\n", managerData.picClerkMoney);
+        printf(GREEN  "Manager has counted a total of $%d for PassportClerks."  ANSI_COLOR_RESET  "\n", managerData.passportClerkMoney);
+        printf(GREEN  "Manager has counted a total of $%d for Cashier."  ANSI_COLOR_RESET  "\n", managerData.cashierMoney);
+        printf(GREEN  "Manager has counted a total of $%d for the passport office."  ANSI_COLOR_RESET  "\n", managerData.totalMoney);
 
         if(numCustomersFinished == numCustomers)
         {
@@ -1181,14 +1200,14 @@ void Senator()
 /************************/
 int DecideLine(int ssn, int& money, int clerkType) 
 {
-    Lock * lineLock = lineDecisionMonitors[clerkType].lineLock;
-    ClerkData * clerkData = lineDecisionMonitors[clerkType].clerkData;
-    Condition ** lineCV = lineDecisionMonitors[clerkType].lineCV;
-    Condition ** bribeLineCV = lineDecisionMonitors[clerkType].bribeLineCV;
-    Condition ** bribeCV = lineDecisionMonitors[clerkType].bribeCV;
-    Condition ** clerkCV = lineDecisionMonitors[clerkType].clerkCV;
-    Lock ** clerkLock = lineDecisionMonitors[clerkType].clerkLock;
-    int numClerks = lineDecisionMonitors[clerkType].numClerks;
+    Lock * lineLock = clerkGroupData[clerkType].lineLock;
+    ClerkData * clerkData = clerkGroupData[clerkType].clerkData;
+    Condition ** lineCV = clerkGroupData[clerkType].lineCV;
+    Condition ** bribeLineCV = clerkGroupData[clerkType].bribeLineCV;
+    Condition ** bribeCV = clerkGroupData[clerkType].bribeCV;
+    Condition ** clerkCV = clerkGroupData[clerkType].clerkCV;
+    Lock ** clerkLock = clerkGroupData[clerkType].clerkLock;
+    int numClerks = clerkGroupData[clerkType].numClerks;
 
     // CS: Need to check the state of all application clerks' lines without them changing
     lineLock->Acquire();
@@ -1240,24 +1259,9 @@ int DecideLine(int ssn, int& money, int clerkType)
         // Decide if we want to bribe the clerk
         if(clerkData[currentLine].lineCount >= 1 && money >= 600 && clerkData[currentLine].state != ONBREAK)
         {
-            
-            // appClerkLock[myLine]->Acquire();
-            // //Give my data to my clerk
-            // appClerkData[myLine].currentCustomer = ssn;
-            // printf(GREEN  "Customer %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
-            // //task is give my data to the clerk using customerData[5]
-            // appClerkCV[myLine]->Signal(appClerkLock[myLine]);
-            // //wait for clerk to do their job
-            // appClerkCV[myLine]->Wait(appClerkLock[myLine]);
-            // //Read my data
-            // appClerkCV[myLine]->Signal(appClerkLock[myLine]);
-            // appClerkLock[myLine]->Release();
-
             clerkData[currentLine].isBeingBribed++;
-            printf("bribe waiting.......\n");
             bribeCV[currentLine]->Wait(lineLock);
             clerkData[currentLine].isBeingBribed--;
-            printf("austin waiting.......\n");
             lineLock->Release();
 
             clerkLock[currentLine]->Acquire();
@@ -1300,6 +1304,7 @@ void Leave(int ssn)
 {
     numCustomersFinished++;
     printf(GREEN  "Customer %d is leaving the Passport Office."  ANSI_COLOR_RESET  "\n", ssn);
+    CustomersFinished.V();
 }
 
 void Customer(int ssn) 
@@ -1466,7 +1471,7 @@ void InitializeData()
     cashierBreakCV = new Condition*[numCashiers];
 
     // Used to reference clerk data when making decision about which line to get in. 4 types of clerk
-    lineDecisionMonitors = new LineDecisionMonitor [4];
+    clerkGroupData = new ClerkGroupData [4];
 
     ClerkTypes = new char*[4];
 
@@ -1474,13 +1479,94 @@ void InitializeData()
     ClerkTypes[1] = "PictureClerk";
     ClerkTypes[2] = "PassportClerk";
     ClerkTypes[3] = "Cashier";
-
-    //customersFinished = new Semaphore("", numCustomers)
 }
 
 void CleanUpData()
 {
+    Condition ** tempCV;
 
+    tempCV = appClerkCV;
+    delete tempCV;
+    appClerkCV = NULL;
+
+    tempCV = picClerkCV;
+    delete tempCV;
+    picClerkCV = NULL;
+
+    tempCV = passportClerkCV;
+    delete tempCV;
+    passportClerkCV = NULL;
+
+    tempCV = cashierCV;
+    delete tempCV;
+    cashierCV = NULL;
+
+    tempCV = appClerkLineCV;
+    delete tempCV;
+    appClerkLineCV = NULL;
+
+    tempCV = picClerkLineCV;
+    delete tempCV;
+    picClerkLineCV = NULL;
+
+    tempCV = passportClerkLineCV;
+    delete tempCV;
+    passportClerkLineCV = NULL;
+
+    tempCV = cashierLineCV;
+    delete tempCV;
+    cashierLineCV = NULL;
+
+    tempCV = appClerkBribeLineCV;
+    delete tempCV;
+    appClerkBribeLineCV = NULL;
+
+    tempCV = picClerkBribeLineCV;
+    delete tempCV;
+    picClerkBribeLineCV = NULL;
+
+    tempCV = passportClerkBribeLineCV;
+    delete tempCV;
+    passportClerkBribeLineCV = NULL;
+
+    tempCV = cashierBribeLineCV;
+    delete tempCV;
+    cashierBribeLineCV = NULL;
+
+    tempCV = cashierBribeLineCV;
+    delete tempCV;
+    cashierBribeLineCV = NULL;
+
+    appClerkBribeCV = new Condition*[numAppClerks];
+    picClerkBribeCV = new Condition*[numPicClerks];
+    passportClerkBribeCV = new Condition*[numPassportClerks];
+    cashierBribeCV = new Condition*[numCashiers];
+    
+    appClerkLock = new Lock*[numAppClerks];
+    picClerkLock = new Lock*[numPicClerks];
+    passportClerkLock = new Lock*[numPassportClerks];
+    cashierLock = new Lock*[numCashiers];
+    
+    customerData = new CustomerData[numCustomers];
+    appClerkData = new ClerkData[numAppClerks];
+    passportClerkData = new ClerkData[numPassportClerks];
+    picClerkData = new ClerkData[numPicClerks];
+    cashierData = new ClerkData[numCashiers];
+
+    appClerkBreakCV = new Condition*[numAppClerks];
+    picClerkBreakCV = new Condition*[numPicClerks];
+    passportClerkBreakCV = new Condition*[numPassportClerks];
+    cashierBreakCV = new Condition*[numCashiers];
+
+    // Used to reference clerk data when making decision about which line to get in. 4 types of clerk
+    clerkGroupData = new ClerkGroupData [4];
+
+    ClerkTypes = new char*[4];
+
+    ClerkTypes[0] = "ApplicationClerk";
+    ClerkTypes[1] = "PictureClerk";
+    ClerkTypes[2] = "PassportClerk";
+    ClerkTypes[3] = "Cashier";
 }
 
 void InitializeAppClerks () 
@@ -1525,15 +1611,16 @@ void InitializeAppClerks ()
         t->Fork((VoidFunctionPtr)Clerk, (int) clerkFunctionStruct);
     }
 
-    lineDecisionMonitors[0].lineLock = &appLineLock;
-    lineDecisionMonitors[0].lineCV = appClerkLineCV;
-    lineDecisionMonitors[0].bribeLineCV = appClerkBribeLineCV;
-    lineDecisionMonitors[0].bribeCV = appClerkBribeCV;
-    lineDecisionMonitors[0].breakCV = appClerkBreakCV;
-    lineDecisionMonitors[0].clerkCV = appClerkCV;
-    lineDecisionMonitors[0].clerkLock = appClerkLock;
-    lineDecisionMonitors[0].clerkData = appClerkData;
-    lineDecisionMonitors[0].numClerks = numAppClerks;
+    clerkGroupData[0].lineLock = &appLineLock;
+    clerkGroupData[0].lineCV = appClerkLineCV;
+    clerkGroupData[0].bribeLineCV = appClerkBribeLineCV;
+    clerkGroupData[0].bribeCV = appClerkBribeCV;
+    clerkGroupData[0].breakCV = appClerkBreakCV;
+    clerkGroupData[0].clerkCV = appClerkCV;
+    clerkGroupData[0].clerkLock = appClerkLock;
+    clerkGroupData[0].moneyLock = &appMoneyLock;
+    clerkGroupData[0].clerkData = appClerkData;
+    clerkGroupData[0].numClerks = numAppClerks;
 }
 
 void CleanUpAppClerks()
@@ -1571,15 +1658,16 @@ void CleanUpAppClerks()
         appClerkBreakCV[i] = NULL;
     }
 
-    lineDecisionMonitors[0].lineLock = NULL;
-    lineDecisionMonitors[0].lineCV = NULL;
-    lineDecisionMonitors[0].bribeLineCV = NULL;
-    lineDecisionMonitors[0].bribeCV = NULL;
-    lineDecisionMonitors[0].breakCV = NULL;
-    lineDecisionMonitors[0].clerkCV = NULL;
-    lineDecisionMonitors[0].clerkLock = NULL;
-    lineDecisionMonitors[0].clerkData = NULL;
-    lineDecisionMonitors[0].numClerks = 0;
+    clerkGroupData[0].lineLock = NULL;
+    clerkGroupData[0].lineCV = NULL;
+    clerkGroupData[0].bribeLineCV = NULL;
+    clerkGroupData[0].bribeCV = NULL;
+    clerkGroupData[0].breakCV = NULL;
+    clerkGroupData[0].clerkCV = NULL;
+    clerkGroupData[0].clerkLock = NULL;
+    clerkGroupData[0].moneyLock = NULL;
+    clerkGroupData[0].clerkData = NULL;
+    clerkGroupData[0].numClerks = 0;
 }
 
 void InitializePicClerks () 
@@ -1624,15 +1712,63 @@ void InitializePicClerks ()
     }
 
 
-    lineDecisionMonitors[1].lineLock = &picLineLock;
-    lineDecisionMonitors[1].lineCV = picClerkLineCV;
-    lineDecisionMonitors[1].bribeLineCV = picClerkBribeLineCV;
-    lineDecisionMonitors[1].bribeCV = picClerkBribeCV;
-    lineDecisionMonitors[1].breakCV = picClerkBreakCV;
-    lineDecisionMonitors[1].clerkCV = picClerkCV;
-    lineDecisionMonitors[1].clerkLock = picClerkLock;
-    lineDecisionMonitors[1].clerkData = picClerkData;
-    lineDecisionMonitors[1].numClerks = numPicClerks;
+    clerkGroupData[1].lineLock = &picLineLock;
+    clerkGroupData[1].lineCV = picClerkLineCV;
+    clerkGroupData[1].bribeLineCV = picClerkBribeLineCV;
+    clerkGroupData[1].bribeCV = picClerkBribeCV;
+    clerkGroupData[1].breakCV = picClerkBreakCV;
+    clerkGroupData[1].clerkCV = picClerkCV;
+    clerkGroupData[1].clerkLock = picClerkLock;
+    clerkGroupData[1].moneyLock = &picMoneyLock;
+    clerkGroupData[1].clerkData = picClerkData;
+    clerkGroupData[1].numClerks = numPicClerks;
+}
+
+void CleanUpPicClerks()
+{
+    Thread * t;
+    char * name;
+
+    Condition * tempCV;
+    Lock * tempLock;
+
+    for (int i = 0; i < numPicClerks; i++)
+    {
+        tempCV = picClerkLineCV[i];
+        delete tempCV;
+        picClerkLineCV[i] = NULL;
+
+        tempCV = picClerkBribeLineCV[i];
+        delete tempCV;
+        picClerkBribeLineCV[i] = NULL;
+
+        tempCV = picClerkBribeCV[i];
+        delete tempCV;
+        picClerkBribeCV[i] = NULL;
+
+        tempLock = picClerkLock[i];
+        delete tempLock;
+        picClerkLock[i] = NULL;
+        
+        tempCV = picClerkCV[i];
+        delete tempCV;
+        picClerkCV[i] = NULL;
+
+        tempCV = picClerkBreakCV[i];
+        delete tempCV;
+        picClerkBreakCV[i] = NULL;
+    }
+
+    clerkGroupData[1].lineLock = NULL;
+    clerkGroupData[1].lineCV = NULL;
+    clerkGroupData[1].bribeLineCV = NULL;
+    clerkGroupData[1].bribeCV = NULL;
+    clerkGroupData[1].breakCV = NULL;
+    clerkGroupData[1].clerkCV = NULL;
+    clerkGroupData[1].clerkLock = NULL;
+    clerkGroupData[1].moneyLock = NULL;
+    clerkGroupData[1].clerkData = NULL;
+    clerkGroupData[1].numClerks = 0;
 }
 
 void InitializePassportClerks () 
@@ -1675,15 +1811,63 @@ void InitializePassportClerks ()
         t = new Thread(name);
         t->Fork((VoidFunctionPtr)Clerk, (int) clerkFunctionStruct);
     }
-    lineDecisionMonitors[2].lineLock = &passportLineLock;
-    lineDecisionMonitors[2].lineCV = passportClerkLineCV;
-    lineDecisionMonitors[2].bribeLineCV = passportClerkBribeLineCV;
-    lineDecisionMonitors[2].bribeCV = passportClerkBribeCV;
-    lineDecisionMonitors[2].breakCV = passportClerkBreakCV;
-    lineDecisionMonitors[2].clerkCV = passportClerkCV;
-    lineDecisionMonitors[2].clerkLock = passportClerkLock;
-    lineDecisionMonitors[2].clerkData = passportClerkData;
-    lineDecisionMonitors[2].numClerks = numPassportClerks;
+    clerkGroupData[2].lineLock = &passportLineLock;
+    clerkGroupData[2].lineCV = passportClerkLineCV;
+    clerkGroupData[2].bribeLineCV = passportClerkBribeLineCV;
+    clerkGroupData[2].bribeCV = passportClerkBribeCV;
+    clerkGroupData[2].breakCV = passportClerkBreakCV;
+    clerkGroupData[2].clerkCV = passportClerkCV;
+    clerkGroupData[2].clerkLock = passportClerkLock;
+    clerkGroupData[2].moneyLock = &passportMoneyLock;
+    clerkGroupData[2].clerkData = passportClerkData;
+    clerkGroupData[2].numClerks = numPassportClerks;
+}
+
+void CleanUpPassportClerks()
+{
+    Thread * t;
+    char * name;
+
+    Condition * tempCV;
+    Lock * tempLock;
+
+    for (int i = 0; i < numPassportClerks; i++)
+    {
+        tempCV = passportClerkLineCV[i];
+        delete tempCV;
+        passportClerkLineCV[i] = NULL;
+
+        tempCV = passportClerkBribeLineCV[i];
+        delete tempCV;
+        passportClerkBribeLineCV[i] = NULL;
+
+        tempCV = passportClerkBribeCV[i];
+        delete tempCV;
+        passportClerkBribeCV[i] = NULL;
+
+        tempLock = passportClerkLock[i];
+        delete tempLock;
+        passportClerkLock[i] = NULL;
+        
+        tempCV = passportClerkCV[i];
+        delete tempCV;
+        passportClerkCV[i] = NULL;
+
+        tempCV = passportClerkBreakCV[i];
+        delete tempCV;
+        passportClerkBreakCV[i] = NULL;
+    }
+
+    clerkGroupData[2].lineLock = NULL;
+    clerkGroupData[2].lineCV = NULL;
+    clerkGroupData[2].bribeLineCV = NULL;
+    clerkGroupData[2].bribeCV = NULL;
+    clerkGroupData[2].breakCV = NULL;
+    clerkGroupData[2].clerkCV = NULL;
+    clerkGroupData[2].clerkLock = NULL;
+    clerkGroupData[2].moneyLock = NULL;
+    clerkGroupData[2].clerkData = NULL;
+    clerkGroupData[2].numClerks = 0;
 }
 
 void InitializeCashiers() 
@@ -1727,15 +1911,63 @@ void InitializeCashiers()
         t->Fork((VoidFunctionPtr)Clerk, (int)clerkFunctionStruct);
     }
 
-    lineDecisionMonitors[3].lineLock = &cashierLineLock;
-    lineDecisionMonitors[3].lineCV = cashierLineCV;
-    lineDecisionMonitors[3].bribeLineCV = cashierBribeLineCV;
-    lineDecisionMonitors[3].bribeCV = cashierBribeCV;
-    lineDecisionMonitors[3].breakCV = cashierBreakCV;
-    lineDecisionMonitors[3].clerkCV = cashierCV;
-    lineDecisionMonitors[3].clerkLock = cashierLock;
-    lineDecisionMonitors[3].clerkData = cashierData;
-    lineDecisionMonitors[3].numClerks = numCashiers;
+    clerkGroupData[3].lineLock = &cashierLineLock;
+    clerkGroupData[3].lineCV = cashierLineCV;
+    clerkGroupData[3].bribeLineCV = cashierBribeLineCV;
+    clerkGroupData[3].bribeCV = cashierBribeCV;
+    clerkGroupData[3].breakCV = cashierBreakCV;
+    clerkGroupData[3].clerkCV = cashierCV;
+    clerkGroupData[3].clerkLock = cashierLock;
+    clerkGroupData[3].moneyLock = &cashierMoneyLock;
+    clerkGroupData[3].clerkData = cashierData;
+    clerkGroupData[3].numClerks = numCashiers;
+}
+
+void CleanUpCashiers()
+{
+    Thread * t;
+    char * name;
+
+    Condition * tempCV;
+    Lock * tempLock;
+
+    for (int i = 0; i < numCashiers; i++)
+    {
+        tempCV = cashierLineCV[i];
+        delete tempCV;
+        cashierLineCV[i] = NULL;
+
+        tempCV = cashierBribeLineCV[i];
+        delete tempCV;
+        cashierBribeLineCV[i] = NULL;
+
+        tempCV = cashierBribeCV[i];
+        delete tempCV;
+        cashierBribeCV[i] = NULL;
+
+        tempLock = cashierLock[i];
+        delete tempLock;
+        cashierLock[i] = NULL;
+        
+        tempCV = cashierCV[i];
+        delete tempCV;
+        cashierCV[i] = NULL;
+
+        tempCV = cashierBreakCV[i];
+        delete tempCV;
+        cashierBreakCV[i] = NULL;
+    }
+
+    clerkGroupData[3].lineLock = NULL;
+    clerkGroupData[3].lineCV = NULL;
+    clerkGroupData[3].bribeLineCV = NULL;
+    clerkGroupData[3].bribeCV = NULL;
+    clerkGroupData[3].breakCV = NULL;
+    clerkGroupData[3].clerkCV = NULL;
+    clerkGroupData[3].clerkLock = NULL;
+    clerkGroupData[3].moneyLock = NULL;
+    clerkGroupData[3].clerkData = NULL;
+    clerkGroupData[3].numClerks = 0;
 }
 
 void InitializeManager()
@@ -1812,7 +2044,7 @@ void ShortestLineTest_PrintResults(int numDecisionsSoFar, int numLines) {
     printf(YELLOW  "\tResults of ShortestLineTest after "  MAGENTA  "%d "  YELLOW "Customers:\n"  ANSI_COLOR_RESET, numDecisionsSoFar);
     printf(YELLOW  "\t\tLine\tCount\tBribe\tState\n"  ANSI_COLOR_RESET);
     for (int i = 0; i < numLines; i++) {
-        printf(MAGENTA  "\t\t  %d\t  %d\t  %d\t  %d\n"  ANSI_COLOR_RESET, i, lineDecisionMonitors[0].clerkData[i].lineCount, lineDecisionMonitors[0].clerkData[i].bribeLineCount, (int)lineDecisionMonitors[0].clerkData[i].state);
+        printf(MAGENTA  "\t\t  %d\t  %d\t  %d\t  %d\n"  ANSI_COLOR_RESET, i, clerkGroupData[0].clerkData[i].lineCount, clerkGroupData[0].clerkData[i].bribeLineCount, (int)clerkGroupData[0].clerkData[i].state);
     }
 }
 
@@ -1849,18 +2081,18 @@ void ShortestLineTest(int numLineDecisions, int defaultMoney, int numLines, int 
     {
 
         if (useRandomClerkStates) { clerkState = rand() % 3; }
-        lineDecisionMonitors[clerkType].clerkData[i].state = (ClerkStatus)clerkState;
+        clerkGroupData[clerkType].clerkData[i].state = (ClerkStatus)clerkState;
 
         if (useRandomLineCounts) 
         { 
-            if (lineDecisionMonitors[clerkType].clerkData[i].state == AVAILABLE) {
-                lineDecisionMonitors[clerkType].clerkData[i].lineCount = 0;
+            if (clerkGroupData[clerkType].clerkData[i].state == AVAILABLE) {
+                clerkGroupData[clerkType].clerkData[i].lineCount = 0;
             } else {
-                lineDecisionMonitors[clerkType].clerkData[i].lineCount = rand() % 10;
+                clerkGroupData[clerkType].clerkData[i].lineCount = rand() % 10;
             }
         }
 
-        else { lineDecisionMonitors[clerkType].clerkData[i].lineCount = defaultLineCount; }
+        else { clerkGroupData[clerkType].clerkData[i].lineCount = defaultLineCount; }
     }
 
 
@@ -1946,7 +2178,7 @@ void CashierTest(int defaultMoney, int numCashier, int numCustomer, ClerkStatus 
 
     CashierTest_Semaphore.P();
 
-    //gcurrentThread->Yield();
+    //currentThread->Yield();
 }
 
 void ClerksGoOnBreak_Customer(int i)
@@ -2072,12 +2304,87 @@ void ManagerTakesClerkOffBreak()
     numCustomersFinished = numCustomers;
 }
 
+Semaphore ManagerCountsMoney_CashierSemaphore("ManagerCountsMoney_CashierSemaphore", 0);
+Semaphore ManagerCountsMoney_AppClerkSemaphore("ManagerCountsMoney_AppClerkSemaphore", 0);
+
+void ManagerCountsMoney_CashierCustomer(int i)
+{
+    int money = 100;
+    int currentLine = DecideLine(i, money, 3);
+    CustomerToCashier(i, money, currentLine);
+    ManagerCountsMoney_CashierSemaphore.V();
+}
+
+void ManagerCountsMoney_AppClerkCustomer(int i)
+{
+    int money = 600;
+    int currentLine = DecideLine(i, money, 0);
+    ManagerCountsMoney_AppClerkSemaphore.V();
+    CustomerToApplicationClerk(i, currentLine);
+    
+}
+
+
+void ManagerCountsMoney()
+{
+    numCustomers = 4;
+    numAppClerks = 1;
+    numPicClerks = 1;
+    numPassportClerks = 1;
+    numCashiers = 1;
+
+    InitializeData();
+
+    InitializeAppClerks();
+
+    InitializePicClerks();
+
+    InitializePassportClerks();
+
+    InitializeCashiers();
+
+    InitializeManager();
+
+    Thread * t;
+    char * name;
+
+    customerData[0].passportCertified = true;
+
+    name = new char [40];
+    sprintf(name, "Customer-%d", 0);
+    t = new Thread(name);
+    t->Fork((VoidFunctionPtr)ManagerCountsMoney_CashierCustomer, 0);
+
+    for (int i = 1; i < 4; i++)
+    {
+        name = new char [40];
+        sprintf(name, "Customer-%d", i);
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)ManagerCountsMoney_AppClerkCustomer, i);
+    }
+    
+    ManagerCountsMoney_CashierSemaphore.P();
+    ASSERT(managerData.cashierMoney == 100);
+    ASSERT(managerData.appClerkMoney == 0);
+
+    for(int i = 0; i < 3; i++)
+    {
+        ManagerCountsMoney_AppClerkSemaphore.P();
+    }
+
+    ASSERT(managerData.appClerkMoney == 500);
+
+    numCustomersFinished = numCustomers;
+}
+
 void Test2()
 {
     //ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
 
     //ClerksGoOnBreak();
-    ManagerTakesClerkOffBreak();
+    //ManagerTakesClerkOffBreak();
+
+    ManagerCountsMoney();
 }
 
 
@@ -2085,10 +2392,6 @@ void Test2()
 
 void Part2()
 {
-    //ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-    //CashierTest(100, 2, 5, BUSY); //
-   // ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-
     GetInput();
 
     InitializeData();
@@ -2131,6 +2434,11 @@ void Part2()
     //  ================================================
 
     InitializeCustomers();
+
+    for(int i = 0; i < numCustomers; i++)
+    {
+        CustomersFinished.P();
+    }
 
 }
 #endif
