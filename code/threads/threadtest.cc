@@ -467,6 +467,9 @@ struct ClerkData
     int isBeingBribed;
     int bribeMoney;
     int currentCustomer;
+
+    int senatorLineCount;
+
     ClerkStatus state;
 
     bool customerLikedPhoto;
@@ -478,7 +481,8 @@ struct ClerkData
         lineCount = 0;
         bribeLineCount = 0;
         bribeMoney = 0;
-        isBeingBribed = false;
+        isBeingBribed = 0;
+        senatorLineCount = 0;
         currentCustomer = -1;
         state = AVAILABLE;
 
@@ -487,6 +491,7 @@ struct ClerkData
         customersAppReadyForPayment = false;
     }
 };
+
 
 struct ManagerData
 {
@@ -592,11 +597,31 @@ int numCustomersFinished = 0;//COMPARE THIS TO NUMCUSTOMERS TO SEE WHEN THE PROG
 
 Semaphore CustomersFinished("CustomersFinished", 0);
 
+<<<<<<< Updated upstream
 /*DATA FOR CLERK*/
+=======
+/********************/
+/***** SENATORS *****/
+/********************/
+Lock SenatorIndoorLock("SenatorIndoorLock");
+Condition SenatorIndoorCV("SenatorIndoorCV");
+Condition SenatorOutdoorCV("SenatorOutdoorCV");
+bool isSenatorPresent = false;
+
+Condition ** appClerkSenatorLineCV;
+Condition ** picClerkSenatorLineCV;
+Condition ** passportClerkSenatorLineCV;
+Condition ** cashierSenatorLineCV;
+
+/********************/
+/***** MONITORS *****/
+/********************/
+>>>>>>> Stashed changes
 struct ClerkGroupData 
 {
     Lock * lineLock;
     Condition ** lineCV;
+    Condition ** senatorLineCV;
     Condition ** bribeLineCV;
     Condition ** bribeCV;
     Condition ** breakCV;
@@ -785,6 +810,7 @@ void Clerk(ClerkFunctionStruct * clerkFunctionStruct)
     ClerkData * clerkData = clerkGroupData[clerkType].clerkData;
     Condition ** lineCV = clerkGroupData[clerkType].lineCV;
     Condition ** bribeLineCV = clerkGroupData[clerkType].bribeLineCV;
+    Condition ** senatorLineCV = clerkGroupData[clerkType].senatorLineCV;
     Condition ** breakCV = clerkGroupData[clerkType].breakCV;
 
     lineLock->Acquire();
@@ -793,6 +819,33 @@ void Clerk(ClerkFunctionStruct * clerkFunctionStruct)
     while (true)
     {
         lineLock->Acquire();
+
+        SenatorIndoorLock.Acquire();
+        if(isSenatorPresent)
+        {
+            SenatorIndoorLock.Release();
+
+            if(clerkData[lineNumber].lineCount > 0)
+            {
+                lineCV[lineNumber]->Broadcast(lineLock);
+            }
+
+            if(clerkData[lineNumber].bribeLineCount > 0)
+            {
+                bribeLineCV[lineNumber]->Broadcast(lineLock);
+            }
+
+            if(clerkData[lineNumber].senatorLineCount > 0)
+            {
+                printf(GREEN  "%s %d has signalled a Customer to come to their counter"  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], lineNumber);
+                senatorLineCV[lineNumber]->Signal(lineLock);
+                clerkData[lineNumber].state = BUSY;
+                interaction(lineNumber);
+            }
+            continue;
+        }
+        SenatorIndoorLock.Release();
+        
         if(clerkData[lineNumber].isBeingBribed > 0)
         {
             AcceptBribe(clerkType, lineNumber);
@@ -830,6 +883,32 @@ void Clerk(ClerkFunctionStruct * clerkFunctionStruct)
 /*********************************/
 /******* APPLICATION CLERK *******/
 /*********************************/
+<<<<<<< Updated upstream
+=======
+void CustomerToApplicationClerk(int ssn, int myLine, bool isSenator)
+{
+
+    appClerkLock[myLine]->Acquire();
+    //Give my data to my clerk
+    appClerkData[myLine].currentCustomer = ssn;
+    if(isSenator)
+    {
+        printf(GREEN  "Senator %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1, ssn, myLine);
+    }
+    else
+    {
+        printf(GREEN  "Customer %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+    }
+    //task is give my data to the clerk using customerData[5]
+    appClerkCV[myLine]->Signal(appClerkLock[myLine]);
+    //wait for clerk to do their job
+    appClerkCV[myLine]->Wait(appClerkLock[myLine]);
+    //Read my data
+    appClerkCV[myLine]->Signal(appClerkLock[myLine]);
+    appClerkLock[myLine]->Release();
+}
+
+>>>>>>> Stashed changes
 void FileApplication(FilingJob* jobPointer) 
 {
     jobPointer = (FilingJob*)jobPointer;
@@ -934,6 +1013,7 @@ void FilePicture(FilingJob* jobPointer)
     filingPictureLock.Release();
 }
 
+<<<<<<< Updated upstream
 void CustomerToPictureClerk(int ssn, int &money, int myLine)
 {
     // Let Clerk know I have arrived at his counter
@@ -955,16 +1035,84 @@ void CustomerToPictureClerk(int ssn, int &money, int myLine)
         // Did not like my photo very much...
         if (runningSimulation) printf(GREEN  "Customer %d does not like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
         picClerkData[myLine].customerLikedPhoto = false;
+=======
+void CustomerToPictureClerk(int ssn, int myLine, bool isSenator)
+{
+    bool acceptedPicture = false;
+
+    //customer just got to window, wake up, wait to take picture
+    picClerkLock[myLine]->Acquire();//simulating the line
+    picClerkCV[myLine]->Signal(picClerkLock[myLine]);//take my picture
+    picClerkData[myLine].currentCustomer = ssn;
+
+    if(isSenator)
+    {
+        printf(GREEN  "Senator %d has given SSN %d to PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1, ssn, myLine);
+    }
+    else
+    {
+        printf(GREEN  "Customer %d has given SSN %d to PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+    }
+
+    picClerkCV[myLine]->Wait(picClerkLock[myLine]); //waiting for you to take my picture
+    
+    int randomVal = (rand() % 100 + 1);
+    if ( randomVal < 50 )
+    {
+        currentThread->Yield();
+        acceptedPicture = true;
+        if(isSenator)
+        {
+            printf(GREEN  "Senator %d does like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1, myLine);
+        }
+        else
+        {
+            printf(GREEN  "Customer %d does like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        }
+        
+        currentThread->Yield();
+        FilingJob * pictureFiling = new FilingJob(ssn, myLine);
+        Thread * t = new Thread("PictureFilingThread");
+        t->Fork((VoidFunctionPtr)FilePicture, (int)pictureFiling);
+        
+        int filingTime = (rand() % 80) + 20;
+        for (int i = 0; i < filingTime; i++) { currentThread->Yield(); }
+    }
+    else
+    {
+        if(isSenator)
+        {
+            printf(GREEN  "Senator %d does not like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1, myLine);
+        }
+        else
+        {
+            printf(GREEN  "Customer %d does not like their picture from PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        }
+>>>>>>> Stashed changes
     }
 
     // Regardless of whether I liked it, I am leaving the counter.
     picClerkCV[myLine]->Signal(picClerkLock[myLine]);
     picClerkLock[myLine]->Release();
     
+<<<<<<< Updated upstream
     // If I didn't like my photo, get back in line
     if (amountILikedPhoto <= 50) {
         myLine = DecideLine(ssn, money, 1);
         CustomerToPictureClerk(ssn, money, myLine);
+=======
+    if (!acceptedPicture)
+    {
+        picLineLock.Acquire();
+        // ApplicationClerk is not available, so wait in line
+        picClerkData[myLine].lineCount++; // Join the line
+        printf(GREEN  "Customer %d has gotten in regular line for PictureClerk %d."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        picClerkLineCV[myLine]->Wait(&picLineLock); // Waiting in line
+        // Reacquires lock after getting woken up inside Wait.
+        picClerkData[myLine].lineCount--; // Leaving the line
+        picLineLock.Release();
+        CustomerToPictureClerk(ssn, myLine, isSenator);
+>>>>>>> Stashed changes
     }
 }
 
@@ -1038,6 +1186,7 @@ void CertifyPassport(FilingJob * certifyingJobPointer)
     certifyingPassportLock.Release();
 }
 
+<<<<<<< Updated upstream
 void CustomerToPassportClerk(int ssn, int &money, int myLine)
 {
     // Let Clerk know I have arrived at his counter
@@ -1048,12 +1197,66 @@ void CustomerToPassportClerk(int ssn, int &money, int myLine)
     
     // Wait for Passport Clerk to certify my passport (if he can)
     passportClerkCV[myLine]->Wait(passportClerkLock[myLine]);
+=======
+void CustomerToPassportClerk(int ssn, int myLine, bool isSenator)
+{
+    // TODO: TRANSMIT DATA FROM CUSTOMER TO PASSPORT CLERK
+    passportClerkLock[myLine]->Acquire();//simulating the line
+    passportClerkCV[myLine]->Signal(passportClerkLock[myLine]);
+    passportClerkData[myLine].currentCustomer = ssn;
+    if(isSenator)
+    {
+        printf(GREEN  "Senator %d has given SSN %d to PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1, ssn, myLine);
+    }
+    else
+    {
+        printf(GREEN  "Customer %d has given SSN %d to PassportClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+    }
+    passportClerkCV[myLine]->Wait(passportClerkLock[myLine]);
+        
+    //customer pays the passport clerk $100
+
+    filingApplicationLock.Acquire();
+    filingPictureLock.Acquire();
+
+    if(!customerData[ssn].applicationFiled || !customerData[ssn].photoFiled)
+    {
+        printf("PassportClerk %d has determined that Customer %d does not have both their application and picture completed\n", myLine, ssn);
+        filingApplicationLock.Release();
+        filingPictureLock.Release();
+>>>>>>> Stashed changes
 
     // PassportClerk has decided whether or not he can certify my passport, respond accordingly.
     if (!passportClerkData[myLine].customersAppReadyToCertify) {
         // I went to the counter to soon so he did not have all of my info in time, need to get punished and then go back in line.
         int punishmentTime = (rand() % 900) + 100; // Wait an arbitrary amount of time
         for (int i = 0; i < punishmentTime; i++) { currentThread->Yield(); }
+<<<<<<< Updated upstream
+=======
+
+
+        //go to the back of the line and wait again
+        //passportClerkLock[myLine]->Release();
+        passportLineLock.Acquire();
+        passportClerkCV[myLine]->Signal(passportClerkLock[myLine]); //leaving
+        passportClerkLock[myLine]->Release();
+        passportClerkData[myLine].lineCount++; // rejoin the line
+        if(isSenator)
+        {
+            printf(GREEN  "Senator %d has gone to PassportClerk %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1, myLine);
+        }
+        else
+        {
+            printf(GREEN  "Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        }
+        
+        passportClerkLineCV[myLine]->Wait(&passportLineLock); // Waiting in line
+        // Reacquires lock after getting woken up inside Wait.
+        passportClerkData[myLine].lineCount--; // Leaving the line, going to the counter
+        passportLineLock.Release();
+        CustomerToPassportClerk(ssn, myLine, isSenator);
+        return;
+>>>>>>> Stashed changes
     }
     // else PassportClerk was able to certify my Passport clerk (nothing extra to do). 
 
@@ -1139,8 +1342,9 @@ void PassportClerkToCustomer(int lineNumber)
 /***********************/
 /******* CASHIER *******/
 /***********************/
-void CustomerToCashier(int ssn, int& money, int myLine)
+void CustomerToCashier(int ssn, int& money, int myLine, bool isSenator)
 {
+<<<<<<< Updated upstream
     // Let the clerk know that I have arrived at his counter
     cashierLock[myLine]->Acquire();
     cashierData[myLine].currentCustomer = ssn; // Let him know who I am by giving my SSN
@@ -1149,12 +1353,27 @@ void CustomerToCashier(int ssn, int& money, int myLine)
 
     // Wait for Cashier to check if my Passport has been certified
     cashierCV[myLine]->Wait(cashierLock[myLine]);
+=======
+    cashierLock[myLine]->Acquire(); // Get access to the clerk's counter
+    cashierCV[myLine]->Signal(cashierLock[myLine]); // At the cashier's counter, let him know I'm ready to do work
+    cashierData[myLine].currentCustomer = ssn; // Give clerk my SSN
+    if (isSenator)
+    {
+        printf(GREEN  "Senator %d has given SSN %d to Cashier %d."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1, ssn, myLine);
+    }
+    else
+    {
+        printf(GREEN  "Customer %d has given SSN %d to Cashier %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);
+    }
+    cashierCV[myLine]->Wait(cashierLock[myLine]); // Wait for cashier to respond after doing work
+>>>>>>> Stashed changes
     
     // Cashier did his work, "checking" if you've been certified, respond accordingly.
     if (!cashierData[myLine].customersAppReadyForPayment) {
         // Went to counter before PassportClerk finished certifying, punish myself, don't pay and go back to the end of line.        
         int punishmentTime = (rand() % 900) + 100; // Wait an arbitrary amount of time
         for (int i = 0; i < punishmentTime; i++) { currentThread->Yield(); }
+<<<<<<< Updated upstream
     } else {
         // PassportClerk certified my passport, now do the transaction.
         money -= 100; // Decrement my money to simulate my side of the transaction
@@ -1164,6 +1383,45 @@ void CustomerToCashier(int ssn, int& money, int myLine)
 
         // Wait for Cashier to do his side of transaction
         cashierCV[myLine]->Wait(cashierLock[myLine]);
+=======
+        // Go to the back of the line and wait again
+        cashierLineLock.Acquire();
+        cashierCV[myLine]->Signal(cashierLock[myLine]); //leaving
+        cashierLock[myLine]->Release();
+        cashierData[myLine].lineCount++; // rejoin the line
+        if(isSenator)
+        {
+            printf(GREEN  "Senator %d has gone to Cashier %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1, myLine);
+        }
+        else
+        {
+            printf(GREEN  "Customer %d has gone to Cashier %d too soon. They are going to the back of the line."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+        }
+        //cashierCV[myLine]->Signal(cashierLock[myLine]);
+        cashierLineCV[myLine]->Wait(&cashierLineLock); // Waiting in line
+        cashierData[myLine].lineCount--; // Leaving the line, going to the counter
+        cashierLineLock.Release();
+        
+        CustomerToCashier(ssn, money, myLine, isSenator); // Try again...
+        return;
+    }
+
+    // I was certified, so now I pay.
+    certifyingPassportLock.Release();
+
+    if(isSenator)
+    {
+        printf(GREEN  "Senator %d has given Cashier %d $100."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1, myLine);
+    }
+    else
+    {
+        printf(GREEN  "Customer %d has given Cashier %d $100."  ANSI_COLOR_RESET  "\n", ssn, myLine);
+    }
+
+    money -= 100;
+    // TODO: Increment cashier's money
+    //cashierData[myLine].bribeMoney += 100;
+>>>>>>> Stashed changes
 
         // Got my passport from the Cashier, so now I'm leaving.
     }
@@ -1344,6 +1602,7 @@ void Manager()
         //currentThread->Yield();
         managerData.totalMoney = managerData.appClerkMoney + managerData.picClerkMoney + managerData.passportClerkMoney + managerData.cashierMoney;
 
+<<<<<<< Updated upstream
         if(prevTotal != managerData.totalMoney)
         {
             if (runningSimulation) printf(GREEN  "Manager has counted a total of $%d for ApplicationClerks."  ANSI_COLOR_RESET  "\n", managerData.appClerkMoney);
@@ -1354,6 +1613,15 @@ void Manager()
         }
         
         if(numCustomersFinished == numCustomers)
+=======
+        printf(GREEN  "Manager has counted a total of $%d for ApplicationClerks."  ANSI_COLOR_RESET  "\n", managerData.appClerkMoney);
+        printf(GREEN  "Manager has counted a total of $%d for PictureClerks."  ANSI_COLOR_RESET  "\n", managerData.picClerkMoney);
+        printf(GREEN  "Manager has counted a total of $%d for PassportClerks."  ANSI_COLOR_RESET  "\n", managerData.passportClerkMoney);
+        printf(GREEN  "Manager has counted a total of $%d for Cashier."  ANSI_COLOR_RESET  "\n", managerData.cashierMoney);
+        printf(GREEN  "Manager has counted a total of $%d for the passport office."  ANSI_COLOR_RESET  "\n", managerData.totalMoney);
+
+        if(numCustomersFinished == numCustomers + numSenators)
+>>>>>>> Stashed changes
         {
             if (runningSimulation) printf(GREEN  "Manager has counted a total of $%d for ApplicationClerks."  ANSI_COLOR_RESET  "\n", managerData.appClerkMoney);
             if (runningSimulation) printf(GREEN  "Manager has counted a total of $%d for PictureClerks."  ANSI_COLOR_RESET  "\n", managerData.picClerkMoney);
@@ -1370,10 +1638,7 @@ void Manager()
     }
 }
 
-void Senator()
-{
 
-}
 
 
 
@@ -1381,11 +1646,192 @@ void Senator()
 /************************/
 /******* CUSTOMER *******/
 /************************/
+<<<<<<< Updated upstream
+=======
+int DecideLine(int ssn, int& money, int clerkType, int isSenator) 
+{
+    Lock * lineLock = clerkGroupData[clerkType].lineLock;
+    ClerkData * clerkData = clerkGroupData[clerkType].clerkData;
+    Condition ** lineCV = clerkGroupData[clerkType].lineCV;
+    Condition ** bribeLineCV = clerkGroupData[clerkType].bribeLineCV;
+    Condition ** senatorLineCV = clerkGroupData[clerkType].senatorLineCV;
+    Condition ** bribeCV = clerkGroupData[clerkType].bribeCV;
+    Condition ** clerkCV = clerkGroupData[clerkType].clerkCV;
+    Lock ** clerkLock = clerkGroupData[clerkType].clerkLock;
+    int numClerks = clerkGroupData[clerkType].numClerks;
 
-void Leave(int ssn)
+    SenatorIndoorLock.Acquire();
+    if(isSenatorPresent && !isSenator)
+    {
+        printf(GREEN  "Customer %d is going outside the Passport Office because there is a Senator present."  ANSI_COLOR_RESET  "\n", ssn);
+        SenatorIndoorCV.Wait(&SenatorIndoorLock);
+    }
+    SenatorIndoorLock.Release();
+
+    // CS: Need to check the state of all application clerks' lines without them changing
+    lineLock->Acquire();
+    
+    int currentLine = -1; // No line yet
+    int currentLineSize = 1000; // Larger (bc we're finding shortest line) than the number customers created
+    
+    // What if everyone's on break?
+    int shortestLine = -1; // Store the shortest line    //(Once a single line has >= 3 Customers, Manager wakes up an ApplicationClerk)
+    int shortestLineSize = 1000; // Larger than any line could possibly be because we are searching for shortest line.
+
+    int clerkLineCount;
+
+    for (int i = 0; i < numClerks; i++) //number of clerks
+    {
+        if(isSenator)
+        {
+            clerkLineCount = clerkData[i].senatorLineCount;
+        }
+        else
+        {
+            clerkLineCount = clerkData[i].lineCount;
+        }
+
+        if (clerkLineCount == 0 && clerkData[i].state == AVAILABLE) {
+            currentLine = i;
+            currentLineSize = clerkLineCount;
+            break;
+        }
+
+        // Pick the shortest line with a clerk not on break
+        if (clerkLineCount < currentLineSize && clerkData[i].state != ONBREAK)
+        {
+            currentLine = i;
+            currentLineSize = clerkLineCount;
+        }
+
+        // What if everyones on break?
+        if (clerkLineCount < shortestLineSize) 
+        {
+            shortestLine = i;
+            shortestLineSize = clerkLineCount;
+        }
+    }
+
+    // What if everyones on break?
+    // Join the longest line and wait for Manager to wake up an Application Clerk (once this line gets at least 3 Customers)
+    // ^^^ Actually just pick the shortest because assignment says to
+    if (currentLine == -1) // If this is the last ApplicationClerk(number of clerks -1) and we haven't picked a line
+    {
+        currentLine = shortestLine; // Join the shortest line
+        currentLineSize = clerkLineCount;
+    }
+
+    // I've selected a line...
+    if (clerkData[currentLine].state != AVAILABLE)// ApplicationClerk is not available, so wait in line
+    {
+        if(isSenator)
+        {
+            clerkData[currentLine].senatorLineCount++;
+
+            printf(GREEN  "Senator %d has gotten in a regular line for %s %d."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1, ClerkTypes[clerkType], currentLine);
+
+            senatorLineCV[currentLine]->Wait(lineLock);
+
+            clerkData[currentLine].senatorLineCount--;
+        }
+        else
+        {
+            // Decide if we want to bribe the clerk
+            if(clerkData[currentLine].lineCount >= 1 && money >= 600 && clerkData[currentLine].state != ONBREAK)
+            {
+                clerkData[currentLine].isBeingBribed++;
+                bribeCV[currentLine]->Wait(lineLock);
+                clerkData[currentLine].isBeingBribed--;
+                lineLock->Release();
+
+                clerkLock[currentLine]->Acquire();
+
+                clerkData[currentLine].currentCustomer = ssn;
+                money -= 500;
+                clerkCV[currentLine]->Signal(clerkLock[currentLine]);
+                clerkCV[currentLine]->Wait(clerkLock[currentLine]);
+                printf(GREEN  "Customer %d has gotten in bribe line for %s %d."  ANSI_COLOR_RESET  "\n", ssn, ClerkTypes[clerkType], currentLine);
+                clerkLock[currentLine]->Release();
+
+                lineLock->Acquire();
+                clerkData[currentLine].bribeLineCount++;
+                bribeLineCV[currentLine]->Wait(lineLock);
+
+                SenatorIndoorLock.Acquire();
+                if(isSenatorPresent && !isSenator)
+                {
+                    printf(GREEN  "Customer %d is going outside the Passport Office because there is a Senator present."  ANSI_COLOR_RESET  "\n", ssn);
+                    
+                    SenatorIndoorCV.Wait(&SenatorIndoorLock);
+                    SenatorIndoorLock.Release();
+                    return DecideLine(ssn, money, clerkType, isSenator);
+                    
+                }
+                else
+                {
+                    SenatorIndoorLock.Release();
+                }
+                
+
+                printf("Customer %d \n", ssn);
+                clerkData[currentLine].bribeLineCount--;
+
+            }
+            else 
+            {
+                
+                // Join the line
+                clerkData[currentLine].lineCount++; 
+                printf(GREEN  "Customer %d has gotten in a regular line for %s %d."  ANSI_COLOR_RESET  "\n", ssn, ClerkTypes[clerkType], currentLine);
+
+                lineCV[currentLine]->Wait(lineLock); // Waiting in line (Reacquires lock after getting woken up inside Wait.)
+                
+                if(isSenatorPresent && !isSenator)
+                {
+                    printf(GREEN  "Customer %d is going outside the Passport Office because there is a Senator present."  ANSI_COLOR_RESET  "\n", ssn);
+                    
+                    SenatorIndoorCV.Wait(&SenatorIndoorLock);
+                    SenatorIndoorLock.Release();
+                    return DecideLine(ssn, money, clerkType, isSenator);
+                }
+                else
+                {
+                    SenatorIndoorLock.Release();
+                }
+
+                clerkData[currentLine].lineCount--; // Leaving the line
+            }
+        }
+    } 
+    else // Line was empty to begin with. Clerk is available
+    { 
+        clerkData[currentLine].state = BUSY;
+    }
+    lineLock->Release();
+    
+    return currentLine;
+}
+>>>>>>> Stashed changes
+
+void Leave(int ssn, bool isSenator)
 {
     numCustomersFinished++;
+<<<<<<< Updated upstream
     if (runningSimulation || debggingCustomerLeaving) printf(GREEN  "Customer %d is leaving the Passport Office."  ANSI_COLOR_RESET  "\n", ssn);
+=======
+    if(isSenator)
+    {
+        printf(GREEN  "Senator %d is leaving the Passport Office."  ANSI_COLOR_RESET  "\n", ssn - numCustomers + 1);
+        SenatorIndoorLock.Acquire();
+        isSenatorPresent = false;
+        SenatorIndoorCV.Broadcast(&SenatorIndoorLock);
+        SenatorIndoorLock.Release();
+    }
+    else
+    {
+        printf(GREEN  "Customer %d is leaving the Passport Office."  ANSI_COLOR_RESET  "\n", ssn);
+    }
+>>>>>>> Stashed changes
     CustomersFinished.V();
 }
 
@@ -1396,8 +1842,17 @@ void Customer(int ssn)
     int currentLine = -1;
 
     int randomVal = (rand() % 100 + 1);
+
+    SenatorIndoorLock.Acquire();
+    if(isSenatorPresent)
+    {
+        SenatorIndoorCV.Wait(&SenatorIndoorLock);
+    }
+    SenatorIndoorLock.Release();
+
     if (randomVal < 50)
     {
+<<<<<<< Updated upstream
         currentLine = DecideLine(ssn, money, 0); // clerkType = 0 = ApplicationClerk
         CustomerToApplicationClerk(ssn, currentLine);
         currentLine = DecideLine(ssn, money, 1); // clerkType = 1 = PictureClerk
@@ -1416,6 +1871,65 @@ void Customer(int ssn)
     currentLine = DecideLine(ssn, money, 3); // clerkType = 3 = Cashier
     CustomerToCashier(ssn, money, currentLine);
     Leave(ssn);
+=======
+        currentLine = DecideLine(ssn, money, 0, false); // clerkType = 0 = ApplicationClerk
+        CustomerToApplicationClerk(ssn, currentLine, false);
+        currentLine = DecideLine(ssn, money, 1, false); // clerkType = 1 = PictureClerk
+        CustomerToPictureClerk(ssn, currentLine, false);
+    } 
+    else 
+    {
+        currentLine = DecideLine(ssn, money, 1, false); // clerkType = 1 = PictureClerk
+        CustomerToPictureClerk(ssn, currentLine, false);
+        currentLine = DecideLine(ssn, money, 0, false); // clerkType = 0 = ApplicationClerk
+        CustomerToApplicationClerk(ssn, currentLine, false);
+    }
+
+    currentLine = DecideLine(ssn, money, 2, false); // clerkType = 2 = PassportClerk
+    CustomerToPassportClerk(ssn, currentLine, false);
+    currentLine = DecideLine(ssn, money, 3, false); // clerkType = 3 = Cashier
+    CustomerToCashier(ssn, money, currentLine, false);
+    Leave(ssn, false);
+}
+
+
+void Senator(int ssn)
+{
+    // grab passport office lock and set isSenatorPresent to true
+    SenatorIndoorLock.Acquire();
+    if(isSenatorPresent)
+    {
+        SenatorIndoorCV.Wait(&SenatorIndoorLock);
+    }
+    isSenatorPresent = true;
+    SenatorIndoorLock.Release();
+
+    int RandIndex = rand() % 4;
+    int money = MoneyOptions[RandIndex];
+    int currentLine = -1;
+
+    int randomVal = (rand() % 100 + 1);
+    if (randomVal < 50)
+    {
+        currentLine = DecideLine(ssn, money, 0, true); // clerkType = 0 = ApplicationClerk
+        CustomerToApplicationClerk(ssn, currentLine, true);
+        currentLine = DecideLine(ssn, money, 1, true); // clerkType = 1 = PictureClerk
+        CustomerToPictureClerk(ssn, currentLine, true);
+    } 
+    else 
+    {
+        currentLine = DecideLine(ssn, money, 1, true); // clerkType = 1 = PictureClerk
+        CustomerToPictureClerk(ssn, currentLine, true);
+        currentLine = DecideLine(ssn, money, 0, true); // clerkType = 0 = ApplicationClerk
+        CustomerToApplicationClerk(ssn, currentLine, true);
+    }
+
+    currentLine = DecideLine(ssn, money, 2, true); // clerkType = 2 = PassportClerk
+    CustomerToPassportClerk(ssn, currentLine, true);
+    currentLine = DecideLine(ssn, money, 3, true); // clerkType = 3 = Cashier
+    CustomerToCashier(ssn, money, currentLine, true);
+    Leave(ssn, true);
+>>>>>>> Stashed changes
 }
 
 
@@ -1535,12 +2049,16 @@ void InitializeData()
     passportClerkBribeCV = new Condition*[numPassportClerks];
     cashierBribeCV = new Condition*[numCashiers];
     
+    appClerkSenatorLineCV = new Condition*[numAppClerks];
+    picClerkSenatorLineCV = new Condition*[numPicClerks];
+    passportClerkSenatorLineCV = new Condition*[numPassportClerks];
+    cashierSenatorLineCV = new Condition*[numCashiers];
+
     appClerkLock = new Lock*[numAppClerks];
     picClerkLock = new Lock*[numPicClerks];
     passportClerkLock = new Lock*[numPassportClerks];
     cashierLock = new Lock*[numCashiers];
 
-    
     customerData = new CustomerData[numCustomers];
     appClerkData = new ClerkData[numAppClerks];
     passportClerkData = new ClerkData[numPassportClerks];
@@ -1667,7 +2185,6 @@ void CleanUpData()
     delete ClerkTypes;
 
     ClerkTypes = NULL;
-
 }
 
 void InitializeAppClerks () 
@@ -1689,6 +2206,10 @@ void InitializeAppClerks ()
         name = new char [40];
         sprintf(name, "BribeCV-ApplicationClerk-%d", i);
         appClerkBribeCV[i] = new Condition(name);
+
+        name = new char [40];
+        sprintf(name, "SenatorLineCV-ApplicationClerk-%d", i);
+        appClerkSenatorLineCV[i] = new Condition(name);
         
         name = new char [40];
         sprintf(name, "Lock-ApplicationClerk-%d", i);
@@ -1714,6 +2235,7 @@ void InitializeAppClerks ()
 
     clerkGroupData[0].lineLock = &appLineLock;
     clerkGroupData[0].lineCV = appClerkLineCV;
+    clerkGroupData[0].senatorLineCV = appClerkSenatorLineCV;
     clerkGroupData[0].bribeLineCV = appClerkBribeLineCV;
     clerkGroupData[0].bribeCV = appClerkBribeCV;
     clerkGroupData[0].breakCV = appClerkBreakCV;
@@ -1792,6 +2314,10 @@ void InitializePicClerks ()
         picClerkBribeCV[i] = new Condition(name);
 
         name = new char [40];
+        sprintf(name, "SenatorLineCV-PictureClerk-%d", i);
+        picClerkSenatorLineCV[i] = new Condition(name);
+
+        name = new char [40];
         sprintf(name, "Lock-PictureClerk-%d", i);
         picClerkLock[i] = new Lock(name);
         
@@ -1815,6 +2341,7 @@ void InitializePicClerks ()
 
     clerkGroupData[1].lineLock = &picLineLock;
     clerkGroupData[1].lineCV = picClerkLineCV;
+    clerkGroupData[1].senatorLineCV = picClerkSenatorLineCV;
     clerkGroupData[1].bribeLineCV = picClerkBribeLineCV;
     clerkGroupData[1].bribeCV = picClerkBribeCV;
     clerkGroupData[1].breakCV = picClerkBreakCV;
@@ -1893,6 +2420,10 @@ void InitializePassportClerks ()
         passportClerkBribeCV[i] = new Condition(name);
 
         name = new char [40];
+        sprintf(name, "SenatorLineCV-PassportClerk-%d", i);
+        passportClerkSenatorLineCV[i] = new Condition(name);
+
+        name = new char [40];
         sprintf(name, "Lock-PassportClerk-%d", i);
         passportClerkLock[i] = new Lock(name);
         
@@ -1912,8 +2443,10 @@ void InitializePassportClerks ()
         t = new Thread(name);
         t->Fork((VoidFunctionPtr)Clerk, (int) clerkFunctionStruct);
     }
+
     clerkGroupData[2].lineLock = &passportLineLock;
     clerkGroupData[2].lineCV = passportClerkLineCV;
+    clerkGroupData[2].senatorLineCV = passportClerkSenatorLineCV;
     clerkGroupData[2].bribeLineCV = passportClerkBribeLineCV;
     clerkGroupData[2].bribeCV = passportClerkBribeCV;
     clerkGroupData[2].breakCV = passportClerkBreakCV;
@@ -1990,6 +2523,10 @@ void InitializeCashiers()
         name = new char [40];
         sprintf(name, "BribeCV-Cashier-%d", i);
         cashierBribeCV[i] = new Condition(name);
+
+        name = new char [40];
+        sprintf(name, "SenatorLineCV-Cashier-%d", i);
+        cashierSenatorLineCV[i] = new Condition(name);
         
         name = new char [40];
         sprintf(name, "Lock-Cashier-%d", i);
@@ -2014,6 +2551,7 @@ void InitializeCashiers()
 
     clerkGroupData[3].lineLock = &cashierLineLock;
     clerkGroupData[3].lineCV = cashierLineCV;
+    clerkGroupData[3].senatorLineCV = cashierSenatorLineCV;
     clerkGroupData[3].bribeLineCV = cashierBribeLineCV;
     clerkGroupData[3].bribeCV = cashierBribeCV;
     clerkGroupData[3].breakCV = cashierBreakCV;
@@ -2093,6 +2631,20 @@ void InitializeCustomers()
     }
 }
 
+void InitializeSenators()
+{
+    Thread * t;
+    char * name;
+
+    for(int i = 0; i < numSenators; i++) 
+    {
+        name = new char [40];
+        sprintf(name, "Senator-%d", i);
+        t = new Thread(name);
+        t->Fork((VoidFunctionPtr)Senator, i);
+    }
+}
+
 
 
 
@@ -2156,7 +2708,7 @@ void ShortestLineTest_Customer(DecideLineParams* decideLineParamsPointer) {
     int clerkType = decideLineParamsPointer->clerkType;
 
     // Select your line, if it returns that means customer went directly to the counter.
-    int myLine = DecideLine(ssn, money, clerkType);
+    int myLine = DecideLine(ssn, money, clerkType, false);
 
     printf(GREEN  "Customer %d went directly to the counter for ApplicationClerk %d.\n"  ANSI_COLOR_RESET, ssn, myLine);
 }
@@ -2239,17 +2791,18 @@ Semaphore CashierTest_Semaphore("CashierTest_Semaphore", 0);
 //needs to show the customer does not leave the passport office until the cashier gave the passport.
 //must show that the customer's app hasn't been filed/the customers picture hasn't been filed.
 
-void CashierTest_Customer(int ssn){
+void CashierTest_Customer(int ssn)
+{
     int RandIndex = rand() % 4;
     int money = MoneyOptions[0];
-    int num = DecideLine(ssn, money, 3);
-    CustomerToCashier(ssn, money, num);
-    Leave(ssn);
+    int num = DecideLine(ssn, money, 3, false);
+    CustomerToCashier(ssn, money, num, false);
+    Leave(ssn, true);
     CashierTest_Semaphore.V();
-
 }
 
-void CashierTest(int defaultMoney, int numCashier, int numCustomer, ClerkStatus defaultStatus){
+void CashierTest(int defaultMoney, int numCashier, int numCustomer, ClerkStatus defaultStatus)
+{
     
     printf(WHITE  "\n\nCashier Test"  ANSI_COLOR_RESET  "\n");
     printf(YELLOW  "\tNumber of customers: "  MAGENTA  "%d"  ANSI_COLOR_RESET  "\n", numCustomer);
@@ -2286,8 +2839,8 @@ void ClerksGoOnBreak_Customer(int i)
 {
     int money = 100;
 
-    int currentLine = DecideLine(i, money, 0);
-    CustomerToApplicationClerk(i, currentLine);
+    int currentLine = DecideLine(i, money, 0, false);
+    CustomerToApplicationClerk(i, currentLine, false);
     ClerksGoOnBreak_Semaphore.V();
 }
 
@@ -2313,11 +2866,6 @@ void ClerksGoOnBreak()
     ASSERT(appClerkData[0].lineCount == 0);
     // Make sure clerk is on break
     ASSERT(appClerkData[0].state == ONBREAK);
-    
-
-    //CleanUpData();
-    //CleanUpAppClerks();
-
 }
 
 Semaphore ManagerTakesClerkOffBreak_Semaphore("ManagerTakesClerkOffBreak_Semaphore", 0);
@@ -2325,17 +2873,17 @@ Semaphore ManagerTakesClerkOffBreak_Semaphore("ManagerTakesClerkOffBreak_Semapho
 void ManagerTakesClerkOffBreak_MultipleCustomers(int i)
 {
     int money = 100;
-    int currentLine = DecideLine(i, money, 0);
-    CustomerToApplicationClerk(i, currentLine);
+    int currentLine = DecideLine(i, money, 0, false);
+    CustomerToApplicationClerk(i, currentLine, false);
     ManagerTakesClerkOffBreak_Semaphore.V();
 }
 
 void ManagerTakesClerkOffBreak_SingleCustomer(int i)
 {
     int money = 100;
-    int currentLine = DecideLine(i, money, 0);
+    int currentLine = DecideLine(i, money, 0, false);
     ManagerTakesClerkOffBreak_Semaphore.V();
-    CustomerToApplicationClerk(i, currentLine);
+    CustomerToApplicationClerk(i, currentLine, false);
 }
 
 
@@ -2413,17 +2961,22 @@ Semaphore ManagerCountsMoney_AppClerkSemaphore("ManagerCountsMoney_AppClerkSemap
 void ManagerCountsMoney_CashierCustomer(int i)
 {
     int money = 100;
-    int currentLine = DecideLine(i, money, 3);
-    CustomerToCashier(i, money, currentLine);
+    int currentLine = DecideLine(i, money, 3, false);
+    CustomerToCashier(i, money, currentLine, false);
     ManagerCountsMoney_CashierSemaphore.V();
 }
 
 void ManagerCountsMoney_AppClerkCustomer(int i)
 {
     int money = 600;
-    int currentLine = DecideLine(i, money, 0);
+    int currentLine = DecideLine(i, money, 0, false);
     ManagerCountsMoney_AppClerkSemaphore.V();
+<<<<<<< Updated upstream
     CustomerToApplicationClerk(i, currentLine);    
+=======
+    CustomerToApplicationClerk(i, currentLine, false);
+    
+>>>>>>> Stashed changes
 }
 
 
@@ -2481,6 +3034,7 @@ void ManagerCountsMoney()
 void Test1(){
     //Customers always take the shortest line, but no 2 customers ever choose the same shortest line at the same time
 
+<<<<<<< Updated upstream
     ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
 }
 void Test2()
@@ -2504,6 +3058,41 @@ void Test5(){
 
 void Test7(){
     //The behavior of Customers is proper when Senators arrive. This is before, during, and after.
+=======
+void Test1()
+{
+    ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
+}
+
+void Test2()
+{
+    ManagerCountsMoney();
+}
+
+void Test3()
+{
+    CashierTest(100, 2, 5, BUSY); //
+}
+
+void Test4()
+{
+    ClerksGoOnBreak();
+}
+
+void Test5()
+{
+    ManagerTakesClerkOffBreak();
+}
+
+void Test6()
+{
+    printf("Nobody accesses the total money except for the manager. Therefore there can never be a race condition.");
+}
+
+void Test7()
+{
+    //senator testg
+>>>>>>> Stashed changes
 }
 
 
@@ -2512,9 +3101,6 @@ void Test7(){
 
 void Part2()
 {
-    //ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-    //ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-
     GetInput();
 
     InitializeData();
@@ -2558,23 +3144,12 @@ void Part2()
 
     InitializeCustomers();
 
-    for(int i = 0; i < numCustomers; i++)
+    InitializeSenators();
+
+    for(int i = 0; i < numCustomers + numSenators; i++)
     {
         CustomersFinished.P();
     }
 
 }
 #endif
-/*
-
-TO DO
-senators
-
-cashier
-
-write all the tests
-
-
-write up
-
-*/
