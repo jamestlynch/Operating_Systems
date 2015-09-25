@@ -37,10 +37,10 @@
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 
-bool debuggingLocks = true;
-bool debuggingLockErrors = true;
-bool debuggingCVs = true;
-bool debuggingCVErrors = true;
+bool debuggingLocks = false;
+bool debuggingLockErrors = false;
+bool debuggingCVs = false;
+bool debuggingCVErrors = false;
 
 
 
