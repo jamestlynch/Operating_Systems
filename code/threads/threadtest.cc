@@ -1485,88 +1485,107 @@ void CleanUpData()
 {
     Condition ** tempCV;
 
-    tempCV = appClerkCV;
-    delete tempCV;
+    delete appClerkCV;
     appClerkCV = NULL;
 
-    tempCV = picClerkCV;
-    delete tempCV;
+    delete picClerkCV;
     picClerkCV = NULL;
 
-    tempCV = passportClerkCV;
-    delete tempCV;
+    delete passportClerkCV;
     passportClerkCV = NULL;
 
-    tempCV = cashierCV;
-    delete tempCV;
+    delete cashierCV;
     cashierCV = NULL;
 
-    tempCV = appClerkLineCV;
-    delete tempCV;
+    delete appClerkLineCV;
     appClerkLineCV = NULL;
 
-    tempCV = picClerkLineCV;
-    delete tempCV;
+    delete picClerkLineCV;
     picClerkLineCV = NULL;
 
-    tempCV = passportClerkLineCV;
-    delete tempCV;
+    delete passportClerkLineCV;
     passportClerkLineCV = NULL;
 
-    tempCV = cashierLineCV;
-    delete tempCV;
+    delete cashierLineCV;
     cashierLineCV = NULL;
 
-    tempCV = appClerkBribeLineCV;
-    delete tempCV;
+    delete appClerkBribeLineCV;
     appClerkBribeLineCV = NULL;
 
-    tempCV = picClerkBribeLineCV;
-    delete tempCV;
+    delete picClerkBribeLineCV;
     picClerkBribeLineCV = NULL;
 
-    tempCV = passportClerkBribeLineCV;
-    delete tempCV;
+    delete passportClerkBribeLineCV;
     passportClerkBribeLineCV = NULL;
 
-    tempCV = cashierBribeLineCV;
-    delete tempCV;
+    delete cashierBribeLineCV;
     cashierBribeLineCV = NULL;
 
-    tempCV = cashierBribeLineCV;
-    delete tempCV;
-    cashierBribeLineCV = NULL;
+    delete appClerkBribeCV;
+    appClerkBribeCV = NULL;
 
-    appClerkBribeCV = new Condition*[numAppClerks];
-    picClerkBribeCV = new Condition*[numPicClerks];
-    passportClerkBribeCV = new Condition*[numPassportClerks];
-    cashierBribeCV = new Condition*[numCashiers];
-    
-    appClerkLock = new Lock*[numAppClerks];
-    picClerkLock = new Lock*[numPicClerks];
-    passportClerkLock = new Lock*[numPassportClerks];
-    cashierLock = new Lock*[numCashiers];
-    
-    customerData = new CustomerData[numCustomers];
-    appClerkData = new ClerkData[numAppClerks];
-    passportClerkData = new ClerkData[numPassportClerks];
-    picClerkData = new ClerkData[numPicClerks];
-    cashierData = new ClerkData[numCashiers];
+    delete picClerkBribeCV;
+    picClerkBribeCV = NULL;
 
-    appClerkBreakCV = new Condition*[numAppClerks];
-    picClerkBreakCV = new Condition*[numPicClerks];
-    passportClerkBreakCV = new Condition*[numPassportClerks];
-    cashierBreakCV = new Condition*[numCashiers];
+    delete passportClerkBribeCV;
+    passportClerkBribeCV = NULL;
+    
+    delete cashierBribeCV;
+    cashierBribeCV = NULL;
+    
+    delete appClerkLock;
+    appClerkLock = NULL;
+
+    delete picClerkLock;
+    picClerkLock = NULL;
+
+    delete passportClerkLock;
+    passportClerkLock = NULL;
+
+    delete cashierLock;
+    cashierLock = NULL;
+
+    delete customerData;
+    customerData = NULL;
+
+    delete appClerkData;
+    appClerkData = NULL;
+
+    delete passportClerkData;
+    passportClerkData = NULL;
+
+    delete picClerkData;
+    picClerkData = NULL;
+    
+    delete cashierData;
+    cashierData = NULL;
+
+    delete appClerkBreakCV;
+    appClerkBreakCV = NULL;
+
+    delete picClerkBreakCV;
+    picClerkBreakCV = NULL;
+
+    delete passportClerkBreakCV;
+    passportClerkBreakCV = NULL;
+    
+    delete cashierBreakCV;
+    cashierBreakCV = NULL;
 
     // Used to reference clerk data when making decision about which line to get in. 4 types of clerk
-    clerkGroupData = new ClerkGroupData [4];
+    delete clerkGroupData;
+    clerkGroupData = NULL;
 
-    ClerkTypes = new char*[4];
+    for(int i = 0; i < 4; i++)
+    {
+        delete ClerkTypes[i];
+        ClerkTypes[i] = NULL;
+    }
 
-    ClerkTypes[0] = "ApplicationClerk";
-    ClerkTypes[1] = "PictureClerk";
-    ClerkTypes[2] = "PassportClerk";
-    ClerkTypes[3] = "Cashier";
+    delete ClerkTypes;
+
+    ClerkTypes = NULL;
+
 }
 
 void InitializeAppClerks () 
@@ -2214,7 +2233,9 @@ void ClerksGoOnBreak()
     ASSERT(appClerkData[0].state == ONBREAK);
     
 
+    //CleanUpData();
     //CleanUpAppClerks();
+
 }
 
 Semaphore ManagerTakesClerkOffBreak_Semaphore("ManagerTakesClerkOffBreak_Semaphore", 0);
@@ -2381,10 +2402,10 @@ void Test2()
 {
     //ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
 
-    //ClerksGoOnBreak();
+    ClerksGoOnBreak();
     //ManagerTakesClerkOffBreak();
 
-    ManagerCountsMoney();
+    //ManagerCountsMoney();
 }
 void Test1(){
     ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
