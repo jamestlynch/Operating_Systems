@@ -38,9 +38,9 @@
 
 
 bool debuggingLocks = false;
-bool debuggingLockErrors = false;
+bool debuggingLockErrors = true;
 bool debuggingCVs = false;
-bool debuggingCVErrors = false;
+bool debuggingCVErrors = true;
 
 
 

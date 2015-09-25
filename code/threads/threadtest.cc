@@ -429,7 +429,7 @@ char ** ClerkTypes;
 /********************/
 /* PRINT STATMENT TOGGLES */
 /********************/
-bool runningSimulation = false;
+bool runningSimulation = true;
 bool debuggingApplicationFiling = true;
 bool debuggingPictureFiling = false;
 bool debuggingPassportCertifying = true;
@@ -712,8 +712,8 @@ int DecideLine(int ssn, int& money, int clerkType)
     } 
     else // Line was empty to begin with. Clerk is available
     { 
-        printf(RED  "%d-%d-AVAILABLE–%d-DecideLine\n"  ANSI_COLOR_RESET, currentLine, clerkType, ssn);
-        clerkData[currentLine].state = BUSY;
+        //clerkData[currentLine].state = BUSY;
+        clerkGroupData[clerkType].clerkData[currentLine].state = BUSY;
     }
     lineLock->Release();
     
@@ -850,16 +850,11 @@ void CustomerToApplicationClerk(int ssn, int myLine)
     // Let Clerk know I have arrived at his counter
     appClerkLock[myLine]->Acquire();
     appClerkData[myLine].currentCustomer = ssn; // Let him know who I am
-    if (runningSimulation || appClerkData[myLine].currentCustomer == 23) printf(GREEN  "Customer %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);    
+    if (runningSimulation) printf(GREEN  "Customer %d has given SSN %d to ApplicationClerk %d."  ANSI_COLOR_RESET  "\n", ssn, ssn, myLine);    
     appClerkCV[myLine]->Signal(appClerkLock[myLine]);
-
-    printf(RED  "%d-%d-1~~~~~~~~~~~~~~~~~~~~~~~~\n"  ANSI_COLOR_RESET, myLine, ssn);
 
     // Wait for Application Clerk to file my Application
     appClerkCV[myLine]->Wait(appClerkLock[myLine]);
-
-    printf(RED  "%d-%d-2~~~~~~~~~~~~~~~~~~~~~~~~\n"  ANSI_COLOR_RESET, myLine, ssn);
-
 
     // Acknowledge to Clerk that I got that he filed my application and I am leaving 
     appClerkCV[myLine]->Signal(appClerkLock[myLine]);
@@ -869,18 +864,13 @@ void CustomerToApplicationClerk(int ssn, int myLine)
 
 void ApplicationClerkToCustomer(int lineNumber)
 {
-    printf(RED  "%d---1!!!!!!!!!!!!!!!!!!!!!!!!\n"  ANSI_COLOR_RESET, lineNumber);
-
-
     // Go to sleep until customer has gotten to my Counter
     appClerkLock[lineNumber]->Acquire();
     appLineLock.Release();
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
 
-    printf(RED  "%d-%d-2!!!!!!!!!!!!!!!!!!!!!!!!\n"  ANSI_COLOR_RESET, lineNumber, appClerkData[lineNumber].currentCustomer);
-
     // New Customer has arrived, acknowledge that we got his info and do my job.
-    if (runningSimulation || true) printf(GREEN  "ApplicationClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
+    if (runningSimulation) printf(GREEN  "ApplicationClerk %d has received SSN %d from Customer %d"  ANSI_COLOR_RESET  "\n", lineNumber, appClerkData[lineNumber].currentCustomer, appClerkData[lineNumber].currentCustomer);
     
     // Do my job, simulate time it takes to file Application by Yielding
     currentThread->Yield();
@@ -897,8 +887,6 @@ void ApplicationClerkToCustomer(int lineNumber)
     
     // Wait for Customer to tell me he is leaving
     appClerkCV[lineNumber]->Wait(appClerkLock[lineNumber]);
-
-    printf(RED  "%d-%d-3!!!!!!!!!!!!!!!!!!!!!!!!\n"  ANSI_COLOR_RESET, lineNumber, appClerkData[lineNumber].currentCustomer);
 
     // Done with Customer, reset so ready for next Customer
     appClerkData[lineNumber].currentCustomer = -1;
@@ -1321,7 +1309,7 @@ int ManageClerk(int clerkType)
         {
             wakeUpClerk--;
 
-            clerkData[i].state = AVAILABLE; // Nobody will ever be in his line, so wake up and set AVAILABLE
+            clerkData[i].state = BUSY; // Nobody will ever be in his line, so wake up and set AVAILABLE
             breakCV[i]->Signal(lineLock);
             if (runningSimulation) printf(GREEN  "Manager has woken up %s %d."  ANSI_COLOR_RESET  "\n", ClerkTypes[clerkType], i);
         }
