@@ -535,7 +535,7 @@ ClerkData * passportClerkData;
 ClerkData * picClerkData;
 ClerkData * cashierData;
 
-int numCustomers = 3;
+int numCustomers = 4;
 int numAppClerks = 1;
 int numPicClerks = 1;
 int numPassportClerks = 1;
@@ -2042,7 +2042,7 @@ void Test2()
 void Part2()
 {
     //ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-    CashierTest(100, 2, 5, BUSY); //
+    //CashierTest(100, 2, 5, BUSY); //
    // ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
 
     GetInput();
