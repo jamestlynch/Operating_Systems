@@ -1,0 +1,209 @@
+Title:  Writeup for Project 1, Fall 2015
+Date:  09/20/15
+Group 8
+James Lynch		jamestly@usc.edu
+Austin Spiegel	aspiegel@usc.edu
+Haley Lenner	lenner@usc.edu
+ 
+I. Requirements:
+
+The requirements of the assignment is to simulate interactions among clerks, cashiers, and customers. Customers need to go into the office, get an application filed by an app clerk, a photo taken by a picture clerk, a passport certification by a passport clerk, and then finally receive a passport. These threads should be running simultaneously and the requirements are to simulate this passport office and allow customers to interact with clerks in a way that show the possibilities of race conditions occurring, but controlling and preventing them by using the various topics we discussed in class- locks, condition variables, and semaphores. There are many stipulations that are in place which prevent the customer from moving to the next step of the program- not waiting long enough for something to be filed or having clerks on break or clerks with long lines are the main issues. The program should handle these issues by yielding until a variable changes which allows progression to the next step. The program should allow senators, special customers, to have the entire passport office to themselves. Other than that, they should receive passports in the same way that customers do, with the exception of bribe lines- Senators should not bribe.
+
+
+II. Assumptions:
+-there is a random chance of customers going to an application line vs a picture line first.
+-filing an application and picture take a random time, between 20 and 100 yields.
+-being punished takes 100-1000 yields
+-customers sometimes go to the passport and cashier lines too early, in which case they are punished and go to the back of the passport line (They can now decide again which passport line is shortest).
+-Manager will wake up an additional clerk when there are three people in any line, if not all are currently awake. People only get in a line that is active. If everyone is on break, the manager will wake up a clerk when a customer goes into their line
+-money values of 100 600 1100 and 1600 are randomly distributed.
+-the user can enter invalid input. must test for that.
+-the customer ALWAYS bribes the clerk, if they have the money to do so. 
+-you pick the shortest line based on the normal line. Then if you have the money to bribe, you get in the bribe line for that line.
+-manager’s thread gets put to sleep when all of the customers have left the passport building and nobody else is working.
+-only one senator at a time can be in the passport office. There are no senator bribe lines.
+-simulation ends when all customers are processed and there are no more customers coming into the passport line.
+-each type of clerk has their own money ‘pool,' the manager goes and reads each type of clerks money pool rather than the manager going to each individual clerk and getting the money.
+-manager only prints out the money when there is a change in the amount of money that is collected.
+
+III. Design:
+
+Customers have the type of clerk they are currently interacting with, a social security #, and money associated with them. walk in, randomly decide if they will get a photo taken or an application filed. From there, they go to the group of clerks (application or picture), and choose the shortest line witin that group. Each customer has a random amt of $(100, 600, 1100, 1600), and bribing any clerk requires 500. If a customer has enough money, they randomly decides if they will use it to bribe the clerk. All clerks accept bribes. They also have the option to go on a shorter bribe line, which means that they will cut every other customer in front of them. Every clerk has a bribe line. The customer needs to wait on the line, and will walk to the counter when they get to the front of the line and the customer before leaves and the clerk in their line signals them. Once they get to the counter this is what happens:
+    Application: customer walks to counter, and gives clerk the SSN. The clerk files the application. If the customer has already gone to the picture clerk then the customer will go to the passport clerk after leaving this counter. Otherwise, the customer goes to the application clerk. the application clerk files the application.
+    Picture: customer walks to the counter, clerk takes the picture. the customer randomly decides to like or not like (50% chance they like, 50% they don't). if they don't like it they return to the end of the line and try again. If they do like it and have already gone to the application clerk, they get in line for the passport clerk. if they have not gone to the application clerk, they go to the line for the application clerk. the picture clerk files the accepted picture.
+
+Once the customer goes to the application clerk and picture clerk, they get in the shortest line for the Passport clerk. If they get to the passport clerk before the application and picture clerks have filed their application and photo, they are punished by having to wait a certain amount of time, and then are told to go to the end of the line. Once they get to the passport counter and receive the passport, they go on line for the cashier clerk to pay the $100 and receive their passport. Then they leave the passport office.
+
+Senators can randomly come to the office and will wait until current counter interactions are done and then kick everyone else out of the Passport office. They go through the same process as the regular customers. When they receive their passport and leave the office, the customers can come back in their office and resume their activities.
+
+Managers are keeping track of the overall profit $$ made, and the $ made by each type of clerk. Since every Clerk also goes 'on break' when nobody is in their line, Managers also wake up clerks. Manager will wake up an additional clerk when there are three people in any line, if not all are currently awake. People only get in a line that is active. If everyone is on break, the manager will wake up a clerk when a customer goes into their line. The simulation should end when the same number of customers and senators that were created have gotten their passports and left the passport office.
+
+
+
+IV. Implementation:
++ Files Modified: 
+	threadtest.cc
+	synch.cc/synch.h
+
++ Files added:	none
+
++ Data Structures added/modified
+
+SYNC.CC/SYNC.H
+
+	inside Lock class:
+   		List *sleepqueue;
+    		char* name;
+    		Thread *lockOwner;
+    		Thread *lockOwner;
+    		bool state;
+    		bool isHeldBySomeOne;
+
+	inside Condition class: 
+    		List * waitqueue;
+
+
+THREADTEST.CC
+	struct ClerkGroupData
+	struct ClerkData 
+    	struct CustomerData
+	struct ManagerData 
+	struct FilingJob
+	struct ClerkFunctionStruct
+	enum ClerkStatus
+	const int moneyOptions[]
+	bool runningSimulation
+	struct DecideLineParams
+	enum ClerkStatus
+	const int moneyOptions[4]
+
++ Functions added and in which file.
+
+SYNCH.CC
+inside Lock:
+	void setName(char * inName)
+	bool getState()
+
+inside Condition:
+	char* getName()
+
+
+THREADTEST.CC
+-- functions to create simulation:
+void Clerk(ClerkFunctionStruct * clerkFunctionStruct) 
+void CustomerToApplicationClerk(int ssn, int myLine)
+void FileApplication(FilingJob* jobPointer) 
+void ApplicationClerkToCustomer(int lineNumber)
+void FilePicture(FilingJob* jobPointer) 
+void CustomerToPictureClerk(int ssn, int myLine)
+void PictureClerkToCustomer(int lineNumber)
+void CertifyPassport(FilingJob * certifyingJobPointer)
+void CustomerToPassportClerk(int ssn, int myLine)
+void PassportClerkToCustomer(int lineNumber)
+void CustomerToCashier(int ssn, int& money, int myLine)
+void CashierToCustomer(int lineNumber)
+int ManageClerk(int clerkType)
+void Manager()
+void Senator()
+int DecideLine(int ssn, int& money, int clerkType) 
+void Leave(int ssn)
+void Customer(int ssn) 
+void GetInput()
+void InitializeData()
+void CleanUpData()
+void InitializeAppClerks () 
+void CleanUpAppClerks()
+void InitializePicClerks ()
+void InitializePassportClerks () 
+void InitializeCashiers() 
+void InitializeManager()
+void InitializeCustomers()
+
+
+
+-- Functions to test simulation:
+void ShortestLineTest_PrintResults(int numDecisionsSoFar, int numLines) {
+void ShortestLineTest_Customer(DecideLineParams* decideLineParamsPointer) {
+void ShortestLineTest(int numLineDecisions, int defaultMoney, int numLines, int defaultLineCount, bool useRandomClerkStates, bool useRandomLineCounts, bool useRandomMoney, ClerkStatus defaultStatus) 
+void CashierTest_Customer(int ssn){
+void CashierTest(int defaultMoney, int numCashier, int numCustomer, ClerkStatus defaultStatus){
+void ClerksGoOnBreak_Customer(int i)
+void ClerksGoOnBreak() 
+void ManagerTakesClerkOffBreak_MultipleCustomers(int i)
+void ManagerTakesClerkOffBreak_SingleCustomer(int i)
+void ManagerTakesClerkOffBreak()
+void Part2()
+void Test1()
+void Test2()
+void Test3()
+void Test4()
+void Test5()
+void Test7()
+
++ Functions modified and in which file.
+
+SYNCH.CC
+
+Class Condition{
+    void Wait(Lock *conditionLock); // these are the 3 operations on 
+    void Signal(Lock *conditionLock);   // conditionLock must be held by
+    void Broadcast(Lock *conditionLock);// the currentThread for all of 
+}
+Class Lock{
+    void setName(char * inName);
+    void Acquire();
+    void Release();
+    bool getState();
+}
+
+
+V. Testing:  (For each test case, you must show)
+
++ How to test
+
+    To test part 2 as a simulation with user input, you type 'nachos -P2' into command line. Follow the prompts to enter the quantity of each clerk type, customer, and senator. Then the simulation will run.
+    To test part 2 using the testing requirements document:
+		run test 1 = 'nachos -T1’
+		run test 2 = 'nachos -T2’
+		run test 3 = 'nachos -T3’
+		run test 4 = 'nachos -T4’
+		run test 5 = 'nachos -T5’
+		run test 7 = 'nachos -T7’
+Test6-Does not exist. Since nobody accesses the total money except for the manager, there can never be a race condition.
+
++ Test Output
+
+- Describe the testing output. You don't have to dump all the output info. Just make sure your description can exactly reflect your output. The grader of your submission will be wanting to compare the output they get with what you say the output is.
+
+Test1-Customers always take the shortest line, but no 2 customers ever choose the same shortest line at the same time
+
+Assumptions about Customer's Line Decisions-
+   	Customers always go straight to the counter if the Clerk is (i) AVAILABLE and (ii) its line is empty
+   	Customers decide their clerk based ONLY on the length of the regular line
+   	Customers always bribe if they have enough money (>= $600)
+	Customers will join a long bribe line if the clerk's regular line is shortest.
+
+The print statement should show each customer and their decision of which line they are going to. There are 50 customers and 5 clerks (MAX of each). The output will show the lines, count, state, and amount of bribes for each line as output. 
+
+Test2-Managers only read one from one Clerk's total money received, at a time.
+
+	Create 4 customers an app clerk and a cashier. We kick off 3 customers going to app clerk with the assumption that 1 will bribe. After the customer finishes at the cashier we make sure that the manager has counted 100$ for the cashier and 0$ for the app clerk. The manager counts each groups $ separately, after all customers decide which line to go in, we check to make sure tat the app clerks have 500$ because one of them was bribed. 
+
+Test3-Customers do not leave until they are given their passport by the Cashier. The Cashier does not start on another customer until they know that the last Customer has left their area
+
+	None of the customer’s passports are certified at start. They should always go to the back of the line. Then, once the passport certified is set to true for each customer, there is a print statement notifying of this. Afterwards, the cashier gives the customer their passport. And each customer then leaves when they receive the passport. The next waiting customer should never come to the counter before a cashier signals them to. Read print statements for full interaction.
+
+Test4- Clerks go on break when they have no one waiting in their line
+	
+	One customer goes to one app clerk and has his interaction w the app clerk. after customer is done we check to make sure nobody is in the app clerks line, and then he goes on break. Read print statements for full interaction.
+
+Test5-Managers get Clerks off their break when lines get too long
+	We have 6 customers and 2 app clerks. We send one customer to an app clerk and then after the customer is done w/ interaction, check that the app clerks line is 0 and they go on break. Then spawn 4 more customers and we wait until one is completed and then check to see that another clerk is woken up. Then we wait until the 3 other customers are finished and check to make sure that both clerks are on break. Then we send 1 final customer and after he decides a line, we check to make sure that the 1st clerk is busy. Idea is that shows if all clerks are on break, then a customer chooses a clerk and the manager wakes that clerk up because every clerk is on break.
+
+Test6-Does not exist. There is no test case for this. Since nobody accesses the total money except for the manager. Therefore there can never be a race condition.
+
+Test7-The behavior of Customers is proper when Senators arrive. This is before, during, and after.
+
+VI. Discussion:
+
+Based on our tests, we have dealt with all race conditions, since for every test we ran, the values outputted were correct. We also have avoided deadlock since threads never go to sleep forever without waking up. We have properly simulated a passport office and have shown all cases for what could happen with using random values and comparing them to what should be output.

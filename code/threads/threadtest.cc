@@ -455,6 +455,7 @@ struct CustomerData
 
 struct ClerkData 
 {
+
     int lineCount;
     int bribeLineCount;
     int isBeingBribed;
@@ -475,6 +476,7 @@ struct ClerkData
 
 struct ManagerData
 {
+    //specifying each amount of money for the type of clerk
     int appClerkMoney;
     int picClerkMoney;
     int passportClerkMoney;
@@ -493,7 +495,7 @@ struct ManagerData
 
 ManagerData managerData;
 
-struct FilingJob
+struct FilingJob //used to yield when a clerk needs to file a passport, photo, or application
 {
     int ssn;
     int lineNumber;
@@ -542,39 +544,41 @@ Lock filingPictureLock("FilingPictureLock");
 Lock filingApplicationLock("FilingApplicationLock");
 Lock certifyingPassportLock("CertifyingPassportLock");
 
+/* LOCKS ON MONEY FOR EACH TYPE OF CLERK */
 Lock appMoneyLock("ApplicationMoneyLock");
 Lock picMoneyLock("PictureMoneyLock");
 Lock passportMoneyLock("PassportMoneyLock");
 Lock cashierMoneyLock("CashierMoneyLock");
 
+/*SEMAPHORE FOR DETERMINING IF CUSTOMERS HAVE FINISHED*/
 Semaphore * customersFinished;
 
+/*CVS THAT CLERKS WAIT ON WHEN THEY ARE ON BREAK*/
 Condition ** appClerkBreakCV;
 Condition ** picClerkBreakCV;
 Condition ** passportClerkBreakCV;
 Condition ** cashierBreakCV;
 
+/*DATA FOR EACH TYPE OF CLERK AND CUSTOMER*/
 CustomerData * customerData;
 ClerkData * appClerkData;
 ClerkData * passportClerkData;
 ClerkData * picClerkData;
 ClerkData * cashierData;
 
-int numCustomers = 4;
+/*AMOUNT OF EACH TYPE OF AGENT- WILL CHANGE ON INPUT*/
+int numCustomers = 1;
 int numAppClerks = 1;
 int numPicClerks = 1;
 int numPassportClerks = 1;
 int numCashiers = 1;
 int numSenators = 1;
 
-int numCustomersFinished = 0;
+int numCustomersFinished = 0;//COMPARE THIS TO NUMCUSTOMERS TO SEE WHEN THE PROGRAM IS COMPLETE
 
 Semaphore CustomersFinished("CustomersFinished", 0);
 
-
-/********************/
-/***** MONITORS *****/
-/********************/
+/*DATA FOR CLERK*/
 struct ClerkGroupData 
 {
     Lock * lineLock;
@@ -612,6 +616,9 @@ struct ClerkFunctionStruct
     }
 };
 
+/*the clerk is accepting a bribe of 500 from the customer once 
+it is established that the customer has enough $ to bribe*/
+
 void AcceptBribe(int clerkType, int lineNumber)
 {
     ClerkData * clerkData = clerkGroupData[clerkType].clerkData;
@@ -641,7 +648,10 @@ void AcceptBribe(int clerkType, int lineNumber)
     clerkData[lineNumber].currentCustomer = -1; // set current customer back to -1
     clerkLock[lineNumber]->Release();
 }
+/*
+creates clerk, checks if being bribed, and signals non bribing customers to the counter
 
+*/
 void Clerk(ClerkFunctionStruct * clerkFunctionStruct)
 {
     clerkFunctionStruct = (ClerkFunctionStruct*)clerkFunctionStruct;
@@ -2376,33 +2386,31 @@ void ManagerCountsMoney()
 
     numCustomersFinished = numCustomers;
 }
-
-void Test2()
-{
-    //ShortestLineTest(5, false, 100, 3, false, 0, false, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
-
-    //ClerksGoOnBreak();
-    //ManagerTakesClerkOffBreak();
-
-    ManagerCountsMoney();
-}
 void Test1(){
+    //Customers always take the shortest line, but no 2 customers ever choose the same shortest line at the same time
+
     ShortestLineTest(50, 100, 5, 0, true, true, true, AVAILABLE); // 5 Customers, 3 Lines, $100 (no bribes), All clerks begin AVAILABLE
 }
+void Test2()
+{
+    //Managers only read one from one Clerk's total monCustomers do not leave until they are given their passport by the Cashier. The Cashier does not start on another customer until they know that the last Customer has left their areaey received, at a time.
+    ManagerCountsMoney();
+}
 void Test3(){
+    //Customers do not leave until they are given their passport by the Cashier. The Cashier does not start on another customer until they know that the last Customer has left their area
     CashierTest(100, 2, 5, BUSY); //
 }
 void Test4(){
+    //Clerks go on break when they have no one waiting in their line
     ClerksGoOnBreak();
 }
 void Test5(){
+    //Managers get Clerks off their break when lines get too long
     ManagerTakesClerkOffBreak();
 }
-void Test6(){
-    printf("Nobody accesses the total money except for the manager. Therefore there can never be a race condition.");
-}
+
 void Test7(){
-    //senator testg
+    //The behavior of Customers is proper when Senators arrive. This is before, during, and after.
 }
 
 
