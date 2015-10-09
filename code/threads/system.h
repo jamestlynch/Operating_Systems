@@ -29,9 +29,28 @@ extern Interrupt *interrupt;			// interrupt status
 extern Statistics *stats;			// performance metrics
 extern Timer *timer;				// the hardware alarm clock
 
+
+
+
 #ifdef USER_PROGRAM
 #include "machine.h"
 extern Machine* machine;	// user program memory and registers
+
+//create tables for processes, condition variables, and locks
+#include "addrspace.h"
+extern Table* processT; //process table
+extern Table* cvT;	//condition var table
+extern Table* lockT;	//lock table
+
+//create locks around these tables so only one program can access at a time
+#include "synch.h"
+extern Lock* processTLock; //lock on process table
+extern Lock* cvTLock;	//lock on cv table
+extern Lock* lockTLock;	//lock on lock table
+
+#include "bitmap.h"
+extern BitMap *BitMap; //based on class notes, we need this...not sure what it's used for yet. @james or @austin do you know?
+
 #endif
 
 #ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB 

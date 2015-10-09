@@ -81,6 +81,7 @@ int copyout(unsigned int vaddr, int len, char *buf) {
     return n;
 }
 
+
 void Create_Syscall(unsigned int vaddr, int len) {
     // Create the file with the name in the user buffer pointed to by
     // vaddr.  The file name is at most MAXFILENAME chars long.  No
@@ -230,6 +231,103 @@ void Close_Syscall(int fd) {
       printf("%s","Tried to close an unopen file\n");
     }
 }
+void Yield_Syscall() {
+  currentThread->Yield();
+}
+void CreateLock(){
+  lockTLock->Acquire(); //acquire table lock
+
+  //make sure there is available lock in lockT
+  // make sure the lock being created is allowed to be created....who creates locks? does the user program ask the OS to create a lock?
+
+  Lock *lock = new Lock();//NEED TO PASS IN A NAME TO THIS..HOW TO CREATE A NAME..idk. ha
+
+  lockTLock->Release();
+
+
+}
+void AcquireLock(){
+  lockTlock->Acquire();
+  //DO STUFF
+
+  /*
+  TO DO
+  make sure the lock is avail..does the synch.cc acquire method already do this/is it redundant to do it again?
+  */
+
+  lock->Acquire(); //HOW TO KNOW WHICH LOCK ACQUIRING? look up in lock table?? position in table?
+
+
+  lockTlock->Release();
+}
+void ReleaseLock(){
+  lockTlock->Acquire();
+  
+  //make sure the program thread that is trying to release the lock, has the right to do so..is this same as lock owner?
+
+  lock->Release();
+
+  lockTlock->Release();
+}
+void DestroyLock(){
+  lockTlock->Acquire();
+
+  //get index of lock to be destroyed, from lock table.
+  // make sure the lock being destroyed is allowed to be destroyed....who creates and destroys locks?
+  //remove from lock table...free memory
+
+  lockTlock->Release();
+}
+void CreateCV(){
+  cvTLock->Acquire();
+
+  /*
+  TO DO 
+  make sure there is available cv in cvT and all aren't being used.
+  */
+
+  Condition *condition= new Condition(); //NEED TO PASS IN A NAME TO THIS..HOW TO CREATE A NAME..idk. ha
+  
+  cvTLock->Release();
+}
+void Wait(){
+  cvTLock->Acquire();
+  
+
+  cvTLock->Release();
+}
+void Signal(){
+  cvTLock->Acquire();
+  //DO STUFF
+  cvTLock->Release();
+}
+void Broadcast(){
+  cvTLock->Acquire();
+  //DO STUFF
+  cvTLock->Release();
+}
+void DestroyCV(){
+  cvTLock->Acquire();
+  //DO STUFF
+  cvTLock->Release();
+}
+void Halt(){
+  interrupt->Halt();
+}
+void Exit_Syscall(){
+
+}
+void Fork(void (*func)){
+
+}
+void Exec_Syscall(){
+
+}
+
+void Join_Syscall(){
+
+}
+
 
 void ExceptionHandler(ExceptionType which) {
     int type = machine->ReadRegister(2); // Which syscall?

@@ -18,6 +18,18 @@ Interrupt *interrupt;			// interrupt status
 Statistics *stats;			// performance metrics
 Timer *timer;				// the hardware timer device,
 					// for invoking context switches
+Machine *machine;
+
+//create tables for processes, condition variables, and locks
+Table* processT;
+Table* cvT;
+Table* lockT;
+
+//create locks around these tables so only one program can access at a time
+Lock* processTLock;
+Lock* cvTLock;
+Lock* lockTLock;
+
 
 #ifdef FILESYS_NEEDED
 FileSystem  *fileSystem;
@@ -28,11 +40,16 @@ SynchDisk   *synchDisk;
 #endif
 
 #ifdef USER_PROGRAM	// requires either FILESYS or FILESYS_STUB
-Machine *machine;	// user program memory and registers
+    machine= new Machine(debugUserProg);  // this must come first
+    processTableLock = new Lock("ProcessLock");
+    BitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes
+    lockT = new Table();  // should pass in an int of how many locks are going to be stored in table
+    processT = new Table(); // should pass in an int of how many processes are going to be stored in table
+    cvT= new Table(); //should pass in an int of how many cvs are going to be stored in table
 #endif
 
 #ifdef NETWORK
-PostOffice *postOffice;
+    PostOffice *postOffice;
 #endif
 
 
@@ -179,7 +196,13 @@ Cleanup()
 #endif
     
 #ifdef USER_PROGRAM
-    delete machine;
+    delete machine; //delete machine
+    delete processTableLock;
+    delete BitMap;
+    delete lockT;
+    delete processT;
+    delete cvT;
+
 #endif
 
 #ifdef FILESYS_NEEDED
