@@ -19,6 +19,7 @@ Statistics *stats;			// performance metrics
 Timer *timer;				// the hardware timer device,
 					// for invoking context switches
 Machine *machine;
+BitMap *memoryBitMap; //memoryBitMap discussed in class..not sure what used for
 
 //create tables for processes, condition variables, and locks
 Table* processT;
@@ -42,7 +43,7 @@ SynchDisk   *synchDisk;
 #ifdef USER_PROGRAM	// requires either FILESYS or FILESYS_STUB
     machine= new Machine(debugUserProg);  // this must come first
     processTableLock = new Lock("ProcessLock");
-    BitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes
+    memoryBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes
     lockT = new Table();  // should pass in an int of how many locks are going to be stored in table
     processT = new Table(); // should pass in an int of how many processes are going to be stored in table
     cvT= new Table(); //should pass in an int of how many cvs are going to be stored in table

@@ -315,7 +315,48 @@ void Halt(){
   interrupt->Halt();
 }
 void Exit_Syscall(){
+/*********
+3 EXIT CASES:
+1. A thread called exit in a process but it is not the last executing thread, 
+so we still need the code and data. only can get rid of 8 stack pages for that 
+thread since those aren’t shared data..keep track of where the 8 pages are 
+for every thread that is created. advantage: wherever 8 stack pages are for 
+particular thread, they are continuous..i.e. starts at virtual page 10, ends 
+at virtual page 17. can keep track of only the 1st # or last #, preferably 
+last…register stays pointing at the last. go by sets of 8.
 
+the 1st thread created in a process is created in Exec. 
+Everything else is done in fork. add something process 
+table to keep track of where stacks are, if this stack 
+completes then just get rid of the stack.
+
+nachos -x ___ ___ ___ ___ -x arg is handled by startProcess 
+in progest.cc in userprog….first process and address space gets 
+created. whatever code in Exec to populate process table must also 
+go into progest.cc otherwise you’ll be off by 1 in the number of 
+processes..identical code. virtual page #, physical page number,
+ valid bit. page table indexed by virtual page. #. read physical 
+ page number, memory bit map with a for loop 8 times.
+
+BELOW IS CODE FROM CLASS.
+
+*****/
+memoryBitMap->Clear(8 physical page numbers); //give up page of memory
+memoryBitMap->Find(allocate page #)
+valid=false //no longer in physical memory
+must be reclaimed for something else to use.
+
+/*
+2. easiest. last executing thread in last process, 
+empty. no need to reclaim anything. nobody left. 
+stop nachos. turn off OS equivalent nobody left 
+to give any memory or locks or cvs to.
+
+interrupt->halt();
+
+3. most work.. last executing thread in a process- not last process- addrSpace* for the process, search entire table,, if addrSpace pointers match, clear it out. set null, isDeleted, ro something. ready queue is not empty because there are other processes running. not last process. kill the process. reclaim all memory that hasn’t already been reclaimed (code, data, 8 page stacks, any other stacks), in page table entry, piece of data called valid bit, that virtual page is in memory somewhere, data for that entry in the page table can be trusted, when virtual page isn’t in memory that valid bit is set to false.
+-locks/cvs- match the addrSpace * w/ Process table
+****************/
 }
 void Fork(void (*func)){
 
