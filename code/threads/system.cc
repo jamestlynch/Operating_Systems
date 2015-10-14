@@ -7,6 +7,7 @@
 
 #include "copyright.h"
 #include "system.h"
+#include "addrspace.h"
 
 // This defines *all* of the global data structures used by Nachos.
 // These are all initialized and de-allocated by this file.
@@ -23,8 +24,8 @@ BitMap *memoryBitMap; //memoryBitMap discussed in class..not sure what used for
 
 //create tables for processes, condition variables, and locks
 Table* processT;
-Table* cvT;
-Table* lockT;
+Table* cvT; //table of kernelCondition struct
+Table* lockT; //table of kernelLock struct
 
 //create locks around these tables so only one program can access at a time
 Lock* processTLock;
@@ -44,9 +45,23 @@ SynchDisk   *synchDisk;
     machine= new Machine(debugUserProg);  // this must come first
     processTableLock = new Lock("ProcessLock");
     memoryBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes
-    lockT = new Table();  // should pass in an int of how many locks are going to be stored in table
-    processT = new Table(); // should pass in an int of how many processes are going to be stored in table
-    cvT= new Table(); //should pass in an int of how many cvs are going to be stored in table
+    lockT = new Table(1000);  // should pass in an int of how many kernelock structs are going to be stored in table
+    processT = new Table(1000); // should pass in an int of how many processes are going to be stored in table
+    cvT= new Table(1000); //should pass in an int of how many conditionlock structs are going to be stored in table
+
+    struct kernelLock
+    {
+        Lock *lock;
+        AddrSpace *as;
+        bool toDelete;      
+    };
+    struct kernelCondition
+    {
+        Condition *condition;
+        AddrSpace *as;
+        bool toDelete;
+    }
+
 #endif
 
 #ifdef NETWORK

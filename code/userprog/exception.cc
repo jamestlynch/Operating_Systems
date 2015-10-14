@@ -235,19 +235,22 @@ void Yield_Syscall() {
   currentThread->Yield();
 }
 void CreateLock(){
+
   lockTLock->Acquire(); //acquire table lock
+  kernelLock * newklock = new kernelLock();
 
-  //make sure there is available lock in lockT
-  // make sure the lock being created is allowed to be created....who creates locks? does the user program ask the OS to create a lock?
+  Lock *lock = new Lock(/*NAME*/);  //use a buffer to get the name. create a new kernel lock object. set all values.
+  newklock->toDelete = false;
+  newklock->as = currentThread->space;
+  newklock->lock = lock;
 
-  Lock *lock = new Lock();//NEED TO PASS IN A NAME TO THIS..HOW TO CREATE A NAME..idk. ha
-
+  //put the new kernel lock object into the lock table
+  lockT->Put(newklock);
   lockTLock->Release();
-
-
 }
-void AcquireLock(){
+void AcquireLock(int index){
   lockTlock->Acquire();
+
   //DO STUFF
 
   /*
@@ -255,9 +258,7 @@ void AcquireLock(){
   make sure the lock is avail..does the synch.cc acquire method already do this/is it redundant to do it again?
   */
 
-  lock->Acquire(); //HOW TO KNOW WHICH LOCK ACQUIRING? look up in lock table?? position in table?
-
-
+  lockT[]->Acquire(); //HOW TO KNOW WHICH LOCK ACQUIRING? look up in lock table?? position in table?
   lockTlock->Release();
 }
 void ReleaseLock(){
@@ -280,14 +281,19 @@ void DestroyLock(){
 }
 void CreateCV(){
   cvTLock->Acquire();
+  kernelCondition * newkcond = new kernelCondition();
 
+  Condition *newkcond= new Condition(/*NAME*/);  //use a buffer to get the name. create a new kernel lock object. set all values.
+  newkcond->toDelete = false;
+  newkcond->as = currentThread->space;
+  newkcond->condition = lock;
+
+  //put the new kernel lock object into the lock table
+  cvT->Put(newkcond);
   /*
   TO DO 
   make sure there is available cv in cvT and all aren't being used.
   */
-
-  Condition *condition= new Condition(); //NEED TO PASS IN A NAME TO THIS..HOW TO CREATE A NAME..idk. ha
-  
   cvTLock->Release();
 }
 void Wait(){
@@ -315,50 +321,9 @@ void Halt(){
   interrupt->Halt();
 }
 void Exit_Syscall(){
-/*********
-3 EXIT CASES:
-1. A thread called exit in a process but it is not the last executing thread, 
-so we still need the code and data. only can get rid of 8 stack pages for that 
-thread since those aren’t shared data..keep track of where the 8 pages are 
-for every thread that is created. advantage: wherever 8 stack pages are for 
-particular thread, they are continuous..i.e. starts at virtual page 10, ends 
-at virtual page 17. can keep track of only the 1st # or last #, preferably 
-last…register stays pointing at the last. go by sets of 8.
 
-the 1st thread created in a process is created in Exec. 
-Everything else is done in fork. add something process 
-table to keep track of where stacks are, if this stack 
-completes then just get rid of the stack.
-
-nachos -x ___ ___ ___ ___ -x arg is handled by startProcess 
-in progest.cc in userprog….first process and address space gets 
-created. whatever code in Exec to populate process table must also 
-go into progest.cc otherwise you’ll be off by 1 in the number of 
-processes..identical code. virtual page #, physical page number,
- valid bit. page table indexed by virtual page. #. read physical 
- page number, memory bit map with a for loop 8 times.
-
-BELOW IS CODE FROM CLASS.
-
-*****/
-memoryBitMap->Clear(8 physical page numbers); //give up page of memory
-memoryBitMap->Find(allocate page #)
-valid=false //no longer in physical memory
-must be reclaimed for something else to use.
-
-/*
-2. easiest. last executing thread in last process, 
-empty. no need to reclaim anything. nobody left. 
-stop nachos. turn off OS equivalent nobody left 
-to give any memory or locks or cvs to.
-
-interrupt->halt();
-
-3. most work.. last executing thread in a process- not last process- addrSpace* for the process, search entire table,, if addrSpace pointers match, clear it out. set null, isDeleted, ro something. ready queue is not empty because there are other processes running. not last process. kill the process. reclaim all memory that hasn’t already been reclaimed (code, data, 8 page stacks, any other stacks), in page table entry, piece of data called valid bit, that virtual page is in memory somewhere, data for that entry in the page table can be trusted, when virtual page isn’t in memory that valid bit is set to false.
--locks/cvs- match the addrSpace * w/ Process table
-****************/
 }
-void Fork(void (*func)){
+void Fork_Syscall(void (*func)){
 
 }
 void Exec_Syscall(){
@@ -382,6 +347,16 @@ void ExceptionHandler(ExceptionType which) {
 		DEBUG('a', "Shutdown, initiated by user program.\n");
 		interrupt->Halt();
 		break;
+      case SC_Exit:
+    DEBUG('a', "Exit Syscall.\n")
+    Exit_Syscall();
+    break;
+      case SC_Exec:
+
+    break;
+      case SC_Join:
+    break;
+
 	    case SC_Create:
 		DEBUG('a', "Create syscall.\n");
 		Create_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
@@ -406,6 +381,16 @@ void ExceptionHandler(ExceptionType which) {
 		DEBUG('a', "Close syscall.\n");
 		Close_Syscall(machine->ReadRegister(4));
 		break;
+      case SC_Fork:
+    DEBUG('a', "Fork syscall.\n");
+    Fork_Syscall();
+    break;
+      case SC_Yield:
+    DEBUG('a', "Yield syscall.\n");
+    Yield_Syscall();
+    break;
+    
+
 	}
 
 	// Put in the return value and increment the PC
