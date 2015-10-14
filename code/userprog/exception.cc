@@ -235,6 +235,11 @@ void Yield_Syscall() {
   currentThread->Yield();
 }
 void CreateLock(){
+/*
+QUESTION: Did we want to put locks into a vector or a table or both? why would we do both???
+*/
+
+
 
   lockTLock->Acquire(); //acquire table lock
   kernelLock * newklock = new kernelLock();
@@ -256,7 +261,6 @@ void AcquireLock(int index){
   lockTlock->Acquire();
 
   //DO STUFF
-
   /*******TO DO
   VALIDATE USER INPUT
   check if lock is in correct process,
@@ -264,7 +268,7 @@ void AcquireLock(int index){
   check if lock exists
   *********/
 
-  lockT[]->Acquire(); //HOW TO KNOW WHICH LOCK ACQUIRING? look up in lock table?? position in table?
+  lockT->Acquire(); //HOW TO KNOW WHICH LOCK ACQUIRING? look up in lock table?? position in table?
   lockTlock->Release();
 }
 void ReleaseLock(){
@@ -328,6 +332,8 @@ void Halt(){
 }
 void Exit_Syscall(){
 
+
+currentThread->Finish(); //needs to be in here according to piazza
 }
 void Fork_Syscall(void (*func)){
 
