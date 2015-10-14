@@ -239,7 +239,11 @@ void CreateLock(){
   lockTLock->Acquire(); //acquire table lock
   kernelLock * newklock = new kernelLock();
 
-  Lock *lock = new Lock(/*NAME*/);  //use a buffer to get the name. create a new kernel lock object. set all values.
+  /*******TO DO
+  GET NAME TO PUT IN LOCK OBJECT
+  *********/
+
+  Lock *lock = new Lock(/*NAME*/);  
   newklock->toDelete = false;
   newklock->as = currentThread->space;
   newklock->lock = lock;
@@ -253,10 +257,12 @@ void AcquireLock(int index){
 
   //DO STUFF
 
-  /*
-  TO DO
-  make sure the lock is avail..does the synch.cc acquire method already do this/is it redundant to do it again?
-  */
+  /*******TO DO
+  VALIDATE USER INPUT
+  check if lock is in correct process,
+  check if index is valid, 
+  check if lock exists
+  *********/
 
   lockT[]->Acquire(); //HOW TO KNOW WHICH LOCK ACQUIRING? look up in lock table?? position in table?
   lockTlock->Release();
