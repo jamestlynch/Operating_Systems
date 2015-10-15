@@ -42,6 +42,10 @@ extern Table* processT; //process table
 extern Table* cvT;	//condition var table
 extern Table* lockT;	//lock table
 
+#include <std::vector>
+extern vector<KernelLock> myLockArray;
+extern vector<KernelCV> myCVArray;
+
 //create locks around these tables so only one program can access at a time
 #include "synch.h"
 extern Lock* processTLock; //lock on process table

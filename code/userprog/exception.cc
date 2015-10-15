@@ -166,7 +166,6 @@ void Write_Syscall(unsigned int vaddr, int len, int id) {
       for (int ii=0; ii<len; ii++) {
 	printf("%c",buf[ii]);
       }
-
     } else {
 	if ( (f = (OpenFile *) currentThread->space->fileTable.Get(id)) ) {
 	    f->Write(buf, len);
@@ -235,13 +234,21 @@ void Yield_Syscall() {
   currentThread->Yield();
 }
 void CreateLock(){
-/*
-QUESTION: Did we want to put locks into a vector or a table or both? why would we do both???
-*/
 
-
+  char *buf;  
+  if ( !(buf = new char[len]) ) {
+    printf("%s","Error allocating kernel buffer for creating new lock!\n");
+    return;
+      } else {
+          if ( copyin(vaddr,len,buf) == -1 ) {
+        printf("%s","Bad pointer passed to create new lock\n");
+        delete[] buf;
+        return;
+    }
+      }
 
   lockTLock->Acquire(); //acquire table lock
+  
   kernelLock * newklock = new kernelLock();
 
   /*******TO DO
@@ -254,7 +261,7 @@ QUESTION: Did we want to put locks into a vector or a table or both? why would w
   newklock->lock = lock;
 
   //put the new kernel lock object into the lock table
-  lockT->Put(newklock);
+  lockArray->push_back(newklock);
   lockTLock->Release();
 }
 void AcquireLock(int index){
@@ -274,13 +281,13 @@ void AcquireLock(int index){
 void ReleaseLock(){
   lockTlock->Acquire();
   
-  //make sure the program thread that is trying to release the lock, has the right to do so..is this same as lock owner?
+  //make sure the process thread that is trying to release the lock, has the right to do so..is this same as lock owner?
 
   lock->Release();
 
   lockTlock->Release();
 }
-void DestroyLock(){
+void DestroyLock(int index){
   lockTlock->Acquire();
 
   //get index of lock to be destroyed, from lock table.
@@ -364,9 +371,11 @@ void ExceptionHandler(ExceptionType which) {
     Exit_Syscall();
     break;
       case SC_Exec:
-
+      DEBUG('a', "Exec syscall.\n");
     break;
       case SC_Join:
+      DEBUG('a', "Join syscall.\n");
+
     break;
 
 	    case SC_Create:

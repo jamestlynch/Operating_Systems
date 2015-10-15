@@ -174,7 +174,6 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
         executable->ReadAt(&(machine->mainMemory[noffH.initData.virtualAddr]),
 			noffH.initData.size, noffH.initData.inFileAddr);
     }
-
 }
 
 //----------------------------------------------------------------------
