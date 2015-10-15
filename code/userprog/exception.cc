@@ -290,30 +290,88 @@ CreateLock(unsigned int vaddr, int len) {
   return 0; // TODO: Return the index of the lock
 }
 
+// AcquireLock
+//  Input:
+//    int index – the index in the lock table that user program is requesting
+//    * Within the bounds of the vector
+//    * Lock they're trying to acquire belongs to their process 
+//    * Index is positive
+//  
+void
+AcquireLock(int index){
 
-void AcquireLock(int index){
-  // lockTlock->Acquire();
+  if (index < 0) {
+    printf("%s","Invalid lock table index\n");
+    return;
+  }
 
-  // //DO STUFF
-  // ******TO DO
-  // VALIDATE USER INPUT
-  // check if lock is in correct process,
-  // check if index is valid, 
-  // check if lock exists
-  // ********
+  locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
 
-  // lockT->Acquire(); //HOW TO KNOW WHICH LOCK ACQUIRING? look up in lock table?? position in table?
-  // lockTlock->Release();
+  if (index > locks.size()) {
+    printf("%s","Invalid lock table index\n");
+    locksLock->Release();
+    return;
+  }
+
+  KernelLock * kernelLock = locks.at(index);
+  locksLock->Release();
+
+
+
+  // TODO: if lock is set toDestroy == TRUE, prevent other threads from acquiring
+
+
+
+  if (kernelLock->space != currentThread.space) {
+    printf("%s","Lock does not belong to the current process");
+    locksLock->Release();
+    return;
+  }
+
+  kernelLock->lock->Acquire();
+  return;
 }
-void ReleaseLock(){
-  // lockTlock->Acquire();
-  
-  // //make sure the process thread that is trying to release the lock, has the right to do so..is this same as lock owner?
 
-  // lock->Release();
+// ReleaseLock()
+//  
+void 
+ReleaseLock(int index){
+  if (index < 0) {
+    printf("%s","Invalid lock table index\n");
+    return;
+  }
 
-  // lockTlock->Release();
+  locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
+
+  if (index > locks.size()) {
+    printf("%s","Invalid lock table index\n");
+    locksLock->Release();
+    return;
+  }
+
+  KernelLock * kernelLock = locks.at(index);
+  locksLock->Release();
+
+
+
+  // TODO: Do we need to check if lock is set toDestroy == TRUE
+
+
+
+  if (kernelLock->space != currentThread.space) {
+    printf("%s","Lock does not belong to the current process");
+    locksLock->Release();
+    return;
+  }
+
+  kernelLock->lock->Release();
+  return;
 }
+
+// DestroyLock
+//  toDestroy = TRUE
+//  if no waiting threads, delete it here
+//  Where do we delete / detect all waiting threads finishing?
 void DestroyLock(int index){
   // lockTlock->Acquire();
 
