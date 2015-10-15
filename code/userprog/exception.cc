@@ -233,37 +233,66 @@ void Close_Syscall(int fd) {
 void Yield_Syscall() {
   currentThread->Yield();
 }
-void CreateLock(){
 
-  char *buf;  
-  if ( !(buf = new char[len]) ) {
+// CreateLock()
+//  Creates a lock object protected by the OS through this syscall.
+//  Locks belong to a single process and we guarantee this by associating the 
+//    program's address space.
+//  CreateLock takes two parameters:
+//    name – unsigned int pointer to the string identifier
+//      * sizeOfName
+//    sizeOfName – length of the string identifier since there is no null terminating byte
+//      * sizeOfName should not be negative
+//      * sizeOfName should be nonzero
+//  CreateLock returns:
+//    index value of the lock within the vector
+//  
+//  kernelLock Struct
+//
+//  TODO:
+//    Validations:
+//      Room in table (Probably doesn't apply)
+//      Thread belong to same process as thread creator
+int 
+CreateLock(unsigned int vaddr, int len) {
+
+  if (len <= 0) { // Validate length is nonzero and positive
+    printf("%s","Invalid length for lock identifier\n");
+    return;
+  }
+
+  char *buf;
+
+  if ( !(buf = new char[len]) ) { // If error allocating memory for character buffer
     printf("%s","Error allocating kernel buffer for creating new lock!\n");
     return;
-      } else {
-          if ( copyin(vaddr,len,buf) == -1 ) {
-        printf("%s","Bad pointer passed to create new lock\n");
-        delete[] buf;
-        return;
+  } else {
+    if ( copyin(vaddr,len,buf) == -1 ) { // If failed to read memory from vaddr passed in
+      printf("%s","Bad pointer passed to create new lock\n");
+      delete[] buf;
+      return;
     }
-      }
+  }
 
-  lockTLock->Acquire(); //acquire table lock
+  buf[len] = '\0'; // Finished grabbing the identifier for the Lock, add null terminator character
+
+  lockLock->Acquire(); //acquire table lock
   
   kernelLock * newklock = new kernelLock();
 
-  /*******TO DO
-  GET NAME TO PUT IN LOCK OBJECT
-  *********/
-
-  Lock *lock = new Lock(/*NAME*/);  
+  Lock *lock = new Lock(buf);  
   newklock->toDelete = false;
-  newklock->as = currentThread->space;
+  newklock->space = currentThread->space;
   newklock->lock = lock;
 
   //put the new kernel lock object into the lock table
   lockArray->push_back(newklock);
-  lockTLock->Release();
+  lockLock->Release();
+
+  delete[] buf;
 }
+
+
 void AcquireLock(int index){
   lockTlock->Acquire();
 
