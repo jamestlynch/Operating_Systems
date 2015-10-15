@@ -7,7 +7,7 @@
 
 #include "copyright.h"
 #include "system.h"
-#include "addrspace.h"
+
 
 // This defines *all* of the global data structures used by Nachos.
 // These are all initialized and de-allocated by this file.
@@ -20,15 +20,14 @@ Statistics *stats;			// performance metrics
 Timer *timer;				// the hardware timer device,
 					// for invoking context switches
 Machine *machine;
-BitMap *memoryBitMap; //memoryBitMap discussed in class..not sure what used for
 
 //create tables for processes, condition variables, and locks
 Table* processT;
 //Table* cvT; //table of kernelCondition struct
 //Table* lockT; //table of kernelLock struct
 
-vector<KernelLock> LockArray(150);
-vector<KernelCV> CVArray(150);
+vector<KernelLock> locks(150);
+vector<KernelCV> conditions(150);
 
 //create locks around these tables so only one program can access at a time
 Lock* processLock;
@@ -46,7 +45,7 @@ SynchDisk   *synchDisk;
 #endif
 
 #ifdef USER_PROGRAM	// requires either FILESYS or FILESYS_STUB
-    machine= new Machine(debugUserProg);  // this must come first
+    machine = new Machine(debugUserProg);  // this must come first
     //processTableLock = new Lock("ProcessLock");
     memoryBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes
     //lockT = new Table(1000);  // should pass in an int of how many kernelock structs are going to be stored in table
@@ -54,18 +53,18 @@ SynchDisk   *synchDisk;
     //cvT= new Table(1000); //should pass in an int of how many conditionlock structs are going to be stored in table
     
 
-    struct kernelLock
+    struct KernelLock
     {
         Lock *lock;
-        AddrSpace *as;
+        AddrSpace *space;
         bool toDelete;      
     };
-    struct kernelCondition
+    struct KernelCV
     {
         Condition *condition;
         AddrSpace *as;
         bool toDelete;
-    }
+    };
 
 #endif
 
@@ -219,9 +218,9 @@ Cleanup()
 #ifdef USER_PROGRAM
     delete machine; //delete machine
     delete processLock;
-    delete BitMap;
-    delete LockArray;
-    delete CVArray;
+    delete memoryBitMap;
+    delete locks;
+    delete conditions;
     //delete lockT;
     //delete processT;
     //delete cvT;
