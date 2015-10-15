@@ -6,11 +6,22 @@
 
 void
 CreateLock_Test() {
-    // If length is 0
+    // int lockIndex;
 
-    // Bad vaddr
+    // // If length is 0
+    // lockIndex = CreateLock("abc", 0);
+    // ASSERT(lockIndex == -1);
 
+    // // If length is negative
+    // lockIndex = CreateLock("abc", -1);
+    // ASSERT(lockIndex == -1);
+
+    // // Bad vaddr: invalid
+    // lockIndex = CreateLock(-1, 1);
+    // ASSERT(lockIndex == -1);
     
+    // Bad vaddr: different address space
+
 
     // If vector has no more room ??
 
@@ -49,11 +60,12 @@ DestroyLock_Test() {
 	// Waiting threads: don't delete but set to be deleted
 }
 
-int main() {
-    CreateLock_Test();
-    AcquireLock_Test();
-    ReleaseLock_Test();
-    DestroyLock_Test();
+int 
+main() {
+    //CreateLock_Test();
+    //AcquireLock_Test();
+    //ReleaseLock_Test();
+    //DestroyLock_Test();
 
 
 	// Multiple threads test
