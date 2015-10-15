@@ -230,9 +230,6 @@ void Close_Syscall(int fd) {
       printf("%s","Tried to close an unopen file\n");
     }
 }
-void Yield_Syscall() {
-  currentThread->Yield();
-}
 
 // CreateLock()
 //  Creates a lock object protected by the OS through this syscall.
@@ -258,120 +255,126 @@ CreateLock(unsigned int vaddr, int len) {
 
   if (len <= 0) { // Validate length is nonzero and positive
     printf("%s","Invalid length for lock identifier\n");
-    return;
+    return -1;
   }
 
   char *buf;
 
   if ( !(buf = new char[len]) ) { // If error allocating memory for character buffer
     printf("%s","Error allocating kernel buffer for creating new lock!\n");
-    return;
+    return -1;
   } else {
     if ( copyin(vaddr,len,buf) == -1 ) { // If failed to read memory from vaddr passed in
       printf("%s","Bad pointer passed to create new lock\n");
       delete[] buf;
-      return;
+      return -1;
     }
   }
 
   buf[len] = '\0'; // Finished grabbing the identifier for the Lock, add null terminator character
 
-  lockLock->Acquire(); //acquire table lock
+  locksLock->Acquire(); //acquire table lock
   
-  kernelLock * newklock = new kernelLock();
+  KernelLock * newKernelLock = new KernelLock();
 
   Lock *lock = new Lock(buf);  
-  newklock->toDelete = false;
-  newklock->space = currentThread->space;
-  newklock->lock = lock;
+  newKernelLock->toDelete = false;
+  newKernelLock->space = currentThread->space;
+  newKernelLock->lock = lock;
 
   //put the new kernel lock object into the lock table
-  lockArray->push_back(newklock);
-  lockLock->Release();
+  locks.push_back(*newKernelLock);
+  locksLock->Release();
 
   delete[] buf;
+  return 0; // TODO: Return the index of the lock
 }
 
 
 void AcquireLock(int index){
-  lockTlock->Acquire();
+  // lockTlock->Acquire();
 
-  //DO STUFF
-  /*******TO DO
-  VALIDATE USER INPUT
-  check if lock is in correct process,
-  check if index is valid, 
-  check if lock exists
-  *********/
+  // //DO STUFF
+  // ******TO DO
+  // VALIDATE USER INPUT
+  // check if lock is in correct process,
+  // check if index is valid, 
+  // check if lock exists
+  // ********
 
-  lockT->Acquire(); //HOW TO KNOW WHICH LOCK ACQUIRING? look up in lock table?? position in table?
-  lockTlock->Release();
+  // lockT->Acquire(); //HOW TO KNOW WHICH LOCK ACQUIRING? look up in lock table?? position in table?
+  // lockTlock->Release();
 }
 void ReleaseLock(){
-  lockTlock->Acquire();
+  // lockTlock->Acquire();
   
-  //make sure the process thread that is trying to release the lock, has the right to do so..is this same as lock owner?
+  // //make sure the process thread that is trying to release the lock, has the right to do so..is this same as lock owner?
 
-  lock->Release();
+  // lock->Release();
 
-  lockTlock->Release();
+  // lockTlock->Release();
 }
 void DestroyLock(int index){
-  lockTlock->Acquire();
+  // lockTlock->Acquire();
 
-  //get index of lock to be destroyed, from lock table.
-  // make sure the lock being destroyed is allowed to be destroyed....who creates and destroys locks?
-  //remove from lock table...free memory
+  // //get index of lock to be destroyed, from lock table.
+  // // make sure the lock being destroyed is allowed to be destroyed....who creates and destroys locks?
+  // //remove from lock table...free memory
 
-  lockTlock->Release();
+  // lockTlock->Release();
 }
 void CreateCV(){
-  cvTLock->Acquire();
-  kernelCondition * newkcond = new kernelCondition();
+  // cvTLock->Acquire();
+  // kernelCondition * newkcond = new kernelCondition();
 
-  Condition *newkcond= new Condition(/*NAME*/);  //use a buffer to get the name. create a new kernel lock object. set all values.
-  newkcond->toDelete = false;
-  newkcond->as = currentThread->space;
-  newkcond->condition = lock;
+  // Condition *newkcond= new Condition(/*NAME*/);  //use a buffer to get the name. create a new kernel lock object. set all values.
+  // newkcond->toDelete = false;
+  // newkcond->as = currentThread->space;
+  // newkcond->condition = lock;
 
-  //put the new kernel lock object into the lock table
-  cvT->Put(newkcond);
-  /*
-  TO DO 
-  make sure there is available cv in cvT and all aren't being used.
-  */
-  cvTLock->Release();
+  // //put the new kernel lock object into the lock table
+  // cvT->Put(newkcond);
+  // /*
+  // TO DO 
+  // make sure there is available cv in cvT and all aren't being used.
+  // */
+  // cvTLock->Release();
 }
 void Wait(){
-  cvTLock->Acquire();
+  // cvTLock->Acquire();
   
 
-  cvTLock->Release();
+  // cvTLock->Release();
 }
 void Signal(){
-  cvTLock->Acquire();
-  //DO STUFF
-  cvTLock->Release();
+  // cvTLock->Acquire();
+  // //DO STUFF
+  // cvTLock->Release();
 }
 void Broadcast(){
-  cvTLock->Acquire();
-  //DO STUFF
-  cvTLock->Release();
+  // cvTLock->Acquire();
+  // //DO STUFF
+  // cvTLock->Release();
 }
 void DestroyCV(){
-  cvTLock->Acquire();
-  //DO STUFF
-  cvTLock->Release();
+  // cvTLock->Acquire();
+  // //DO STUFF
+  // cvTLock->Release();
 }
 void Halt(){
-  interrupt->Halt();
+  // interrupt->Halt();
 }
+
+void Yield_Syscall() {
+  currentThread->Yield();
+}
+
 void Exit_Syscall(){
 
 
-currentThread->Finish(); //needs to be in here according to piazza
+// currentThread->Finish(); //needs to be in here according to piazza
 }
-void Fork_Syscall(void (*func)){
+void Fork_Syscall(/*void (*func)*/){
 
 }
 void Exec_Syscall(){
@@ -396,7 +399,7 @@ void ExceptionHandler(ExceptionType which) {
 		interrupt->Halt();
 		break;
       case SC_Exit:
-    DEBUG('a', "Exit Syscall.\n")
+    DEBUG('a', "Exit Syscall.\n");
     Exit_Syscall();
     break;
       case SC_Exec:
