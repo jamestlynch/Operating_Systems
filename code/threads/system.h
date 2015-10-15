@@ -16,6 +16,7 @@
 #include "stats.h"
 #include "timer.h"
 #include "bitmap.h"
+#include "synch.h"
 #include <vector>
 #include <string>
 using namespace std;
@@ -33,43 +34,65 @@ extern Interrupt *interrupt;			// interrupt status
 extern Statistics *stats;				// performance metrics
 extern Timer *timer;					// the hardware alarm clock
 
+class Machine;
+
 
 #ifdef USER_PROGRAM
-#include "machine.h"
-extern Machine* machine;	// user program memory and registers
 
-//create tables for processes, condition variables, and locks
-#include "addrspace.h"
+	extern Machine* machine;	// user program memory and registers
 
-extern BitMap *memoryBitMap;
-extern Table* processT; //process table
+	//create tables for processes, condition variables, and locks
+	#include "addrspace.h"
 
-struct KernelLock;
-struct KernelCV;
-extern vector<KernelLock> locks;
-extern vector<KernelCV> conditions;
+	// KernalLock extra info for cleaning up and guaranteeing process lock ownership
+    struct KernelLock
+    {
+        Lock *lock;
+        AddrSpace *space;
+        bool toDelete;      
+    };
 
-//create locks around these tables so only one program can access at a time
-#include "synch.h"
-extern Lock* processTLock; //lock on process table
-extern Lock* cvTLock;	//lock on cv table
-extern Lock* lockTLock;	//lock on lock table
+    // KernelCV extra info for cleaning up and guaranteeing process CV ownership
+    struct KernelCV
+    {
+        Condition *condition;
+        AddrSpace *space;
+        bool toDelete;
+    };  
+
+	extern BitMap *memoryBitMap;
+
+	extern Table *processT; //process table
+	extern vector<KernelLock> locks;
+	extern vector<KernelCV> conditions;
+
+	//create locks around these tables so only one program can access at a time
+	#include "synch.h"
+	extern Lock *processTLock; //lock on process table
+	extern Lock *conditionsLock;	//lock on cv table
+	extern Lock *locksLock;	//lock on lock table
 
 #endif
 
 #ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB 
-#include "filesys.h"
-extern FileSystem  *fileSystem;
+
+	#include "filesys.h"
+	extern FileSystem *fileSystem;
+
 #endif
 
 #ifdef FILESYS
-#include "synchdisk.h"
-extern SynchDisk   *synchDisk;
+
+	#include "synchdisk.h"
+	extern SynchDisk *synchDisk;
+
 #endif
 
 #ifdef NETWORK
-#include "post.h"
-extern PostOffice* postOffice;
+
+	#include "post.h"
+	extern PostOffice* postOffice;
+
 #endif
 
 #endif // SYSTEM_H

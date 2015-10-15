@@ -7,65 +7,41 @@
 
 #include "copyright.h"
 #include "system.h"
+#include "machine.h"
 
 
 // This defines *all* of the global data structures used by Nachos.
 // These are all initialized and de-allocated by this file.
 
-Thread *currentThread;			// the thread we are running now
-Thread *threadToBeDestroyed;  		// the thread that just finished
+Thread *currentThread;          // the thread we are running now
+Thread *threadToBeDestroyed;  	// the thread that just finished
 Scheduler *scheduler;			// the ready list
-Interrupt *interrupt;			// interrupt status
-Statistics *stats;			// performance metrics
-Timer *timer;				// the hardware timer device,
-					// for invoking context switches
-Machine *machine;
-
-//create tables for processes, condition variables, and locks
-Table* processT;
-//Table* cvT; //table of kernelCondition struct
-//Table* lockT; //table of kernelLock struct
-
-vector<KernelLock> locks(150);
-vector<KernelCV> conditions(150);
-
-//create locks around these tables so only one program can access at a time
-Lock* processLock;
-Lock* cvLock;
-Lock* lockLock;
-
+Interrupt *interrupt;           // interrupt status
+Statistics *stats;              // performance metrics
+Timer *timer;                   // the hardware timer device, for invoking context switches
 
 
 #ifdef FILESYS_NEEDED
-FileSystem  *fileSystem;
+    FileSystem *fileSystem;
 #endif
 
 #ifdef FILESYS
-SynchDisk   *synchDisk;
+    SynchDisk *synchDisk;
 #endif
 
-#ifdef USER_PROGRAM	// requires either FILESYS or FILESYS_STUB
-    machine = new Machine(debugUserProg);  // this must come first
-    //processTableLock = new Lock("ProcessLock");
-    memoryBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes
-    //lockT = new Table(1000);  // should pass in an int of how many kernelock structs are going to be stored in table
-    //processT = new Table(1000); // should pass in an int of how many processes are going to be stored in table
-    //cvT= new Table(1000); //should pass in an int of how many conditionlock structs are going to be stored in table
-    
+// USER_PROGRAM requires either FILESYS or FILESYS_STUB
+#ifdef USER_PROGRAM
+    Machine *machine;
 
-    struct KernelLock
-    {
-        Lock *lock;
-        AddrSpace *space;
-        bool toDelete;      
-    };
-    struct KernelCV
-    {
-        Condition *condition;
-        AddrSpace *as;
-        bool toDelete;
-    };
+    BitMap *memoryBitMap;
 
+    Table *processT; //process table
+    vector<KernelLock> locks;
+    vector<KernelCV> conditions;
+
+    Lock *processTLock;
+    Lock *conditionsLock;
+    Lock *locksLock;
 #endif
 
 #ifdef NETWORK
@@ -188,6 +164,17 @@ Initialize(int argc, char **argv)
     
 #ifdef USER_PROGRAM
     machine = new Machine(debugUserProg);	// this must come first
+
+    // Create tables for tracking processes, condition variables, and locks
+    // TODO: Define Table *processT;
+
+    // Synchronize these tables with locks so only one program can access at a time
+    // TODO: Do we really need locks since OS is the only "program" updating/reading from these tables?
+    // TODO: Define Lock *processLock;
+    conditionsLock = new Lock("KernelCVLock");
+    locksLock = new Lock("KernelLocksLock");
+
+    memoryBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes 
 #endif
 
 #ifdef FILESYS
@@ -217,10 +204,10 @@ Cleanup()
     
 #ifdef USER_PROGRAM
     delete machine; //delete machine
-    delete processLock;
+    //delete processLock;
     delete memoryBitMap;
-    delete locks;
-    delete conditions;
+    //delete locks; // TODO: Figure out if/how to cleanup vectors
+    //delete conditions; // TODO: Figure out if/how to cleanup vectors
     //delete lockT;
     //delete processT;
     //delete cvT;
