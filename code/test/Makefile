@@ -68,5 +68,11 @@ locktest: locktest.o start.o
 	$(LD) $(LDFLAGS) start.o locktest.o -o locktest.coff
 	../bin/coff2noff locktest.coff locktest
 
+conditiontest.o: conditiontest.c
+	$(CC) $(CFLAGS) -c conditiontest.c
+conditiontest: conditiontest.o start.o
+	$(LD) $(LDFLAGS) start.o conditiontest.o -o conditiontest.coff
+	../bin/coff2noff conditiontest.coff conditiontest
+
 clean:
 	rm -f *.o *.coff

@@ -31,6 +31,12 @@
 #define SC_Fork		9
 #define SC_Yield	10
 
+#define SC_CreateCV	15
+#define SC_Wait		16
+#define SC_Signal	17	
+#define SC_Broadcast 18	
+
+
 #define MAXFILENAME 256
 
 #ifndef IN_ASM
@@ -125,7 +131,15 @@ void Fork(/*void (*func)()*/);
 /* Yield the CPU to another runnable thread, whether in this address space 
  * or not. 
  */
-void Yield();		
+void Yield();	
+
+void CreateCV(unsigned int vaddr, int len);
+
+void Wait(int index);
+
+void Signal(int index);
+
+void Broadcast(int index);	
 
 #endif /* IN_ASM */
 

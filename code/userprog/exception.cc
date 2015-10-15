@@ -381,38 +381,125 @@ void DestroyLock(int index){
 
   // lockTlock->Release();
 }
-void CreateCV(){
-  // cvTLock->Acquire();
-  // kernelCondition * newkcond = new kernelCondition();
-
-  // Condition *newkcond= new Condition(/*NAME*/);  //use a buffer to get the name. create a new kernel lock object. set all values.
-  // newkcond->toDelete = false;
-  // newkcond->as = currentThread->space;
-  // newkcond->condition = lock;
-
-  // //put the new kernel lock object into the lock table
-  // cvT->Put(newkcond);
-  // /*
-  // TO DO 
-  // make sure there is available cv in cvT and all aren't being used.
-  // */
-  // cvTLock->Release();
-}
-void Wait(){
-  // cvTLock->Acquire();
+int
+CreateCV(unsigned int vaddr, int len){
   
+  //error check
 
-  // cvTLock->Release();
+  if (len <= 0) { // Validate length is nonzero and positive
+    printf("%s","Invalid length for cv identifier\n");
+    return -1;
+  }
+
+  char *buf;
+
+  if ( !(buf = new char[len]) ) { // If error allocating memory for character buffer
+    printf("%s","Error allocating kernel buffer for creating new cv!\n");
+    return -1;
+  } else {
+    if ( copyin(vaddr,len,buf) == -1 ) { // If failed to read memory from vaddr passed in
+      printf("%s","Bad pointer passed to create new cv\n");
+      delete[] buf;
+      return -1;
+    }
+  }
+  conditionsLock->Acquire();
+
+  kernelCondition * newKernelCondition = new kernelCondition();
+  Condition *condition= new Condition(buf);
+  newKernelCondition->toDelete = false;
+  newKernelCondition->as = currentThread->space;
+  newKernelCondition->condition = condition;
+  conditions.push_back(*newKernelCondition);
+  conditionsLock->Release();
 }
-void Signal(){
-  // cvTLock->Acquire();
-  // //DO STUFF
-  // cvTLock->Release();
+void Wait(int index){
+
+   if (index < 0) {
+     printf("%s","Invalid condition table index\n");
+     return;
+   }
+   conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
+
+   if (index > conditions.size()) {
+     printf("%s","Invalid condition table index\n");
+     conditionsLock->Release();
+     return;
+   }
+
+   KernelCondition * kernelCondition = conditions.at(index);
+   conditionsLock->Release();
+
+  // // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
+
+   if (kernelCondition->space != currentThread.space) {
+    printf("%s","Condition does not belong to the current process");
+     conditionsLock->Release();
+     return;
+   }
+   if (kernelCondition->condition == NULL){
+    printf("%s","Condition does not belong to the current process");
+   }
+
+
+   kernelCondition->condition->Wait();
+   return;
 }
-void Broadcast(){
-  // cvTLock->Acquire();
-  // //DO STUFF
-  // cvTLock->Release();
+void Signal(int index){
+  if (index < 0) {
+     printf("%s","Invalid condition table index for signal\n");
+     return;
+   }
+   conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
+
+   if (index > conditions.size()) {
+     printf("%s","Invalid condition table index for signal\n");
+     conditionsLock->Release();
+     return;
+   }
+
+   KernelCondition * kernelCondition = conditions.at(index);
+   conditionsLock->Release();
+
+  // // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
+
+
+
+   if (kernelCondition->space != currentThread.space) {
+    printf("%s","Condition does not belong to the current process");
+     conditionsLock->Release();
+     return;
+   }
+   kernelCondition->condition->Signal();
+   return;
+
+}
+void Broadcast(int index){
+  if (index < 0) {
+     printf("%s","Invalid condition table index for broadcast\n");
+     return;
+   }
+   conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
+
+   if (index > conditions.size()) {
+     printf("%s","Invalid condition table index for broadcast\n");
+     conditionsLock->Release();
+     return;
+   }
+
+   KernelCondition * kernelCondition = conditions.at(index);
+   conditionsLock->Release();
+
+  // // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
+
+   if (kernelCondition->space != currentThread.space) {
+    printf("%s","Condition does not belong to the current process");
+     conditionsLock->Release();
+     return;
+   }
+
+   kernelCondition->condition->Broadcast();
+   return;
 }
 void DestroyCV(){
   // cvTLock->Acquire();
