@@ -405,48 +405,50 @@ CreateCV(unsigned int vaddr, int len){
   }
   conditionsLock->Acquire();
 
-  kernelCondition * newKernelCondition = new kernelCondition();
+  KernelCV * newKernelCV = new KernelCV();
   Condition *condition= new Condition(buf);
-  newKernelCondition->toDelete = false;
-  newKernelCondition->as = currentThread->space;
-  newKernelCondition->condition = condition;
-  conditions.push_back(*newKernelCondition);
+  newKernelCV->toDelete = false;
+  newKernelCV->space = currentThread->space;
+  newKernelCV->condition = condition;
+  conditions.push_back(*newKernelCV);
   conditionsLock->Release();
+  return 0;
 }
-void Wait(int index){
+int
+Wait(int index){
 
    if (index < 0) {
      printf("%s","Invalid condition table index\n");
-     return;
+     return -1;
    }
    conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
 
    if (index > conditions.size()) {
      printf("%s","Invalid condition table index\n");
      conditionsLock->Release();
-     return;
+     return -1;
    }
 
-   KernelCondition * kernelCondition = conditions.at(index);
+   KernelCV newKernelCV = conditions.at(index);
    conditionsLock->Release();
 
   // // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
 
-   if (kernelCondition->space != currentThread.space) {
+   if (newKernelCV.space != currentThread->space) {
     printf("%s","Condition does not belong to the current process");
      conditionsLock->Release();
-     return;
+     return -1;
    }
-   if (kernelCondition->condition == NULL){
-    printf("%s","Condition does not belong to the current process");
+   if (newKernelCV.condition == NULL){
+    printf("%s","Condition is set to NULL.");
    }
 
-
-   kernelCondition->condition->Wait();
-   return;
+   //this wait needs to have a lock inside right???
+   newKernelCV.condition->Wait();
+   return 0;
 }
 void Signal(int index){
-  if (index < 0) {
+  /*if (index < 0) {
      printf("%s","Invalid condition table index for signal\n");
      return;
    }
@@ -458,24 +460,24 @@ void Signal(int index){
      return;
    }
 
-   KernelCondition * kernelCondition = conditions.at(index);
+   KernelCV * KernelCV = conditions.at(index);
    conditionsLock->Release();
 
   // // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
 
 
 
-   if (kernelCondition->space != currentThread.space) {
+   if (KernelCV->space != currentThread.space) {
     printf("%s","Condition does not belong to the current process");
      conditionsLock->Release();
      return;
    }
-   kernelCondition->condition->Signal();
-   return;
+   KernelCV->condition->Signal();
+   return;*/
 
 }
 void Broadcast(int index){
-  if (index < 0) {
+  /*if (index < 0) {
      printf("%s","Invalid condition table index for broadcast\n");
      return;
    }
@@ -487,19 +489,19 @@ void Broadcast(int index){
      return;
    }
 
-   KernelCondition * kernelCondition = conditions.at(index);
+   KernelCV * KernelCV = conditions.at(index);
    conditionsLock->Release();
 
   // // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
 
-   if (kernelCondition->space != currentThread.space) {
+   if (KernelCV->space != currentThread.space) {
     printf("%s","Condition does not belong to the current process");
      conditionsLock->Release();
      return;
    }
 
-   kernelCondition->condition->Broadcast();
-   return;
+   KernelCV->condition->Broadcast();
+   return;*/
 }
 void DestroyCV(){
   // cvTLock->Acquire();
@@ -532,63 +534,150 @@ void Join_Syscall(){
 
 
 void ExceptionHandler(ExceptionType which) {
+
+/*#define SC_Halt   0
+#define SC_Exit   1
+#define SC_Exec   2
+#define SC_Join   3
+#define SC_Create 4
+#define SC_Open   5
+#define SC_Read   6
+#define SC_Write  7
+#define SC_Close  8
+#define SC_Fork   9
+#define SC_Yield  10
+#define SC_CreateLock 11
+#define SC_AcquireLock 12
+#define SC_ReleaseLock 13
+#define SC_DestroyLock 14
+
+#define SC_CreateCV 15
+#define SC_Wait   16
+#define SC_Signal 17  
+#define SC_Broadcast 18 */
+
     int type = machine->ReadRegister(2); // Which syscall?
     int rv=0; 	// the return value from a syscall
 
     if ( which == SyscallException ) {
 	switch (type) {
-	    default:
+	 default:
 		DEBUG('a', "Unknown syscall - shutting down.\n");
+
+
 	    case SC_Halt:
 		DEBUG('a', "Shutdown, initiated by user program.\n");
 		interrupt->Halt();
 		break;
+
+
       case SC_Exit:
     DEBUG('a', "Exit Syscall.\n");
     Exit_Syscall();
     break;
+
+
       case SC_Exec:
       DEBUG('a', "Exec syscall.\n");
+      Exec_Syscall();
     break;
+
+
       case SC_Join:
       DEBUG('a', "Join syscall.\n");
-
     break;
+
 
 	    case SC_Create:
 		DEBUG('a', "Create syscall.\n");
 		Create_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
 		break;
+
+
 	    case SC_Open:
 		DEBUG('a', "Open syscall.\n");
 		rv = Open_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
 		break;
+
+
 	    case SC_Write:
 		DEBUG('a', "Write syscall.\n");
 		Write_Syscall(machine->ReadRegister(4),
 			      machine->ReadRegister(5),
 			      machine->ReadRegister(6));
 		break;
+
+
 	    case SC_Read:
 		DEBUG('a', "Read syscall.\n");
 		rv = Read_Syscall(machine->ReadRegister(4),
 			      machine->ReadRegister(5),
 			      machine->ReadRegister(6));
 		break;
+
+
 	    case SC_Close:
 		DEBUG('a', "Close syscall.\n");
 		Close_Syscall(machine->ReadRegister(4));
 		break;
+
+
       case SC_Fork:
     DEBUG('a', "Fork syscall.\n");
     Fork_Syscall();
     break;
+
+
       case SC_Yield:
     DEBUG('a', "Yield syscall.\n");
     Yield_Syscall();
     break;
-    
 
+
+      case SC_CreateLock:
+      DEBUG('a', "CreateCV syscall.\n");
+      rv= CreateCV(machine->ReadRegister(4),
+            machine->ReadRegister(5));
+      break;
+
+
+      case SC_AcquireLock:
+      DEBUG('a', "Acquire Lock syscall.\n");
+      break;
+
+
+      case SC_ReleaseLock:
+      DEBUG('a', "Release Lock syscall.\n");
+      break;
+
+
+      case SC_DestroyLock:
+      DEBUG('a', "Destroy Lock syscall.\n");
+      break;
+
+
+
+      case SC_CreateCV:
+      DEBUG('a', "CreateCV syscall.\n");
+      rv= CreateCV(machine->ReadRegister(4),
+            machine->ReadRegister(5));
+      break;
+
+
+      case SC_Wait:
+      DEBUG('a', "Wait syscall.\n");
+      rv= Wait(machine->ReadRegister(4));
+      break;
+
+
+      case SC_Signal:
+      DEBUG('a', "Signal syscall.\n");
+      break;
+
+
+      case SC_Broadcast:
+      DEBUG('a', "Broadcast syscall.\n");
+      break;
 	}
 
 	// Put in the return value and increment the PC

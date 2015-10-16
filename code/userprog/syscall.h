@@ -30,6 +30,10 @@
 #define SC_Close	8
 #define SC_Fork		9
 #define SC_Yield	10
+#define SC_CreateLock 11
+#define SC_AcquireLock 12
+#define SC_ReleaseLock 13
+#define SC_DestroyLock 14
 
 #define SC_CreateCV	15
 #define SC_Wait		16
@@ -133,9 +137,9 @@ void Fork(/*void (*func)()*/);
  */
 void Yield();	
 
-void CreateCV(unsigned int vaddr, int len);
+int CreateCV(unsigned int vaddr, int len);
 
-void Wait(int index);
+int Wait(int index);
 
 void Signal(int index);
 
