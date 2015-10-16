@@ -253,40 +253,40 @@ void Close_Syscall(int fd) {
 int 
 CreateLock(unsigned int vaddr, int len) {
 
-  // if (len <= 0) { // Validate length is nonzero and positive
-  //   printf("%s","Invalid length for lock identifier\n");
-  //   return -1;
-  // }
+  if (len <= 0) { // Validate length is nonzero and positive
+    printf("%s","Length for lock's identifier name must be nonzero and positive\n");
+    return -1;
+  }
 
-  // char *buf;
+  char *buf;
 
-  // if ( !(buf = new char[len]) ) { // If error allocating memory for character buffer
-  //   printf("%s","Error allocating kernel buffer for creating new lock!\n");
-  //   return -1;
-  // } else {
-  //   if ( copyin(vaddr,len,buf) == -1 ) { // If failed to read memory from vaddr passed in
-  //     printf("%s","Bad pointer passed to create new lock\n");
-  //     delete[] buf;
-  //     return -1;
-  //   }
-  // }
+  if ( !(buf = new char[len]) ) { // If error allocating memory for character buffer
+    printf("%s","Error allocating kernel buffer for creating new lock!\n");
+    return -1;
+  } else {
+    if ( copyin(vaddr,len,buf) == -1 ) { // If failed to read memory from vaddr passed in
+      printf("%s","Bad pointer passed to create new lock\n");
+      delete[] buf;
+      return -1;
+    }
+  }
 
-  // buf[len] = '\0'; // Finished grabbing the identifier for the Lock, add null terminator character
+  buf[len] = '\0'; // Finished grabbing the identifier for the Lock, add null terminator character
 
-  // locksLock->Acquire(); //acquire table lock
+  locksLock->Acquire(); //acquire table lock
   
-  // KernelLock * newKernelLock = new KernelLock();
+  KernelLock * newKernelLock = new KernelLock();
 
-  // Lock *lock = new Lock(buf);  
-  // newKernelLock->toDelete = false;
-  // newKernelLock->space = currentThread->space;
-  // newKernelLock->lock = lock;
+  Lock *lock = new Lock(buf);  
+  newKernelLock->toDelete = false;
+  newKernelLock->space = currentThread->space;
+  newKernelLock->lock = lock;
 
-  // //put the new kernel lock object into the lock table
-  // locks.push_back(*newKernelLock);
-  // locksLock->Release();
+  //put the new kernel lock object into the lock table
+  locks.push_back(*newKernelLock);
+  locksLock->Release();
 
-  // delete[] buf;
+  delete[] buf;
   return 0; // TODO: Return the index of the lock
 }
 
