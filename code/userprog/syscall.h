@@ -135,15 +135,15 @@ void Fork(/*void (*func)()*/);
 /* Yield the CPU to another runnable thread, whether in this address space 
  * or not. 
  */
-void Yield();	
+void Yield();
 
 int CreateCV(unsigned int vaddr, int len);
 
-int Wait(int index);
+int Wait(int indexcv, int indexlock);
 
-void Signal(int index);
+int Signal(int indexcv, int indexlock);
 
-void Broadcast(int index);	
+int Broadcast(int indexcv, int indexlock);	
 
 #endif /* IN_ASM */
 

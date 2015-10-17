@@ -56,6 +56,7 @@ class Machine;
     struct KernelCV
     {
         Condition *condition;
+        Lock *lock;
         AddrSpace *space;
         bool toDelete;
     };  

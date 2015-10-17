@@ -415,21 +415,21 @@ CreateCV(unsigned int vaddr, int len){
   return 0;
 }
 int
-Wait(int index){
+Wait(int indexcv, int indexlock){
 
-   if (index < 0) {
-     printf("%s","Invalid condition table index\n");
+   if (indexcv < 0) {
+     printf("%s","Invalid condition table index for wait\n");
      return -1;
    }
    conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
 
-   if (index > conditions.size()) {
-     printf("%s","Invalid condition table index\n");
+   if (indexcv > conditions.size()) {
+     printf("%s","Table index out of bounds for wait\n");
      conditionsLock->Release();
      return -1;
    }
 
-   KernelCV newKernelCV = conditions.at(index);
+   KernelCV newKernelCV = conditions.at(indexcv);
    conditionsLock->Release();
 
   // // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
@@ -442,66 +442,71 @@ Wait(int index){
    if (newKernelCV.condition == NULL){
     printf("%s","Condition is set to NULL.");
    }
-
-   //this wait needs to have a lock inside right???
-   newKernelCV.condition->Wait();
+   KernelLock templock = locks.at(indexlock);
+   Lock * temp = templock.lock;
+   newKernelCV.condition->Wait(temp);
    return 0;
 }
-void Signal(int index){
-  /*if (index < 0) {
-     printf("%s","Invalid condition table index for signal\n");
-     return;
+int
+Signal(int indexcv, int indexlock){
+  if (indexcv < 0) {
+     printf("%s","Invalid condition table indexcv for signal\n");
+     return -1;
    }
    conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
 
-   if (index > conditions.size()) {
-     printf("%s","Invalid condition table index for signal\n");
+   if (indexcv > conditions.size()) {
+     printf("%s","Invalid condition table indexcv for signal\n");
      conditionsLock->Release();
-     return;
+     return -1;
    }
 
-   KernelCV * KernelCV = conditions.at(index);
+   KernelCV newKernelCV = conditions.at(indexcv);
    conditionsLock->Release();
 
   // // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
 
 
-
-   if (KernelCV->space != currentThread.space) {
+   if (newKernelCV.space != currentThread->space) {
     printf("%s","Condition does not belong to the current process");
      conditionsLock->Release();
-     return;
+     return -1;
    }
-   KernelCV->condition->Signal();
-   return;*/
+
+   KernelLock templock = locks.at(indexlock);
+   Lock * temp = templock.lock;
+   newKernelCV.condition->Signal(temp);
+   return 0;
 
 }
-void Broadcast(int index){
-  /*if (index < 0) {
+int
+Broadcast(int indexcv, int indexlock){
+  if (indexcv < 0) {
      printf("%s","Invalid condition table index for broadcast\n");
-     return;
+     return -1;
    }
    conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
 
-   if (index > conditions.size()) {
-     printf("%s","Invalid condition table index for broadcast\n");
+   if (indexcv > conditions.size()) {
+     printf("%s","Invalid condition table indexcv for broadcast\n");
      conditionsLock->Release();
-     return;
+     return -1;
    }
 
-   KernelCV * KernelCV = conditions.at(index);
+   KernelCV newKernelCV = conditions.at(indexcv);
    conditionsLock->Release();
 
   // // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
 
-   if (KernelCV->space != currentThread.space) {
+   if (newKernelCV.space != currentThread->space) {
     printf("%s","Condition does not belong to the current process");
      conditionsLock->Release();
-     return;
+     return -1;
    }
-
-   KernelCV->condition->Broadcast();
-   return;*/
+   KernelLock templock = locks.at(indexlock);
+   Lock * temp = templock.lock;
+   newKernelCV.condition->Broadcast(temp);
+   return 0;
 }
 void DestroyCV(){
   // cvTLock->Acquire();
@@ -550,7 +555,6 @@ void ExceptionHandler(ExceptionType which) {
 #define SC_AcquireLock 12
 #define SC_ReleaseLock 13
 #define SC_DestroyLock 14
-
 #define SC_CreateCV 15
 #define SC_Wait   16
 #define SC_Signal 17  
@@ -666,17 +670,19 @@ void ExceptionHandler(ExceptionType which) {
 
       case SC_Wait:
       DEBUG('a', "Wait syscall.\n");
-      rv= Wait(machine->ReadRegister(4));
+      rv= Wait(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
 
       case SC_Signal:
       DEBUG('a', "Signal syscall.\n");
+      rv= Signal(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
 
       case SC_Broadcast:
       DEBUG('a', "Broadcast syscall.\n");
+      rv= Broadcast(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 	}
 

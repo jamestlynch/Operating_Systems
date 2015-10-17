@@ -37,10 +37,11 @@ void CreateCondition_Test(){
     // Memory running out ??*/
 }
 void Wait_Test(){
-	
+
 	int conditionIndex;
 
-	conditionIndex= Wait(-1);
+	conditionIndex= Wait(1000, 1);
+
 	return;
 
 }
