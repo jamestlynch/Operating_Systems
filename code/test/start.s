@@ -130,6 +130,14 @@ Yield:
 	j	$31
 	.end Yield
 
+	.globl CreateLock
+	.ent	CreateLock
+CreateLock:
+	addiu $2,$0,SC_CreateLock
+	syscall
+	j	$31
+	.end CreateLock
+
 /* dummy function to keep gcc happy */
         .globl  __main
         .ent    __main
