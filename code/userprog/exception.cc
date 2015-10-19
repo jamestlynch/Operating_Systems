@@ -251,7 +251,7 @@ void Close_Syscall(int fd) {
 //      Room in table (Probably doesn't apply)
 //      Thread belong to same process as thread creator
 int 
-CreateLock(unsigned int vaddr, int len) {
+CreateLock_Syscall(unsigned int vaddr, int len) {
 
   if (len <= 0) { // Validate length is nonzero and positive
     printf("%s","Length for lock's identifier name must be nonzero and positive\n");
@@ -443,7 +443,11 @@ void Join_Syscall(){
 
 }
 
+void Assert_Syscall() {
 
+}
+
+// Trap the syscall
 void ExceptionHandler(ExceptionType which) {
     int type = machine->ReadRegister(2); // Which syscall?
     int rv=0; 	// the return value from a syscall
@@ -500,8 +504,11 @@ void ExceptionHandler(ExceptionType which) {
     DEBUG('a', "Yield syscall.\n");
     Yield_Syscall();
     break;
-    
-
+      case SC_CreateLock:
+    DEBUG('a', "CreateLock syscall.\n");
+    rv = CreateLock_Syscall(machine->ReadRegister(4),
+            machine->ReadRegister(5));
+    break;
 	}
 
 	// Put in the return value and increment the PC
