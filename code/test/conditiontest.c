@@ -50,15 +50,21 @@ void Signal_Test(){
 void Broadcast_Test(){
 
 }
+void DestroyCV_Test(){
+	int test= DestroyCV(-1);
+
+}
 int 
 main() {
     /*CreateCondition_Test();*/
 
-    Wait_Test();
+    /*Wait_Test();*/
 
-    /*Signal_Test();
+    /*Signal_Test();*/
 
-    //Broadcast_Test();
+    /*Broadcast_Test();*/
 
-	// Multiple threads test*/
+    DestroyCV_Test();
+
+	/*Multiple threads test*/
 }

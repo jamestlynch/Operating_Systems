@@ -35,11 +35,12 @@ Timer *timer;                   // the hardware timer device, for invoking conte
 
     BitMap *memoryBitMap;
 
-    Table *processT; //process table
-    vector<KernelLock> locks;
-    vector<KernelCV> conditions;
+    
+    vector<KernelLock *> locks;
+    vector<KernelCV *> conditions;
+    vector<Process*> processInfo;
 
-    Lock *processTLock;
+    Lock *processLock;
     Lock *conditionsLock;
     Lock *locksLock;
 #endif
@@ -211,7 +212,6 @@ Cleanup()
     //delete lockT;
     //delete processT;
     //delete cvT;
-
 #endif
 
 #ifdef FILESYS_NEEDED
