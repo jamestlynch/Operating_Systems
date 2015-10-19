@@ -250,30 +250,36 @@ void Close_Syscall(int fd) {
 //    Validations:
 //      Room in table (Probably doesn't apply)
 //      Thread belong to same process as thread creator
-int 
-CreateLock_Syscall(unsigned int vaddr, int len) {
+int CreateLock_Syscall(unsigned int vaddr, int len) 
+{
+  locksLock->Acquire();
 
-  if (len <= 0) { // Validate length is nonzero and positive
+  if (len <= 0) 
+  { // Validate length is nonzero and positive
     printf("%s","Length for lock's identifier name must be nonzero and positive\n");
+    locksLock->Release();
     return -1;
   }
 
   char *buf;
-
-  if ( !(buf = new char[len]) ) { // If error allocating memory for character buffer
+  if ( !(buf = new char[len]) ) 
+  { // If error allocating memory for character buffer
     printf("%s","Error allocating kernel buffer for creating new lock!\n");
+    locksLock->Release();
     return -1;
-  } else {
-    if ( copyin(vaddr,len,buf) == -1 ) { // If failed to read memory from vaddr passed in
+  } 
+  else 
+  {
+    if ( copyin(vaddr,len,buf) == -1 ) 
+    { // If failed to read memory from vaddr passed in
       printf("%s","Bad pointer passed to create new lock\n");
+      locksLock->Release();
       delete[] buf;
       return -1;
     }
   }
 
   buf[len] = '\0'; // Finished grabbing the identifier for the Lock, add null terminator character
-
-  locksLock->Acquire(); //acquire table lock
   
   KernelLock * newKernelLock = new KernelLock();
 
@@ -283,11 +289,42 @@ CreateLock_Syscall(unsigned int vaddr, int len) {
   newKernelLock->lock = lock;
 
   //put the new kernel lock object into the lock table
-  locks.push_back(*newKernelLock);
+  locks.push_back(newKernelLock);
   locksLock->Release();
 
   delete[] buf;
   return 0; // TODO: Return the index of the lock
+}
+
+int checkLockErrors(int index)
+{
+  if (index < 0) 
+  {
+    printf("%s","Invalid lock table index\n");
+    return -1;
+  }
+
+  if (index > locks.size()) 
+  {
+    printf("%s","Invalid lock table index\n");
+    return -1;
+  }
+
+  KernelLock * curKernelLock = locks.at(index);
+
+  if (!curKernelLock)
+  {
+    printf("Lock %d is NULL.\n", index);
+    return -1;
+  }
+
+  if (curKernelLock->space != currentThread.space) 
+  {
+    printf("Lock %d does not belong to the current process.\n", index);
+    return -1;
+  }
+
+  return 0;
 }
 
 // AcquireLock
@@ -297,75 +334,37 @@ CreateLock_Syscall(unsigned int vaddr, int len) {
 //    * Lock they're trying to acquire belongs to their process 
 //    * Index is positive
 //  
-void
-AcquireLock(int index){
+void AcquireLock(int index)
+{
 
-  // if (index < 0) {
-  //   printf("%s","Invalid lock table index\n");
-  //   return;
-  // }
+  locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
 
-  // locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
+  if(checkLockErrors(index) == -1)
+  {
+    locksLock->Release();
+    return;
+  }
+  // TODO: if lock is set toDestroy == TRUE, prevent other threads from acquiring
 
-  // if (index > locks.size()) {
-  //   printf("%s","Invalid lock table index\n");
-  //   locksLock->Release();
-  //   return;
-  // }
-
-  // KernelLock * kernelLock = locks.at(index);
-  // locksLock->Release();
-
-
-
-  // // TODO: if lock is set toDestroy == TRUE, prevent other threads from acquiring
-
-
-
-  // if (kernelLock->space != currentThread.space) {
-  //   printf("%s","Lock does not belong to the current process");
-  //   locksLock->Release();
-  //   return;
-  // }
-
-  // kernelLock->lock->Acquire();
-  // return;
+  locks.at(index)->lock->Acquire();
+  
+  locksLock->Release();
+  return;
 }
 
-// ReleaseLock()
-//  
-void 
-ReleaseLock(int index){
-  // if (index < 0) {
-  //   printf("%s","Invalid lock table index\n");
-  //   return;
-  // }
+void ReleaseLock(int index)
+{
+  locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
+  
+  if(checkLockErrors(index) == -1)
+  {
+    locksLock->Release();
+    return;
+  }
 
-  // locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
-
-  // if (index > locks.size()) {
-  //   printf("%s","Invalid lock table index\n");
-  //   locksLock->Release();
-  //   return;
-  // }
-
-  // KernelLock * kernelLock = locks.at(index);
-  // locksLock->Release();
-
-
-
-  // // TODO: Do we need to check if lock is set toDestroy == TRUE
-
-
-
-  // if (kernelLock->space != currentThread.space) {
-  //   printf("%s","Lock does not belong to the current process");
-  //   locksLock->Release();
-  //   return;
-  // }
-
-  // kernelLock->lock->Release();
-  // return;
+  locks.at(index)->lock->Release();
+  locksLock->Release();
+  return;
 }
 
 // DestroyLock
@@ -381,6 +380,7 @@ void DestroyLock(int index){
 
   // lockTlock->Release();
 }
+
 void CreateCV(){
   // cvTLock->Acquire();
   // kernelCondition * newkcond = new kernelCondition();
