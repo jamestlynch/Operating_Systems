@@ -19,17 +19,21 @@
  * is being asked for
  */
  
-#define SC_Halt		0
-#define SC_Exit		1
-#define SC_Exec		2
-#define SC_Join		3
-#define SC_Create	4
-#define SC_Open		5
-#define SC_Read		6
-#define SC_Write	7
-#define SC_Close	8
-#define SC_Fork		9
-#define SC_Yield	10
+#define SC_Halt			0
+#define SC_Exit			1
+#define SC_Exec			2
+#define SC_Join			3
+#define SC_Create		4
+#define SC_Open			5
+#define SC_Read			6
+#define SC_Write		7
+#define SC_Close		8
+#define SC_Fork			9
+#define SC_Yield		10
+#define SC_CreateLock	11
+#define SC_AcquireLock 	12
+#define SC_ReleaseLock	13
+#define SC_DestroyLock 	14
 
 #define MAXFILENAME 256
 
@@ -125,7 +129,14 @@ void Fork(/*void (*func)()*/);
 /* Yield the CPU to another runnable thread, whether in this address space 
  * or not. 
  */
-void Yield();		
+void Yield();
+
+/* Synchronization objects: Locks and Condition Varibles. User programs
+ * are able to request new locks and CVs, 
+ */
+int CreateLock(char *name, int size);
+
+void assert(char *description, int condition);	
 
 #endif /* IN_ASM */
 
