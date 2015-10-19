@@ -371,7 +371,8 @@ void ReleaseLock(int index)
 //  toDestroy = TRUE
 //  if no waiting threads, delete it here
 //  Where do we delete / detect all waiting threads finishing?
-void DestroyLock(int index){
+void DestroyLock(int index)
+{
   // lockTlock->Acquire();
 
   // //get index of lock to be destroyed, from lock table.
@@ -380,10 +381,10 @@ void DestroyLock(int index){
 
   // lockTlock->Release();
 }
-<<<<<<< HEAD
+
+
 int checkCVErrors(int indexcv, int indexlock)
 {
-
   // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
   if (indexcv < 0 || indexlock < 0) 
   {
@@ -426,47 +427,32 @@ int checkCVErrors(int indexcv, int indexlock)
   }
 
   return 0;
-=======
-
-void CreateCV(){
-  // cvTLock->Acquire();
-  // kernelCondition * newkcond = new kernelCondition();
-
-  // Condition *newkcond= new Condition(/*NAME*/);  //use a buffer to get the name. create a new kernel lock object. set all values.
-  // newkcond->toDelete = false;
-  // newkcond->as = currentThread->space;
-  // newkcond->condition = lock;
-
-  // //put the new kernel lock object into the lock table
-  // cvT->Put(newkcond);
-  // /*
-  // TO DO 
-  // make sure there is available cv in cvT and all aren't being used.
-  // */
-  // cvTLock->Release();
->>>>>>> lock-syscalls
 }
 
-int CreateCV(unsigned int vaddr, int len){
-  
+int CreateCV(unsigned int vaddr, int len)
+{  
   //error check
   conditionsLock->Acquire();
 
   if (len <= 0) { // Validate length is nonzero and positive
-    printf("%s","Invalid length for cv identifier\n");
+    printf("%s","Invalid length for CV identifier\n");
     conditionsLock->Release();
     return -1;
   }
 
   char *buf;
 
-  if ( !(buf = new char[len]) ) { // If error allocating memory for character buffer
-    printf("%s","Error allocating kernel buffer for creating new cv!\n");
+  if ( !(buf = new char[len]) ) 
+  { // If error allocating memory for character buffer
+    printf("%s","Error allocating kernel buffer for creating new CV!\n");
     conditionsLock->Release();
     return -1;
-  } else {
-    if ( copyin(vaddr,len,buf) == -1 ) { // If failed to read memory from vaddr passed in
-      printf("%s","Bad pointer passed to create new cv\n");
+  } 
+  else 
+  {
+    if ( copyin(vaddr,len,buf) == -1 ) 
+    { // If failed to read memory from vaddr passed in
+      printf("%s","Bad pointer passed to create new CV\n");
       delete[] buf;
       conditionsLock->Release();
       return -1;
@@ -474,6 +460,7 @@ int CreateCV(unsigned int vaddr, int len){
   }
 
   buf[len]= '\0';
+
   KernelCV *newKernelCV = new KernelCV();
   newKernelCV->toDelete = false;
   newKernelCV->space = currentThread->space;
@@ -530,7 +517,8 @@ int Broadcast(int indexcv, int indexlock)
   return 0;
 }
 
-int DestroyCV(int indexcv){
+int DestroyCV(int indexcv)
+{
   //acquire lock for condition vector
 
   //do error checks to make sure index is good.
@@ -563,20 +551,21 @@ int DestroyCV(int indexcv){
    delete templock->lock;
    delete templock;
    conditionsLock->Release();
-   return 0;
-
-
-  
-}
-void Halt(){
-   interrupt->Halt();
+   return 0;  
 }
 
-void Yield_Syscall() {
+void Halt()
+{
+  interrupt->Halt();
+}
+
+void Yield_Syscall() 
+{
   currentThread->Yield();
 }
 
-void Exit_Syscall(int status){
+void Exit_Syscall(int status)
+{
 //acquire a lock to change the process table..
  /* if (thread is not the last in the process) {
     currentThread->finish();
@@ -615,162 +604,134 @@ page is in memory somewhere, data for that entry in the
 */
  //currentThread->Finish(); //needs to be in here according to piazza
 }
-void Fork_Syscall(/*void (*func)*/){
 
-}
-void Exec_Syscall(){
-
-}
-void Join_Syscall(){
+void Fork_Syscall(/*void (*func)*/)
+{
 
 }
 
-<<<<<<< HEAD
-=======
-void Assert_Syscall() {
+void Exec_Syscall()
+{
 
 }
 
-// Trap the syscall
->>>>>>> lock-syscalls
-void ExceptionHandler(ExceptionType which) {
+void Join_Syscall()
+{
 
-    int type = machine->ReadRegister(2); // Which syscall?
-    int rv=0; 	// the return value from a syscall
+}
 
-    if ( which == SyscallException ) {
-	switch (type) {
-	 default:
-		DEBUG('a', "Unknown syscall - shutting down.\n");
+void ExceptionHandler(ExceptionType which) 
+{
+  int type = machine->ReadRegister(2); // Which syscall?
+  int rv=0; 	// the return value from a syscall
 
+  if ( which == SyscallException ) {
+	 
+   switch (type) {
+    default:
+    DEBUG('a', "Unknown syscall - shutting down.\n");
 
-	    case SC_Halt:
+    case SC_Halt:
 		DEBUG('a', "Shutdown, initiated by user program.\n");
 		interrupt->Halt();
 		break;
 
-
-      case SC_Exit:
+    case SC_Exit:
     DEBUG('a', "Exit Syscall.\n");
     Exit_Syscall(machine->ReadRegister(4));
     break;
 
-      case SC_Exec:
-      DEBUG('a', "Exec syscall.\n");
-      Exec_Syscall();
+    case SC_Exec:
+    DEBUG('a', "Exec syscall.\n");
+    Exec_Syscall();
     break;
 
-
-      case SC_Join:
-      DEBUG('a', "Join syscall.\n");
+    case SC_Join:
+    DEBUG('a', "Join syscall.\n");
     break;
 
-
-	    case SC_Create:
+	  case SC_Create:
 		DEBUG('a', "Create syscall.\n");
 		Create_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
 		break;
 
-
-	    case SC_Open:
+	  case SC_Open:
 		DEBUG('a', "Open syscall.\n");
 		rv = Open_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
 		break;
 
-
-	    case SC_Write:
+    case SC_Write:
 		DEBUG('a', "Write syscall.\n");
 		Write_Syscall(machine->ReadRegister(4),
-			      machine->ReadRegister(5),
-			      machine->ReadRegister(6));
+    machine->ReadRegister(5),
+    machine->ReadRegister(6));
 		break;
 
-
-	    case SC_Read:
+    case SC_Read:
 		DEBUG('a', "Read syscall.\n");
 		rv = Read_Syscall(machine->ReadRegister(4),
-			      machine->ReadRegister(5),
-			      machine->ReadRegister(6));
+    machine->ReadRegister(5),
+    machine->ReadRegister(6));
 		break;
 
-
-	    case SC_Close:
+    case SC_Close:
 		DEBUG('a', "Close syscall.\n");
 		Close_Syscall(machine->ReadRegister(4));
 		break;
 
-
-      case SC_Fork:
+    case SC_Fork:
     DEBUG('a', "Fork syscall.\n");
     Fork_Syscall();
     break;
 
-
-      case SC_Yield:
+    case SC_Yield:
     DEBUG('a', "Yield syscall.\n");
     Yield_Syscall();
     break;
-<<<<<<< HEAD
 
-
-      case SC_CreateLock:
-      DEBUG('a', "CreateCV syscall.\n");
-      rv= CreateCV(machine->ReadRegister(4),
-            machine->ReadRegister(5));
-      break;
-
-
-      case SC_AcquireLock:
-      DEBUG('a', "Acquire Lock syscall.\n");
-      break;
-
-
-      case SC_ReleaseLock:
-      DEBUG('a', "Release Lock syscall.\n");
-      break;
-
-
-      case SC_DestroyLock:
-      DEBUG('a', "Destroy Lock syscall.\n");
-      break;
-
-
-
-      case SC_CreateCV:
-      DEBUG('a', "CreateCV syscall.\n");
-      rv= CreateCV(machine->ReadRegister(4),
-            machine->ReadRegister(5));
-      break;
-
-
-      case SC_Wait:
-      DEBUG('a', "Wait syscall.\n");
-      rv= Wait(machine->ReadRegister(4), machine->ReadRegister(5));
-      break;
-
-
-      case SC_Signal:
-      DEBUG('a', "Signal syscall.\n");
-      rv= Signal(machine->ReadRegister(4), machine->ReadRegister(5));
-      break;
-
-
-      case SC_Broadcast:
-      DEBUG('a', "Broadcast syscall.\n");
-      rv= Broadcast(machine->ReadRegister(4), machine->ReadRegister(5));
-      break;
-
-      case SC_DestroyCV:
-      DEBUG('a', "Destroy Condition syscall.\n");
-      rv= DestroyCV(machine->ReadRegister(4));
-      break;
-=======
-      case SC_CreateLock:
-    DEBUG('a', "CreateLock syscall.\n");
-    rv = CreateLock_Syscall(machine->ReadRegister(4),
-            machine->ReadRegister(5));
+    case SC_CreateLock:
+    DEBUG('a', "CreateCV syscall.\n");
+    rv= CreateCV(machine->ReadRegister(4),
+    machine->ReadRegister(5));
     break;
->>>>>>> lock-syscalls
+
+    case SC_AcquireLock:
+    DEBUG('a', "Acquire Lock syscall.\n");
+    break;
+
+    case SC_ReleaseLock:
+    DEBUG('a', "Release Lock syscall.\n");
+    break;
+
+    case SC_DestroyLock:
+    DEBUG('a', "Destroy Lock syscall.\n");
+    break;
+
+    case SC_CreateCV:
+    DEBUG('a', "CreateCV syscall.\n");
+    rv= CreateCV(machine->ReadRegister(4),
+    machine->ReadRegister(5));
+    break;
+
+    case SC_Wait:
+    DEBUG('a', "Wait syscall.\n");
+    rv= Wait(machine->ReadRegister(4), machine->ReadRegister(5));
+    break;
+
+    case SC_Signal:
+    DEBUG('a', "Signal syscall.\n");
+    rv= Signal(machine->ReadRegister(4), machine->ReadRegister(5));
+    break;
+
+    case SC_Broadcast:
+    DEBUG('a', "Broadcast syscall.\n");
+    rv= Broadcast(machine->ReadRegister(4), machine->ReadRegister(5));
+    break;
+
+    case SC_DestroyCV:
+    DEBUG('a', "Destroy Condition syscall.\n");
+    rv= DestroyCV(machine->ReadRegister(4));
+    break;
 	}
 
 	// Put in the return value and increment the PC
