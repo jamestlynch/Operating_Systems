@@ -30,6 +30,17 @@
 #define SC_Close	8
 #define SC_Fork		9
 #define SC_Yield	10
+#define SC_CreateLock 11
+#define SC_AcquireLock 12
+#define SC_ReleaseLock 13
+#define SC_DestroyLock 14
+
+#define SC_CreateCV	15
+#define SC_Wait		16
+#define SC_Signal	17	
+#define SC_Broadcast 18	
+ #define SC_DestroyCV 19
+
 
 #define MAXFILENAME 256
 
@@ -51,8 +62,6 @@ void Halt();
 
 /* Address space control operations: Exit, Exec, and Join */
 
-/* This user program is done (status = 0 means exited normally). */
-void Exit(int status);	
 
 /* A unique identifier for an executing user program (address space) */
 typedef int SpaceId;	
@@ -112,6 +121,10 @@ int Read(char *buffer, int size, OpenFileId id);
 void Close(OpenFileId id);
 
 
+/* This user program is done (status = 0 means exited normally). */
+void Exit(int status);	
+
+
 
 /* User-level thread operations: Fork and Yield.  To allow multiple
  * threads to run within a user program. 
@@ -125,7 +138,17 @@ void Fork(/*void (*func)()*/);
 /* Yield the CPU to another runnable thread, whether in this address space 
  * or not. 
  */
-void Yield();		
+void Yield();
+
+int CreateCV(unsigned int vaddr, int len);
+
+int Wait(int indexcv, int indexlock);
+
+int Signal(int indexcv, int indexlock);
+
+int Broadcast(int indexcv, int indexlock);	
+
+int DestroyCV(int indexcv);
 
 #endif /* IN_ASM */
 

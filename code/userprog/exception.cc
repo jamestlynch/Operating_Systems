@@ -381,56 +381,220 @@ void DestroyLock(int index){
 
   // lockTlock->Release();
 }
-void CreateCV(){
-  // cvTLock->Acquire();
-  // kernelCondition * newkcond = new kernelCondition();
+int checkCVErrors(int indexcv, int indexlock)
+{
 
-  // Condition *newkcond= new Condition(/*NAME*/);  //use a buffer to get the name. create a new kernel lock object. set all values.
-  // newkcond->toDelete = false;
-  // newkcond->as = currentThread->space;
-  // newkcond->condition = lock;
+  // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
+  if (indexcv < 0 || indexlock < 0) 
+  {
+    printf("%s","Invalid index.\n");
+    return -1;
+  }
 
-  // //put the new kernel lock object into the lock table
-  // cvT->Put(newkcond);
-  // /*
-  // TO DO 
-  // make sure there is available cv in cvT and all aren't being used.
-  // */
-  // cvTLock->Release();
+  if (indexcv > conditions.size() || indexlock > locks.size()) 
+  {
+    printf("%s","index out of bounds.\n");
+    return -1;
+  }
+
+  KernelCV * curKernelCV = conditions.at(indexcv);
+  KernelLock * curKernelLock = conditions.at(indexlock);
+
+  // setting toDelete only here or in locks too???? 
+  if (newKernelCV->toDelete== true)
+  {
+    printf("Sorry you can't wait on this cv, it will be deleted.");
+    return -1;
+  }
+
+  if (!curKernelCV  || !curKernelLock)
+  {
+    printf("Condition %d is set to NULL or Lock %d is set to NULL.\n", indexcv, indexlock);
+    return -1;
+  }
+
+  if (curKernelLock->space != currentThread->space) 
+  {
+    printf("Lock %d does not belong to the current process.\n", indexlock);
+    return -1;
+  }
+
+  if (curKernelCV->space != currentThread->space) 
+  {
+    printf("Condition %d does not belong to the current process.\n", indexcv);
+    return -1;
+  }
+
+  return 0;
 }
-void Wait(){
-  // cvTLock->Acquire();
+
+int CreateCV(unsigned int vaddr, int len){
   
+  //error check
+  conditionsLock->Acquire();
 
-  // cvTLock->Release();
+  if (len <= 0) { // Validate length is nonzero and positive
+    printf("%s","Invalid length for cv identifier\n");
+    conditionsLock->Release();
+    return -1;
+  }
+
+  char *buf;
+
+  if ( !(buf = new char[len]) ) { // If error allocating memory for character buffer
+    printf("%s","Error allocating kernel buffer for creating new cv!\n");
+    conditionsLock->Release();
+    return -1;
+  } else {
+    if ( copyin(vaddr,len,buf) == -1 ) { // If failed to read memory from vaddr passed in
+      printf("%s","Bad pointer passed to create new cv\n");
+      delete[] buf;
+      conditionsLock->Release();
+      return -1;
+    }
+  }
+
+  buf[len]= '\0';
+  KernelCV *newKernelCV = new KernelCV();
+  newKernelCV->toDelete = false;
+  newKernelCV->space = currentThread->space;
+  newKernelCV->condition = new Condition(buf);
+
+  conditions.push_back(newKernelCV);
+  conditionsLock->Release();
+  delete[] buf;
+  return 0;
 }
-void Signal(){
-  // cvTLock->Acquire();
-  // //DO STUFF
-  // cvTLock->Release();
+
+int Wait(int indexcv, int indexlock)
+{
+  conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
+
+  if(checkCVErrors(indexcv, indexlock) == -1)
+  {
+    conditionsLock->Release();
+    return -1;
+  }
+
+  conditions.at(indexcv)->condition->Wait(locks.at(indexlock)->lock);
+  conditionsLock->Release();
+  return 0;
 }
-void Broadcast(){
-  // cvTLock->Acquire();
-  // //DO STUFF
-  // cvTLock->Release();
+
+int Signal(int indexcv, int indexlock)
+{
+  conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
+
+  if(checkCVErrors(indexcv, indexlock) == -1)
+  {
+    conditionsLock->Release();
+    return -1;
+  }
+  
+  conditions.at(indexcv)->condition->Signal(locks.at(indexlock)->lock);
+  conditionsLock->Release();
+  return 0;
 }
-void DestroyCV(){
-  // cvTLock->Acquire();
-  // //DO STUFF
-  // cvTLock->Release();
+
+int Broadcast(int indexcv, int indexlock)
+{
+  conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
+
+  if(checkCVErrors(indexcv, indexlock) == -1)
+  {
+    conditionsLock->Release();
+    return -1;
+  }
+
+  conditions.at(indexcv)->condition->Broadcast(locks.at(indexlock)->lock);
+  conditionsLock->Release();
+  return 0;
+}
+
+int DestroyCV(int indexcv){
+  //acquire lock for condition vector
+
+  //do error checks to make sure index is good.
+
+  //set toDelete = true, let everything associated w the condition finish. 
+
+  //when everything on wait queue finishes then delete the condition variable
+
+  if (indexcv < 0) {
+     printf("%s","Invalid index for destroy\n");
+     return -1;
+   }
+   conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
+
+   if (indexcv > conditions.size()) {
+     printf("%s","index out of bounds for destroy\n");
+     conditionsLock->Release();
+     return -1;
+   }
+
+   KernelCV *newKernelCV = conditions.at(indexcv);
+
+
+   if (newKernelCV->space != currentThread->space) {
+    printf("%s","Condition does not belong to the current process");
+     conditionsLock->Release();
+     return -1;
+   }
+   KernelLock *templock = locks.at(indexcv);
+   delete templock->lock;
+   delete templock;
+   conditionsLock->Release();
+   return 0;
+
+
+  
 }
 void Halt(){
-  // interrupt->Halt();
+   interrupt->Halt();
 }
 
 void Yield_Syscall() {
   currentThread->Yield();
 }
 
-void Exit_Syscall(){
+void Exit_Syscall(int status){
+//acquire a lock to change the process table..
+ /* if (thread is not the last in the process) {
+    currentThread->finish();
+    //decrement numThreads;
+}
+if (thread is the last in the process and its the last process){
+  interrupt->halt();
+}
 
+if (thread is last in the process but its not the last process){
+  //delete thread from the process
+  //free all memory / delete locks/cvs associated w the process
+  //end this specific process
+}
 
-// currentThread->Finish(); //needs to be in here according to piazza
+3 exit cases:
+1. A thread called exit in a process but it is not the last executing thread, so we still need the code and data.
+
+2. easiest. last executing thread in last process, empty.
+ no need to reclaim anything. nobody left. stop nachos. turn off OS equivalent nobody left to give any memory or locks or cvs to.
+
+interrupt->Halt();
+
+3. ast executing thread in a process- not last process- 
+addrSpace* for the process, search entire table,, if addrSpace
+ pointers match, clear it out. set null, isDeleted, ro 
+ something. ready queue is not empty because there are
+ other processes running. not last process. kill the process.
+reclaim all memory that hasn’t already been reclaimed 
+(code, data, 8 page stacks, any other stacks), in page 
+table entry, piece of data called valid bit, that virtual 
+page is in memory somewhere, data for that entry in the 
+   page table can be trusted, when virtual page isn’t in memory
+    that valid bit is set to false.
+
+*/
+ //currentThread->Finish(); //needs to be in here according to piazza
 }
 void Fork_Syscall(/*void (*func)*/){
 
@@ -438,70 +602,140 @@ void Fork_Syscall(/*void (*func)*/){
 void Exec_Syscall(){
 
 }
-
 void Join_Syscall(){
 
 }
 
-
 void ExceptionHandler(ExceptionType which) {
+
     int type = machine->ReadRegister(2); // Which syscall?
     int rv=0; 	// the return value from a syscall
 
     if ( which == SyscallException ) {
 	switch (type) {
-	    default:
+	 default:
 		DEBUG('a', "Unknown syscall - shutting down.\n");
+
+
 	    case SC_Halt:
 		DEBUG('a', "Shutdown, initiated by user program.\n");
 		interrupt->Halt();
 		break;
+
+
       case SC_Exit:
     DEBUG('a', "Exit Syscall.\n");
-    Exit_Syscall();
+    Exit_Syscall(machine->ReadRegister(4));
     break;
+
       case SC_Exec:
       DEBUG('a', "Exec syscall.\n");
+      Exec_Syscall();
     break;
+
+
       case SC_Join:
       DEBUG('a', "Join syscall.\n");
-
     break;
+
 
 	    case SC_Create:
 		DEBUG('a', "Create syscall.\n");
 		Create_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
 		break;
+
+
 	    case SC_Open:
 		DEBUG('a', "Open syscall.\n");
 		rv = Open_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
 		break;
+
+
 	    case SC_Write:
 		DEBUG('a', "Write syscall.\n");
 		Write_Syscall(machine->ReadRegister(4),
 			      machine->ReadRegister(5),
 			      machine->ReadRegister(6));
 		break;
+
+
 	    case SC_Read:
 		DEBUG('a', "Read syscall.\n");
 		rv = Read_Syscall(machine->ReadRegister(4),
 			      machine->ReadRegister(5),
 			      machine->ReadRegister(6));
 		break;
+
+
 	    case SC_Close:
 		DEBUG('a', "Close syscall.\n");
 		Close_Syscall(machine->ReadRegister(4));
 		break;
+
+
       case SC_Fork:
     DEBUG('a', "Fork syscall.\n");
     Fork_Syscall();
     break;
+
+
       case SC_Yield:
     DEBUG('a', "Yield syscall.\n");
     Yield_Syscall();
     break;
-    
 
+
+      case SC_CreateLock:
+      DEBUG('a', "CreateCV syscall.\n");
+      rv= CreateCV(machine->ReadRegister(4),
+            machine->ReadRegister(5));
+      break;
+
+
+      case SC_AcquireLock:
+      DEBUG('a', "Acquire Lock syscall.\n");
+      break;
+
+
+      case SC_ReleaseLock:
+      DEBUG('a', "Release Lock syscall.\n");
+      break;
+
+
+      case SC_DestroyLock:
+      DEBUG('a', "Destroy Lock syscall.\n");
+      break;
+
+
+
+      case SC_CreateCV:
+      DEBUG('a', "CreateCV syscall.\n");
+      rv= CreateCV(machine->ReadRegister(4),
+            machine->ReadRegister(5));
+      break;
+
+
+      case SC_Wait:
+      DEBUG('a', "Wait syscall.\n");
+      rv= Wait(machine->ReadRegister(4), machine->ReadRegister(5));
+      break;
+
+
+      case SC_Signal:
+      DEBUG('a', "Signal syscall.\n");
+      rv= Signal(machine->ReadRegister(4), machine->ReadRegister(5));
+      break;
+
+
+      case SC_Broadcast:
+      DEBUG('a', "Broadcast syscall.\n");
+      rv= Broadcast(machine->ReadRegister(4), machine->ReadRegister(5));
+      break;
+
+      case SC_DestroyCV:
+      DEBUG('a', "Destroy Condition syscall.\n");
+      rv= DestroyCV(machine->ReadRegister(4));
+      break;
 	}
 
 	// Put in the return value and increment the PC

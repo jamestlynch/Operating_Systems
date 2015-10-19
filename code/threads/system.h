@@ -59,16 +59,23 @@ class Machine;
         AddrSpace *space;
         bool toDelete;
     };  
+    struct Process{
+    	AddrSpace *space;
+    	int numThreads;
+    	int processID;
+    };
+    //has all the threads
+    //destroy locks/cvs associated w the process
 
 	extern BitMap *memoryBitMap;
 
-	extern Table *processT; //process table
-	extern vector<KernelLock> locks;
-	extern vector<KernelCV> conditions;
+	extern vector<KernelLock*> locks;
+	extern vector<KernelCV*> conditions;
+	extern vector<Process*> processInfo;
 
 	//create locks around these tables so only one program can access at a time
 	#include "synch.h"
-	extern Lock *processTLock; //lock on process table
+	extern Lock *processLock; //lock on process table
 	extern Lock *conditionsLock;	//lock on cv table
 	extern Lock *locksLock;	//lock on lock table
 
