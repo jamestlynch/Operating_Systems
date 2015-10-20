@@ -318,12 +318,16 @@ int checkLockErrors(int index)
     return -1;
   }
 
+  if (curKernelLock->toDelete == true && curKernelLock->lock->sleepqueue->IsEmpty())
+  {
+    DestroyLock(indexcv);
+  }
+
   if (curKernelLock->space != currentThread->space) 
   {
     printf("Lock %d does not belong to the current process.\n", index);
     return -1;
   }
-
   return 0;
 }
 
@@ -363,6 +367,7 @@ void ReleaseLock(int index)
   }
 
   locks.at(index)->lock->Release();
+
   locksLock->Release();
   return;
 }
@@ -399,7 +404,7 @@ int DestroyLock(int indexlock)
      locksLock->Release();
      return -1;
    }
-   if (!(newKernelLock->lock->sleepqueue->IsEmpty())){ //AND WAIT QUEUE FOR THE LOCK IS EMPTY
+   if (!(newKernelLock->lock->sleepqueue->IsEmpty())){
     delete newKernelLock->lock;
     delete newKernelLock->space;
     newKernelLock=NULL;
@@ -531,6 +536,9 @@ int Signal(int indexcv, int indexlock)
   }
   
   conditions.at(indexcv)->condition->Signal(locks.at(indexlock)->lock);
+  if (conditions.at(indexcv)->toDelete==true && conditions.at(index)->condition->){
+    DestroyCV(indexcv);
+  }
   conditionsLock->Release();
   return 0;
 }
@@ -546,9 +554,13 @@ int Broadcast(int indexcv, int indexlock)
   }
 
   conditions.at(indexcv)->condition->Broadcast(locks.at(indexlock)->lock);
+
+  if (conditions.at(indexcv)->toDelete==true){
+    DestroyCV(indexcv);
+  }
   conditionsLock->Release();
   return 0;
-}
+  }
 
 int DestroyCV(int indexcv)
 {
@@ -653,11 +665,14 @@ else{
 void Fork_Syscall(/*void (*func)*/)
 {
 
+  //increment threads 
 }
 
 void Exec_Syscall()
 {
 
+//increment thread count
+  //create new process in process table. make sure mem allocation is done.
 }
 
 void Join_Syscall()
