@@ -178,6 +178,18 @@ void Write_Syscall(unsigned int vaddr, int len, int id) {
     delete[] buf;
 }
 
+void WriteInt_Syscall(int integer) {
+  printf("%d", integer);
+}
+
+#define RED               "\x1b[31m"
+#define ANSI_COLOR_RESET  "\x1b[0m"
+void WriteError_Syscall(unsigned int vaddr, int len) {
+  printf(RED);  
+  Write_Syscall(vaddr, len, 1);
+  printf(ANSI_COLOR_RESET);
+}
+
 int Read_Syscall(unsigned int vaddr, int len, int id) {
     // Write the buffer to the given disk file.  If ConsoleOutput is
     // the fileID, data goes to the synchronized console instead.  If
@@ -296,7 +308,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
   return 0; // TODO: Return the index of the lock
 }
 
-int checkLockErrors(int index)
+int checkLockErrors(unsigned int index)
 {
   if (index < 0) 
   {
@@ -755,6 +767,17 @@ void ExceptionHandler(ExceptionType which)
     Write_Syscall(machine->ReadRegister(4),
     machine->ReadRegister(5),
     machine->ReadRegister(6));
+    break;
+
+    case SC_WriteInt:
+    DEBUG('a', "WriteInt syscall.\n");
+    WriteInt_Syscall(machine->ReadRegister(4));
+    break;
+
+    case SC_WriteError:
+    DEBUG('a', "WriteInt syscall.\n");
+    WriteError_Syscall(machine->ReadRegister(4),
+      machine->ReadRegister(5));
     break;
 
     case SC_Close:

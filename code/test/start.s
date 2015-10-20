@@ -106,6 +106,22 @@ Write:
 	j	$31
 	.end Write
 
+	.globl WriteInt
+	.ent	WriteInt
+WriteInt:
+	addiu $2,$0,SC_WriteInt
+	syscall
+	j	$31
+	.end WriteInt
+
+	.globl WriteError
+	.ent	WriteError
+WriteError:
+	addiu $2,$0,SC_WriteError
+	syscall
+	j	$31
+	.end WriteError
+
 	.globl Close
 	.ent	Close
 Close:
@@ -130,7 +146,6 @@ Yield:
 	j	$31
 	.end Yield
 
-<<<<<<< HEAD
 	.globl CreateCV
 	.ent	CreateCV
 CreateCV:
@@ -163,9 +178,6 @@ Broadcast:
 	j	$31
 	.end Broadcast
 
-
-
-=======
 	.globl CreateLock
 	.ent	CreateLock
 CreateLock:
@@ -173,7 +185,6 @@ CreateLock:
 	syscall
 	j	$31
 	.end CreateLock
->>>>>>> lock-syscalls
 
 /* dummy function to keep gcc happy */
         .globl  __main
