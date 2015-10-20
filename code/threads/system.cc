@@ -36,8 +36,8 @@ Timer *timer;                   // the hardware timer device, for invoking conte
     BitMap *memoryBitMap;
 
     
-    vector<KernelLock *> locks;
-    vector<KernelCV *> conditions;
+    vector<KernelLock*> locks;
+    vector<KernelCV*> conditions;
     vector<Process*> processInfo;
 
     Lock *processLock;
