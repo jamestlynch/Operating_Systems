@@ -330,7 +330,7 @@ int checkLockErrors(unsigned int index)
     return -1;
   }
 
-  if (curKernelLock->space != currentThread.space) 
+  if (curKernelLock->space != currentThread->space) 
   {
     printf("Lock %d does not belong to the current process.\n", index);
     return -1;
@@ -383,17 +383,50 @@ void ReleaseLock(int index)
 //  toDestroy = TRUE
 //  if no waiting threads, delete it here
 //  Where do we delete / detect all waiting threads finishing?
-void DestroyLock(int index)
+int DestroyLock(int indexlock)
 {
-  // lockTlock->Acquire();
+  locksLock->Acquire();
 
-  // //get index of lock to be destroyed, from lock table.
-  // // make sure the lock being destroyed is allowed to be destroyed....who creates and destroys locks?
-  // //remove from lock table...free memory
+  if (indexlock < 0) {
+     printf("%s","Invalid index for destroy\n");
+     locksLock->Release();
+     return -1;
+   }
+   if (indexlock > conditions.size()) {
+     printf("%s","index out of bounds for destroy\n");
+     locksLock->Release();
+     return -1;
+   }
 
-  // lockTlock->Release();
+   KernelLock *newKernelLock = locks.at(indexlock);
+   newKernelLock->toDelete=true;
+
+   if (newKernelLock->space != currentThread->space) {
+     printf("Lock of index %d does not belong to the current process\n", indexlock);
+     locksLock->Release();
+     return -1;
+   }
+   if (!newKernelLock || newKernelLock->lock == NULL){
+     printf("Lock struct or Lock var of index %d is null and can't be destroyed.\n", indexlock);
+     locksLock->Release();
+     return -1;
+   }
+   if (!(newKernelLock->lock->sleepqueue->IsEmpty())){ //AND WAIT QUEUE FOR THE LOCK IS EMPTY
+    delete newKernelLock->lock;
+    delete newKernelLock->space;
+    newKernelLock=NULL;
+    printf("Lock %d was successfully deleted.\n", indexlock);
+    locksLock->Release();
+    return 0;
+   }
+   else{
+    printf("Lock %d toDelete is set to true. cannot be deleted since waitqueue is not empty. \n", indexlock);
+      newKernelLock->toDelete==true;
+      locksLock->Release();
+      return 0;
+   }
+   locksLock->Release();
 }
-
 
 int checkCVErrors(int indexcv, int indexlock)
 {
@@ -411,10 +444,10 @@ int checkCVErrors(int indexcv, int indexlock)
   }
 
   KernelCV * curKernelCV = conditions.at(indexcv);
-  KernelLock * curKernelLock = conditions.at(indexlock);
+  KernelLock * curKernelLock = locks.at(indexlock);
 
   // setting toDelete only here or in locks too???? 
-  if (newKernelCV->toDelete== true)
+  if (curKernelCV->toDelete== true)
   {
     printf("Sorry you can't wait on this cv, it will be deleted.");
     return -1;
@@ -536,7 +569,6 @@ int DestroyCV(int indexcv)
   //set toDelete = true, let everything associated w the condition finish. 
   //when everything on wait queue finishes then delete the condition variable
 conditionsLock->Acquire();
-newKernelCV->toDelete=true;
 
   if (indexcv < 0) {
      printf("%s","Invalid index for destroy\n");
@@ -550,18 +582,19 @@ newKernelCV->toDelete=true;
    }
 
    KernelCV *newKernelCV = conditions.at(indexcv);
+   newKernelCV->toDelete=true;
 
    if (newKernelCV->space != currentThread->space) {
-    printf("%s","Condition of index %d does not belong to the current process\n", indexcv);
+    printf("Condition of index %d does not belong to the current process\n", indexcv);
      conditionsLock->Release();
      return -1;
    }
    if (!newKernelCV || newKernelCV->condition == NULL){
-      printf("%s","Condition struct or condition var of index %d is null and can't be destroyed.\n", indexcv);
+      printf("Condition struct or condition var of index %d is null and can't be destroyed.\n", indexcv);
      conditionsLock->Release();
      return -1;
    }
-   if (!(newKernelCV->condition->waitqueue->IsEmpty()){ //AND WAIT QUEUE FOR THE LOCK IS EMPTY
+   if (!(newKernelCV->condition->waitqueue->IsEmpty())){ //AND WAIT QUEUE FOR THE LOCK IS EMPTY
       delete newKernelCV->condition;
       delete newKernelCV->space;
       newKernelCV=NULL;
@@ -592,39 +625,40 @@ void Yield_Syscall()
 void Exit_Syscall(int status)
 {
 //acquire a lock to change the process table..
- if (Process.at[currentThread->processID]->numExecutingThreads != 1) {
+if (processInfo.at(currentThread->processID)->numExecutingThreads != 1) 
+{
   //thread is not the last one in process
-  printf("Thread is not the last one in process. Current thread -> finish called. ");
-    currentThread->finish();
-    numExecutingthreads--;
-    return;x
+  printf("Thread is not the last one in process. Current thread -> finish called. \n");
+    currentThread->Finish();
+    processInfo.at(currentThread->processID)->numExecutingThreads--;
+    return;
 }
-  if (Process.at[currentThread->processID]->numExecutingThreads==1 && ((process.size()-1) == 1){
-    //numExecutingthread is the last in the process and its the last process. exit nachos.
-    printf("Thread is last in process and last process. Nachos halts.");
-    interrupt->halt();
-  }
-  if (Process.at[currentThread->processID]->numExecutingThreads==1){
-    printf("Thread is last in process but not the last process. Deleting associted locks and conditions.");
-      //thread is last in the process but its not the last process)
-      for (int i=0; i< locks.size(); i++){
-        if (locks.at[i]->space == Process.at[currentThread->processID]->space){
-          delete locks.at[i]->space;
-          delete locks.at[i]->lock;
-          locks.at[i]=NULL;
-        }
+if (processInfo.at(currentThread->processID)->numExecutingThreads==1 && ((processInfo.size()-1) == 1)){
+  //numExecutingthread is the last in the process and its the last process. exit nachos.
+  printf("Thread is last in process and last process. Nachos halts.\n");
+  interrupt->Halt();
+}
+if (processInfo.at(currentThread->processID)->numExecutingThreads==1){
+  printf("Thread is last in process but not the last process. Deleting associted locks and conditions.\n");
+    //thread is last in the process but its not the last process)
+    for (int i=0; i< locks.size(); i++){
+      if (locks.at(i)->space == processInfo.at(currentThread->processID)->space){
+        delete locks.at(i)->space;
+        delete locks.at(i)->lock;
+        locks.at(i)=NULL;
       }
-      for (int i=0; i< conditions.size(); i++){
-        if (conditions.at[i]->space == Process.at[currentThread->processID]->space){
-          delete conditions.at[i]->space;
-          delete conditions.at[i]->condition;
-          conditions.at[i]=NULL;
-        }
+    }
+    for (int i=0; i< conditions.size(); i++){
+      if (conditions.at(i)->space == processInfo.at(currentThread->processID)->space){
+        delete conditions.at(i)->space;
+        delete conditions.at(i)->condition;
+        conditions.at(i)=NULL;
       }
+    }
   }
-  else{
-    printf("You incorrectly called exit. No threads exited.");
-    //currentThread->Finish(); //needs to be in here according to piazza
+else{
+  printf("%s", "You incorrectly called exit. No threads exited.\n");
+  //currentThread->Finish(); //needs to be in here according to piazza
   }
 }
 
@@ -757,10 +791,12 @@ void ExceptionHandler(ExceptionType which)
 
     case SC_ReleaseLock:
     DEBUG('a', "Release Lock syscall.\n");
+
     break;
 
     case SC_DestroyLock:
     DEBUG('a', "Destroy Lock syscall.\n");
+    rv = DestroyLock(machine->ReadRegister(4));
     break;
 
     case SC_CreateCV:
