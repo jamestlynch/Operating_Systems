@@ -130,7 +130,6 @@ Yield:
 	j	$31
 	.end Yield
 
-<<<<<<< HEAD
 	.globl CreateCV
 	.ent	CreateCV
 CreateCV:
@@ -163,9 +162,6 @@ Broadcast:
 	j	$31
 	.end Broadcast
 
-
-
-=======
 	.globl CreateLock
 	.ent	CreateLock
 CreateLock:
@@ -173,7 +169,6 @@ CreateLock:
 	syscall
 	j	$31
 	.end CreateLock
->>>>>>> lock-syscalls
 
 /* dummy function to keep gcc happy */
         .globl  __main
