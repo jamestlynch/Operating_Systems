@@ -320,7 +320,8 @@ int checkLockErrors(int index)
 
   if (curKernelLock->toDelete == true && curKernelLock->lock->sleepqueue->IsEmpty())
   {
-    DestroyLock(indexcv);
+    //DestroyLock(indexcv);
+    return -1;
   }
 
   if (curKernelLock->space != currentThread->space) 
@@ -536,7 +537,7 @@ int Signal(int indexcv, int indexlock)
   }
   
   conditions.at(indexcv)->condition->Signal(locks.at(indexlock)->lock);
-  if (conditions.at(indexcv)->toDelete==true && conditions.at(index)->condition->){
+  if (conditions.at(indexcv)->toDelete==true && conditions.at(indexcv)->condition->waitqueue->IsEmpty()){
     DestroyCV(indexcv);
   }
   conditionsLock->Release();
