@@ -51,7 +51,7 @@ void Broadcast_Test(){
 
 }
 void DestroyCV_Test(){
-	int test= DestroyCV(-1);
+	/*int test= DestroyCV(-1);*/
 
 }
 int 
@@ -64,7 +64,7 @@ main() {
 
     /*Broadcast_Test();*/
 
-    DestroyCV_Test();
+    /*DestroyCV_Test();*/
 
 	/*Multiple threads test*/
 }
