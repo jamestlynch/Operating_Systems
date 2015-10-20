@@ -106,6 +106,22 @@ Write:
 	j	$31
 	.end Write
 
+	.globl WriteInt
+	.ent	WriteInt
+WriteInt:
+	addiu $2,$0,SC_WriteInt
+	syscall
+	j	$31
+	.end WriteInt
+
+	.globl WriteError
+	.ent	WriteError
+WriteError:
+	addiu $2,$0,SC_WriteError
+	syscall
+	j	$31
+	.end WriteError
+
 	.globl Close
 	.ent	Close
 Close:

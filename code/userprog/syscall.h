@@ -39,6 +39,8 @@
 #define SC_Signal		17	
 #define SC_Broadcast	18	
 #define SC_DestroyCV	19
+#define SC_WriteInt		20
+#define SC_WriteError	21
 
 #define MAXFILENAME 256
 
@@ -106,6 +108,12 @@ OpenFileId Open(char *name, int size);
 
 /* Write "size" bytes from "buffer" to the open file. */
 void Write(char *buffer, int size, OpenFileId id);
+
+/* Write integer to the console */
+void WriteInt(int integer);
+
+/* Write error to the console */
+void WriteError(char *buffer, int size);
 
 /* Read "size" bytes from the open file into "buffer".  
  * Return the number of bytes actually read -- if the open file isn't
