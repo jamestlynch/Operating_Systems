@@ -59,7 +59,9 @@ class Machine;
         AddrSpace *space;
         bool toDelete;
     };  
-    struct Process{
+
+    struct Process
+    {
     	AddrSpace *space;
     	int numSleepThreads;
     	int numExecutingThreads;
