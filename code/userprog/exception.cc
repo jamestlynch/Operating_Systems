@@ -389,7 +389,7 @@ void ReleaseLock(int index)
 //  toDestroy = TRUE
 //  if no waiting threads, delete it here
 //  Where do we delete / detect all waiting threads finishing?
-int DestroyLock(int indexlock)
+int DestroyLock(unsigned int indexlock)
 {
   locksLock->Acquire();
 
@@ -434,7 +434,7 @@ int DestroyLock(int indexlock)
    locksLock->Release();
 }
 
-int checkCVErrors(int indexcv, int indexlock)
+int checkCVErrors(unsigned int indexcv, unsigned int indexlock)
 {
   // TODO: if condition is set toDestroy == TRUE, prevent other threads from acquiring
   if (indexcv < 0 || indexlock < 0) 
@@ -575,7 +575,7 @@ int Broadcast(int indexcv, int indexlock)
   return 0;
   }
 
-int DestroyCV(int indexcv)
+int DestroyCV(unsigned int indexcv)
 {
   //acquire lock for condition vector
   //do error checks to make sure index is good.
@@ -654,14 +654,14 @@ if (processInfo.at(currentThread->processID)->numExecutingThreads==1 && ((proces
 if (processInfo.at(currentThread->processID)->numExecutingThreads==1){
   printf("Thread is last in process but not the last process. Deleting associted locks and conditions.\n");
     //thread is last in the process but its not the last process)
-    for (int i=0; i< locks.size(); i++){
+    for (unsigned int i=0; i< locks.size(); i++){
       if (locks.at(i)->space == processInfo.at(currentThread->processID)->space){
         delete locks.at(i)->space;
         delete locks.at(i)->lock;
         locks.at(i)=NULL;
       }
     }
-    for (int i=0; i< conditions.size(); i++){
+    for (unsigned int i=0; i< conditions.size(); i++){
       if (conditions.at(i)->space == processInfo.at(currentThread->processID)->space){
         delete conditions.at(i)->space;
         delete conditions.at(i)->condition;

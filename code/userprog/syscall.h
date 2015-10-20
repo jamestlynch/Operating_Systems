@@ -153,13 +153,13 @@ void Yield();
 
 int CreateCV(unsigned int vaddr, int len);
 
-int Wait(int indexcv, int indexlock);
+int Wait(unsigned int indexcv, unsigned int indexlock);
 
-int Signal(int indexcv, int indexlock);
+int Signal(unsigned int indexcv, unsigned int indexlock);
 
-int Broadcast(int indexcv, int indexlock);	
+int Broadcast(unsigned int indexcv, unsigned int indexlock);	
 
-int DestroyCV(int indexcv);
+int DestroyCV(unsigned int indexcv);
 
 int CreateLock(char *name, int size);
 
