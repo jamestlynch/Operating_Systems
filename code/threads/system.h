@@ -61,7 +61,8 @@ class Machine;
     };  
     struct Process{
     	AddrSpace *space;
-    	int numThreads;
+    	int numSleepThreads;
+    	int numExecutingThreads;
     	int processID;
     };
     //has all the threads
