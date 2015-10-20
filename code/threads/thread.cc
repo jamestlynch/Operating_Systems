@@ -42,6 +42,11 @@ Thread::Thread(char* threadName)
     status = JUST_CREATED;
 #ifdef USER_PROGRAM
     space = NULL;
+    //set process ID in the thread to
+    /*
+    process is going to be addrspace pointer, when you fork / exec you need to create a new addrspace.
+    the thread has a pointer to the addrspace of currentThread when we are forking.
+    */
 #endif
 }
 

@@ -520,19 +520,17 @@ int Broadcast(int indexcv, int indexlock)
 int DestroyCV(int indexcv)
 {
   //acquire lock for condition vector
-
   //do error checks to make sure index is good.
-
   //set toDelete = true, let everything associated w the condition finish. 
-
   //when everything on wait queue finishes then delete the condition variable
+conditionsLock->Acquire();
+newKernelCV->toDelete=true;
 
   if (indexcv < 0) {
      printf("%s","Invalid index for destroy\n");
+     conditionsLock->Release();
      return -1;
    }
-   conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
-
    if (indexcv > conditions.size()) {
      printf("%s","index out of bounds for destroy\n");
      conditionsLock->Release();
@@ -541,15 +539,30 @@ int DestroyCV(int indexcv)
 
    KernelCV *newKernelCV = conditions.at(indexcv);
 
-
    if (newKernelCV->space != currentThread->space) {
-    printf("%s","Condition does not belong to the current process");
+    printf("%s","Condition of index %d does not belong to the current process\n", indexcv);
      conditionsLock->Release();
      return -1;
    }
-   KernelLock *templock = locks.at(indexcv);
-   delete templock->lock;
-   delete templock;
+   if (!newKernelCV || newKernelCV->condition == NULL){
+      printf("%s","Condition struct or condition var of index %d is null and can't be destroyed.\n", indexcv);
+     conditionsLock->Release();
+     return -1;
+   }
+   if (!(newKernelCV->condition->waitqueue->IsEmpty()){ //AND WAIT QUEUE FOR THE LOCK IS EMPTY
+      delete newKernelCV->condition;
+      delete newKernelCV->space;
+      newKernelCV=NULL;
+      printf("Condition %d was successfully deleted.\n", indexcv);
+      conditionsLock->Release();
+      return 0;
+   }
+   else{
+    printf("Condition %d toDelete set to true. cannot be deleted since waitqueue is not empty. \n", indexcv);
+      newKernelCV->toDelete==true;
+      conditionsLock->Release();
+      return 0;
+   }
    conditionsLock->Release();
    return 0;  
 }
@@ -567,42 +580,40 @@ void Yield_Syscall()
 void Exit_Syscall(int status)
 {
 //acquire a lock to change the process table..
- /* if (thread is not the last in the process) {
+ if (Process.at[currentThread->processID]->numExecutingThreads != 1) {
+  //thread is not the last one in process
+  printf("Thread is not the last one in process. Current thread -> finish called. ");
     currentThread->finish();
-    //decrement numThreads;
+    numExecutingthreads--;
+    return;x
 }
-if (thread is the last in the process and its the last process){
-  interrupt->halt();
-}
-
-if (thread is last in the process but its not the last process){
-  //delete thread from the process
-  //free all memory / delete locks/cvs associated w the process
-  //end this specific process
-}
-
-3 exit cases:
-1. A thread called exit in a process but it is not the last executing thread, so we still need the code and data.
-
-2. easiest. last executing thread in last process, empty.
- no need to reclaim anything. nobody left. stop nachos. turn off OS equivalent nobody left to give any memory or locks or cvs to.
-
-interrupt->Halt();
-
-3. ast executing thread in a process- not last process- 
-addrSpace* for the process, search entire table,, if addrSpace
- pointers match, clear it out. set null, isDeleted, ro 
- something. ready queue is not empty because there are
- other processes running. not last process. kill the process.
-reclaim all memory that hasn’t already been reclaimed 
-(code, data, 8 page stacks, any other stacks), in page 
-table entry, piece of data called valid bit, that virtual 
-page is in memory somewhere, data for that entry in the 
-   page table can be trusted, when virtual page isn’t in memory
-    that valid bit is set to false.
-
-*/
- //currentThread->Finish(); //needs to be in here according to piazza
+  if (Process.at[currentThread->processID]->numExecutingThreads==1 && ((process.size()-1) == 1){
+    //numExecutingthread is the last in the process and its the last process. exit nachos.
+    printf("Thread is last in process and last process. Nachos halts.");
+    interrupt->halt();
+  }
+  if (Process.at[currentThread->processID]->numExecutingThreads==1){
+    printf("Thread is last in process but not the last process. Deleting associted locks and conditions.");
+      //thread is last in the process but its not the last process)
+      for (int i=0; i< locks.size(); i++){
+        if (locks.at[i]->space == Process.at[currentThread->processID]->space){
+          delete locks.at[i]->space;
+          delete locks.at[i]->lock;
+          locks.at[i]=NULL;
+        }
+      }
+      for (int i=0; i< conditions.size(); i++){
+        if (conditions.at[i]->space == Process.at[currentThread->processID]->space){
+          delete conditions.at[i]->space;
+          delete conditions.at[i]->condition;
+          conditions.at[i]=NULL;
+        }
+      }
+  }
+  else{
+    printf("You incorrectly called exit. No threads exited.");
+    //currentThread->Finish(); //needs to be in here according to piazza
+  }
 }
 
 void Fork_Syscall(/*void (*func)*/)
@@ -622,6 +633,28 @@ void Join_Syscall()
 
 void ExceptionHandler(ExceptionType which) 
 {
+/*
+  #define SC_Halt     0
+#define SC_Exit     1
+#define SC_Exec     2
+#define SC_Join     3
+#define SC_Create   4
+#define SC_Open     5
+#define SC_Read     6
+#define SC_Write    7
+#define SC_Close    8
+#define SC_Fork     9
+#define SC_Yield    10
+#define SC_CreateLock 11
+#define SC_AcquireLock  12
+#define SC_ReleaseLock  13
+#define SC_DestroyLock  14
+#define SC_CreateCV   15
+#define SC_Wait     16
+#define SC_Signal   17  
+#define SC_Broadcast  18  
+#define SC_DestroyCV  19*/
+
   int type = machine->ReadRegister(2); // Which syscall?
   int rv=0; 	// the return value from a syscall
 
@@ -660,19 +693,19 @@ void ExceptionHandler(ExceptionType which)
 		rv = Open_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
 		break;
 
-    case SC_Write:
-		DEBUG('a', "Write syscall.\n");
-		Write_Syscall(machine->ReadRegister(4),
-    machine->ReadRegister(5),
-    machine->ReadRegister(6));
-		break;
-
     case SC_Read:
 		DEBUG('a', "Read syscall.\n");
 		rv = Read_Syscall(machine->ReadRegister(4),
     machine->ReadRegister(5),
     machine->ReadRegister(6));
 		break;
+
+    case SC_Write:
+    DEBUG('a', "Write syscall.\n");
+    Write_Syscall(machine->ReadRegister(4),
+    machine->ReadRegister(5),
+    machine->ReadRegister(6));
+    break;
 
     case SC_Close:
 		DEBUG('a', "Close syscall.\n");
