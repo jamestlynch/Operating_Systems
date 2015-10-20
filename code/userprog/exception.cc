@@ -574,7 +574,7 @@ void Exit_Syscall(int status){
   printf("Thread is not the last one in process. Current thread -> finish called. ");
     currentThread->finish();
     numExecutingthreads--;
-    return;
+    return;x
 }
   if (Process.at[currentThread->processID]->numExecutingThreads==1 && ((process.size()-1) == 1){
     //numExecutingthread is the last in the process and its the last process. exit nachos.
