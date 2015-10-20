@@ -797,7 +797,7 @@ void ExceptionHandler(ExceptionType which)
 
     case SC_CreateLock:
     DEBUG('a', "CreateCV syscall.\n");
-    rv= CreateCV(machine->ReadRegister(4),
+    rv= CreateLock_Syscall(machine->ReadRegister(4),
     machine->ReadRegister(5));
     break;
 
