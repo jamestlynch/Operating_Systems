@@ -291,7 +291,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     }
   }
 
-  buf[len] = '\0'; // Finished grabbing the identifier for the Lock, add null terminator character
+  buf[len] = '\0'; //Finished grabbing the identifier for the Lock, add null terminator character
   
   KernelLock * newKernelLock = new KernelLock();
 
@@ -301,6 +301,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
   newKernelLock->lock = lock;
 
   //put the new kernel lock object into the lock table
+  
   locks.push_back(newKernelLock);
   locksLock->Release();
 
