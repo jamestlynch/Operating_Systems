@@ -208,7 +208,7 @@ Cleanup()
 #ifdef USER_PROGRAM
     delete machine; //delete machine
     //delete processLock;
-    delete memoryBitMap;
+    delete memBitMap;
     //delete locks; // TODO: Figure out if/how to cleanup vectors
     //delete conditions; // TODO: Figure out if/how to cleanup vectors
     //delete lockT;

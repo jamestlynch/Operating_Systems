@@ -14,9 +14,12 @@
 int a[3];
 int b, c;
 
-int
-main()
+int main()
 {
-    Halt();
+	Exec("../test/halt.c", 14);
+
+	/*Write("Hey", 3, 1);*/
+
+    /*Halt();*/
     /* not reached */
 }
