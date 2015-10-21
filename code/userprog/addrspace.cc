@@ -217,8 +217,7 @@ AddrSpace::~AddrSpace()
 //	when this thread is context switched out.
 //----------------------------------------------------------------------
 
-void
-AddrSpace::InitRegisters()
+void AddrSpace::InitRegisters()
 {
     int i;
 
@@ -262,4 +261,51 @@ void AddrSpace::RestoreState()
 {
     machine->pageTable = pageTable;
     machine->pageTableSize = numPages;
+}
+
+void AddrSpace::NewPageTable()
+{
+    TranslationEntry newPT = new TranslationEntry(numPages + 8); // add 8 pages for new stack
+
+    for(int i = 0; i < numPages; i++)
+    {
+        newPT[i].virtualPage    =   pageTable[i].virtualPage;
+        newPT[i].physicalPage   =   pageTable[i].physicalPage;
+        newPT[i].valid          =   pageTable[i].valid;
+        newPT[i].use            =   pageTable[i].use;
+        newPT[i].dirty          =   pageTable[i].dirty;
+        newPT[i].readOnly       =   pageTable[i].readOnly;
+    }
+
+    for(int i = numPages; i < numPages + 8; i++)
+    {
+        pageTable[i].virtualPage = i;   // for now, virtual page # = phys page #
+        pageTable[i].physicalPage = memBitMap.Find();
+        pageTable[i].valid = TRUE;
+        pageTable[i].use = FALSE;
+        pageTable[i].dirty = FALSE;
+        pageTable[i].readOnly = FALSE;  
+        // if the code segment was entirely on 
+        // a separate page, we could set its 
+        // pages to be read-only
+
+        // find page memory that nobody is using
+        // copy from executable to that page of memory
+        // how much to copy? pagesize!
+        if (pageTable[i].physicalPage == -1)
+        {
+          // print message
+          interrupt->halt();
+        }
+
+        // I don't think this is right...ß
+        executable->ReadAt(machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize, 40 + pageTable[i].virtualPage * PageSize));
+    }
+
+    delete pageTable;
+    pageTable = newPT;
+
+    numPages = numPages + 8;
+
+    RestoreState();
 }
