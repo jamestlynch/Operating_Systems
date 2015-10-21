@@ -400,7 +400,7 @@ int ReleaseLock(int index)
   return index;
 }
 
-// DestroyLock
+//  DestroyLock
 //  toDestroy = TRUE
 //  if no waiting threads, delete it here
 //  Where do we delete / detect all waiting threads finishing?
@@ -707,7 +707,7 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
   { // Validate length is nonzero and positive
     printf("Invalid length for thread identifier.\n");
     conditionsLock->Release();
-    return -1;
+    return;
   }
 
   char * buf = new char[len + 1];
@@ -716,7 +716,7 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
   { // If error allocating memory for character buffer
     printf("Error allocating kernel buffer for creating new thread!\n");
     conditionsLock->Release();
-    return -1;
+    return;
   } 
   
   if ( copyin(vaddr, len, buf) == -1 ) 
@@ -724,7 +724,7 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
     printf("Bad pointer passed to create new thread.\n");
     delete[] buf;
     conditionsLock->Release();
-    return -1;
+    return;
   }
 
   buf[len] = '\0';
@@ -741,9 +741,9 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 
 
 
-  //increment threads 
-  //computation for where stackReg should be must be done in Fork_Syscall
-  //bitMap valid-find needs to be stored inside fork
+  // increment threads 
+  // computation for where stackReg should be must be done in Fork_Syscall
+  // bitMap valid-find needs to be stored inside fork
 }
 
 /*
@@ -772,13 +772,21 @@ void Kernel_Thread(int vaddr)
   return;
 }
 
+void Exec_Thread()
+{
+  currentThread->space->InitRegisters();
+  currentThread->space->RestoreState();
+
+  machine->Run();
+  return;
+}
+
 void Exec_Syscall(int vaddr, int len)
 {
   if (len <= 0) 
   { // Validate length is nonzero and positive
     printf("Invalid length for thread identifier.\n");
-    conditionsLock->Release();
-    return -1;
+    return;
   }
 
   char * buf = new char[len + 1];
@@ -786,33 +794,32 @@ void Exec_Syscall(int vaddr, int len)
   if ( !buf ) 
   { // If error allocating memory for character buffer
     printf("Error allocating kernel buffer for creating new thread!\n");
-    conditionsLock->Release();
-    return -1;
+    return;
   } 
   
   if ( copyin(vaddr, len, buf) == -1 ) 
   { // If failed to read memory from vaddr passed in
     printf("Bad pointer passed to create new thread.\n");
     delete[] buf;
-    conditionsLock->Release();
-    return -1;
+    return;
   }
 
   buf[len] = '\0';
 
+  printf("hello");
+
   processLock->Acquire();
 
-  OpenFile *executable = fileSystem->Open(filename);
+  OpenFile *executable = fileSystem->Open(buf);
   AddrSpace *space;
 
   if (executable == NULL) 
   {
-    printf("Unable to open file %s\n", filename);
+    printf("Unable to open file %s\n", buf);
     return;
   }
 
   space = new AddrSpace(executable);
-
 
   Process *p = new Process();
   Thread *t = new Thread(buf);
@@ -827,12 +834,9 @@ void Exec_Syscall(int vaddr, int len)
   t->processID = p->processID;
   t->space = space;
 
-  delete executable
+  delete executable;
 
-  space->InitRegisters();
-  space->RestoreState();
-
-  machine->Run();
+  t->Fork((VoidFunctionPtr)Exec_Thread,0);
 }
 
 void Join_Syscall()
@@ -866,7 +870,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_Exec:
       DEBUG('a', "Exec syscall.\n");
-      Exec_Syscall();
+      Exec_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
       case SC_Join:
@@ -915,7 +919,9 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_Fork:
       DEBUG('a', "Fork syscall.\n");
-      Fork_Syscall();
+      Fork_Syscall(machine->ReadRegister(4),
+      machine->ReadRegister(5),
+      machine->ReadRegister(6));
       break;
 
       case SC_Yield:

@@ -155,7 +155,7 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     {
     	pageTable[i].virtualPage = i;	// for now, virtual page # = phys page #
     	//pageTable[i].physicalPage = i;
-        pageTable[i].physicalPage = memBitMap.Find();
+        pageTable[i].physicalPage = memBitMap->Find();
     	pageTable[i].valid = TRUE;
     	pageTable[i].use = FALSE;
     	pageTable[i].dirty = FALSE;
@@ -170,10 +170,10 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
         if (pageTable[i].physicalPage == -1)
         {
           // print message
-          interrupt->halt();
+          interrupt->Halt();
         }
 
-        executable->ReadAt(machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize, 40 + pageTable[i].virtualPage * PageSize));
+        executable->ReadAt(&(machine->mainMemory[PageSize * pageTable[i].physicalPage]), PageSize, 40 + pageTable[i].virtualPage * PageSize);
     }
     memLock->Release();
     
@@ -265,7 +265,7 @@ void AddrSpace::RestoreState()
 
 void AddrSpace::NewPageTable()
 {
-    TranslationEntry newPT = new TranslationEntry(numPages + 8); // add 8 pages for new stack
+    TranslationEntry* newPT = new TranslationEntry[numPages + 8]; // add 8 pages for new stack
 
     for(int i = 0; i < numPages; i++)
     {
@@ -280,7 +280,7 @@ void AddrSpace::NewPageTable()
     for(int i = numPages; i < numPages + 8; i++)
     {
         pageTable[i].virtualPage = i;   // for now, virtual page # = phys page #
-        pageTable[i].physicalPage = memBitMap.Find();
+        pageTable[i].physicalPage = memBitMap->Find();
         pageTable[i].valid = TRUE;
         pageTable[i].use = FALSE;
         pageTable[i].dirty = FALSE;
@@ -295,11 +295,11 @@ void AddrSpace::NewPageTable()
         if (pageTable[i].physicalPage == -1)
         {
           // print message
-          interrupt->halt();
+          interrupt->Halt();
         }
 
-        // I don't think this is right...ß
-        executable->ReadAt(machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize, 40 + pageTable[i].virtualPage * PageSize));
+        // I don't think this is right...
+        //executable->ReadAt(machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize, 40 + pageTable[i].virtualPage * PageSize));
     }
 
     delete pageTable;

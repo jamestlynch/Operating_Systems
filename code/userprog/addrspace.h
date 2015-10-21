@@ -36,6 +36,8 @@ class AddrSpace {
     void RestoreState();		// info on a context switch
     Table fileTable;			// Table of openfiles
 
+    void NewPageTable();
+
  private:
     TranslationEntry *pageTable;	// Assume linear page table translation
 					// for now!
