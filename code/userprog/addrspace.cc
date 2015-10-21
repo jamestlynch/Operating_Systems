@@ -135,7 +135,7 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     ASSERT(noffH.noffMagic == NOFFMAGIC);
 
     size = noffH.code.size + noffH.initData.size + noffH.uninitData.size;
-    numPages = divRoundUp(size, PageSize) + divRoundUp(UserStackSize,PageSize);
+    numPages = divRoundUp(size, PageSize) + divRoundUp(UserStackSize, PageSize);
     // we need to increase the size
 	// to leave room for the stack
     size = numPages * PageSize;
@@ -151,6 +151,7 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     // first, set up the translation 
     memLock->Acquire();
     pageTable = new TranslationEntry[numPages];
+
     for (i = 0; i < numPages; i++) 
     {
     	pageTable[i].virtualPage = i;	// for now, virtual page # = phys page #
@@ -160,6 +161,7 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     	pageTable[i].use = FALSE;
     	pageTable[i].dirty = FALSE;
     	pageTable[i].readOnly = FALSE;  
+
         // if the code segment was entirely on 
 		// a separate page, we could set its 
 		// pages to be read-only
@@ -173,9 +175,11 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
           interrupt->Halt();
         }
 
-        executable->ReadAt(&(machine->mainMemory[PageSize * pageTable[i].physicalPage]), PageSize, 40 + pageTable[i].virtualPage * PageSize);
+        executable->ReadAt(&(machine->mainMemory[PageSize * pageTable[i].physicalPage]), PageSize, noffH.code.inFileAddr /*+ 40*/ + (pageTable[i].virtualPage * PageSize));
     }
+
     memLock->Release();
+
     
     // zero out the entire address space, to zero the unitialized data segment 
     // and the stack segment
