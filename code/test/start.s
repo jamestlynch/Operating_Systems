@@ -211,6 +211,13 @@ DestroyLock:
 	.end DestroyLock
 
 
+	.globl DestroyCV
+	.ent	DestroyCV
+DestroyCV:
+	addiu $2,$0,SC_DestroyCV
+	syscall
+	j	$31
+	.end DestroyCV
 
 /* dummy function to keep gcc happy */
         .globl  __main

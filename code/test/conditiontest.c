@@ -38,6 +38,42 @@ void CreateCondition_Test()
     if (conditionlock1 == conditionlock2) {
         Write("CreateCondition failed: Should NOT return the same index when creating two locks.\n", 77, 1);
     }
+
+
+    conditionlock1 = DestroyCV(-1);
+    if (conditionlock1 != -1) {
+        Write("CreateCondition failed: Should return -1 for negative lock identifier lengths.\n", sizeof("CreateCondition failed: Should return -1 for negative lock identifier lengths.\n"), 1);
+    }
+
+    conditionlock1 = DestroyCV(1000);
+    if (conditionlock1 != -1) {
+        Write("CreateCondition failed: Should return -1 when the length of the lock's identifier is 0.\n", sizeof("CreateCondition failed: Should return -1 when the length of the lock's identifier is 0.\n"), 1);
+    }
+
+    conditionlock1 = DestroyCV(0, 1);
+    if (conditionlock1 != -1) 
+    {
+        Write("CreateCondition failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
+    }
+
+
+    /* THIS TEST BELOW IS PROBLEMATIC, MAKES NACHOS EXIT WITH ERRORs
+
+    conditionlock1 = DestroyCV(-1, 1);
+    if (conditionlock1 != -1) {
+        Write("CreateCondition failed: Should return -1 for invalid pointers to lock identifier.\n", 77, 1);
+    }
+    */
+    conditionlock1 = DestroyCV("abc", 3);
+    if (conditionlock1 == -1) {
+        Write("CreateCondition failed: Should NOT return -1 when valid lock identifier and lengths are passed in.\n", 94, 1);
+    }
+
+    conditionlock2 = DestroyCV("abc", 3);
+    if (conditionlock1 == conditionlock2) {
+        Write("CreateCondition failed: Should NOT return the same index when creating two locks.\n", 77, 1);
+    }
+
 }
 
 void Wait_Test() 

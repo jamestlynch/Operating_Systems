@@ -783,7 +783,7 @@ void Exec_Thread()
 
 void Exec_Syscall(int vaddr, int len)
 {
-  /*if (len <= 0) 
+  if (len <= 0) 
   { // Validate length is nonzero and positive
     printf("Invalid length for thread identifier.\n");
     return;
@@ -837,7 +837,7 @@ void Exec_Syscall(int vaddr, int len)
   delete executable;
 
 
-  machine->Run();*/
+  machine->Run();
   t->Fork((VoidFunctionPtr)Exec_Thread,0);
 }
 
