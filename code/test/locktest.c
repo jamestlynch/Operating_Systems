@@ -25,7 +25,6 @@ CreateLock_Test() {
     }
 
     /* THIS TEST BELOW CAUSES IT TO BREAK.
-
     indexlock1 = CreateLock(-1, 1);
     if (indexlock1 != -1) {
         Write("CreateLock failed: Should return -1 for invalid pointers to lock identifier.\n", 77, 1);
@@ -49,55 +48,83 @@ CreateLock_Test() {
 }
 
 void
-AcquireLock_Test() {
+Acquire_Test() {
     int acquire1;
-    int acquire2;
+    int release1;
     int lockIndex;
-    int destroyIndex;
+    int lockIndex2;
 
     lockIndex = CreateLock("abc", 3);
+    lockIndex2 = CreateLock("def", 3);
 
     acquire1= AcquireLock(-1);
     if (acquire1 != -1){
-            Write("CreateLock failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
+            Write("AcquirLock1 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
     }
     acquire1= AcquireLock(100);
     if (acquire1 != -1){
-            Write("CreateLock failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
+            Write("AcquirLock1 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
     }
-
-    acquire1= AcquireLock(1);
-    if (acquire1==0){
+    acquire1= AcquireLock(lockIndex);
+    if (acquire1!= -1){
             Write("Lock created for acquire test.\n", 77, 1);
     }
 
+    /*
+    set lock index to be acquired by someone else. go on wait queue.
+
+
+
+    AFTER SUCCESSFULL CREATING A LOCK, THE NEXT RELEASE DOESNT WORK AS EXPECTED.
+    */
     /*destroyIndex= DestroyLock(acquire1);
 
-    acquire1= AcquireLock(1);
-    acquire2=AcquireLock(1);
-    if (acquire2 != )*/
-
-
-
-
-	/* Invalid indeces: negative, out of bounds */
 
 	/* Lock is set to delete */
 
 	/* Process is not lock owner */
-
 }
-
-void 
-ReleaseLock_Test() {
+void Release_Test(){
+    int acquire1;
+    int release1;
     int lockIndex;
-	/* Invalid indeces: negative, out of bounds */
+    int lockIndex2;
 
-	/* Process is not lock owner */
-
-    /* does not currently own the lock*/
     lockIndex = CreateLock("abc", 3);
+    lockIndex2 = CreateLock("def", 3);
 
+    /*confirm in the correct process, confirm is the lock owner currently- cannot release lock*/
+
+    acquire1= AcquireLock(-1);
+    if (acquire1 != -1){
+            Write("AcquirLock0 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
+    }
+    acquire1= AcquireLock(100);
+    if (acquire1 != -1){
+            Write("AcquirLock1 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
+    }
+
+    acquire1= AcquireLock(lockIndex);
+    if (acquire1!= -1){
+            Write("Lock created for acquire test.\n", 77, 1);
+    }
+
+        release1= ReleaseLock(300);
+    if (release1 != -1){
+            Write("ReleaLock0 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
+    }
+    release1= ReleaseLock(100);
+    if (release1 != -1){
+            Write("ReleaLock1 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
+    }
+    release1= ReleaseLock(200);
+    if (release1!=-1){
+            Write("ReleaLock2 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
+    }
+    release1= ReleaseLock(acquire1);
+    if (release1 == -1){
+            Write("ReleaLock3 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
+    }
 }
 
 void
@@ -121,19 +148,38 @@ DestroyLock_Test() {
     else{
         Write("Success", 7, 1);
     }
+    indexlock1= DestroyLock(lockIndex);
 
-	/* Process is not lock owner */
+    int destroy1;
+    int cv;
+    int acquire;
+    int release;
 
-	/* No waiting threads: delete */
+    cv= CreateCV("abc", 3);
+    destroy1= DestroyCV(cv);
 
-	/* Waiting threads: don't delete but set to be deleted */
+    cv= CreateCV("def", 3);
+    acquire= AcquireCV(cv);
+    release= ReleaseCV(acquire);
+    destroy1= DestroyCV();
+
+    cv= CreateCV("def", 3);
+    acquire();
+    DestroyCV();
+    release();
+    DestroyCV();
+
+
+
+    /*LOCK OWNER
+    //ARE THERE WAITING THREADS? NO, DELETE LOCK IMMEDIATELY. YES, SET TODELETE=TRUE*/
 }
 
 int 
 main() {
-    /*CreateLock_Test();*/
-     CreateLock_Test(); 
-    /* ReleaseLock_Test(); */
+     /*CreateLock_Test(); */
+     Acquire_Test();
+     /*Release_Test();*/
     /* DestroyLock_Test(); */
 
 

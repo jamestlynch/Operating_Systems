@@ -25,6 +25,7 @@
 #include "syscall.h"
 #include <stdio.h>
 #include <iostream>
+#include <string>
 
 using namespace std;
 
@@ -360,11 +361,15 @@ int AcquireLock(int index)
 
   if(checkLockErrors(index) == -1)
   {
+    printf("inside acquire lock, error found.");
     locksLock->Release();
     return -1;
   }
-  // TODO: if lock is set toDestroy == TRUE, prevent other threads from acquiring
-
+  if(locks.at(index)->lock->toDelete==true){
+    printf("You can't acquire this lock since it's going to be deleted."); 
+    locksLock->Release();
+    return -1;  
+  }
   locks.at(index)->lock->Acquire();
   
   locksLock->Release();
@@ -377,6 +382,7 @@ int ReleaseLock(int index)
   
   if(checkLockErrors(index) == -1)
   {
+    printf("inside release lock, error found.");
     locksLock->Release();
     return -1;
   }
@@ -384,7 +390,7 @@ int ReleaseLock(int index)
   locks.at(index)->lock->Release();
 
   locksLock->Release();
-  return 0;
+  return index;
 }
 
 // DestroyLock
@@ -679,9 +685,10 @@ else{
   }*/
 }
 
-void Fork_Syscall(/*void (*func)*/)
+void Fork_Syscall(*void (*func))
 {
-
+  Process *p= processInfo.at(currentThread->processID);
+  Thread *t = new Thread("");
   //increment threads 
   //computation for where stackReg should be must be done in Fork_Syscall
   //bitMap valid-find needs to be stored inside fork

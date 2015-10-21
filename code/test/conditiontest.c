@@ -47,22 +47,23 @@ void Wait_Test()
 
 	conditionIndex = Wait(-1, -1);
     if (conditionIndex != -1){
-        Write("CreateLock failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
+        Write("Wait_Locks failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
     }
 
     conditionIndex= Wait(-1, 1);
      if (conditionIndex != -1){
-        Write("CreateLock failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
+        Write("Wait_Locks failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
     }
 
     conditionIndex= Wait(1, -1);
      if (conditionIndex != -1){
-        Write("CreateLock failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
+        Write("Wait_Locks failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
     }
 	return;
 
 }
 void Signal_Test(){
+    int signal;
 
 }
 void Broadcast_Test(){
@@ -70,6 +71,7 @@ void Broadcast_Test(){
     int acq;
 
     cv= CreateCV("abc", 3);
+    /*cv= CreateCV*/
 
 }
 void DestroyCV_Test()
