@@ -117,7 +117,8 @@ SwapHeader (NoffHeader *noffH)
 //      constructed set to false.
 //----------------------------------------------------------------------
 
-AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
+AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) 
+{
     NoffHeader noffH;
     unsigned int i, size;
 
@@ -126,54 +127,72 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) {
     fileTable.Put(0);
 
     executable->ReadAt((char *)&noffH, sizeof(noffH), 0);
-    if ((noffH.noffMagic != NOFFMAGIC) && 
-		(WordToHost(noffH.noffMagic) == NOFFMAGIC))
-    	SwapHeader(&noffH);
+    if ((noffH.noffMagic != NOFFMAGIC) && (WordToHost(noffH.noffMagic) == NOFFMAGIC))
+    {
+        SwapHeader(&noffH);
+    }
+    	
     ASSERT(noffH.noffMagic == NOFFMAGIC);
 
-    size = noffH.code.size + noffH.initData.size + noffH.uninitData.size ;
+    size = noffH.code.size + noffH.initData.size + noffH.uninitData.size;
     numPages = divRoundUp(size, PageSize) + divRoundUp(UserStackSize,PageSize);
-                                                // we need to increase the size
-						// to leave room for the stack
+    // we need to increase the size
+	// to leave room for the stack
     size = numPages * PageSize;
 
-    ASSERT(numPages <= NumPhysPages);		// check we're not trying
-						// to run anything too big --
-						// at least until we have
-						// virtual memory
+    ASSERT(numPages <= NumPhysPages);		
+    // check we're not trying
+	// to run anything too big --
+	// at least until we have
+	// virtual memory
 
-    DEBUG('a', "Initializing address space, num pages %d, size %d\n", 
-					numPages, size);
-// first, set up the translation 
-    pageTable = new TranslationEntry[numPages];
-    for (i = 0; i < numPages; i++) {
-	pageTable[i].virtualPage = i;	// for now, virtual page # = phys page #
-	pageTable[i].physicalPage = i;
-	pageTable[i].valid = TRUE;
-	pageTable[i].use = FALSE;
-	pageTable[i].dirty = FALSE;
-	pageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
-					// a separate page, we could set its 
-					// pages to be read-only
-    }
+    DEBUG('a', "Initializing address space, num pages %d, size %d\n", numPages, size);
     
-// zero out the entire address space, to zero the unitialized data segment 
-// and the stack segment
-    bzero(machine->mainMemory, size);
+    // first, set up the translation 
+    memLock->Acquire();
+    pageTable = new TranslationEntry[numPages];
+    for (i = 0; i < numPages; i++) 
+    {
+    	pageTable[i].virtualPage = i;	// for now, virtual page # = phys page #
+    	//pageTable[i].physicalPage = i;
+        pageTable[i].physicalPage = memBitMap.Find();
+    	pageTable[i].valid = TRUE;
+    	pageTable[i].use = FALSE;
+    	pageTable[i].dirty = FALSE;
+    	pageTable[i].readOnly = FALSE;  
+        // if the code segment was entirely on 
+		// a separate page, we could set its 
+		// pages to be read-only
 
-// then, copy in the code and data segments into memory
-    if (noffH.code.size > 0) {
-        DEBUG('a', "Initializing code segment, at 0x%x, size %d\n", 
-			noffH.code.virtualAddr, noffH.code.size);
-        executable->ReadAt(&(machine->mainMemory[noffH.code.virtualAddr]),
-			noffH.code.size, noffH.code.inFileAddr);
+        // find page memory that nobody is using
+        // copy from executable to that page of memory
+        // how much to copy? pagesize!
+        if (pageTable[i].physicalPage == -1)
+        {
+          // print message
+          interrupt->halt();
+        }
+
+        executable->ReadAt(machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize, 40 + pageTable[i].virtualPage * PageSize));
     }
-    if (noffH.initData.size > 0) {
-        DEBUG('a', "Initializing data segment, at 0x%x, size %d\n", 
-			noffH.initData.virtualAddr, noffH.initData.size);
-        executable->ReadAt(&(machine->mainMemory[noffH.initData.virtualAddr]),
-			noffH.initData.size, noffH.initData.inFileAddr);
+    memLock->Release();
+    
+    // zero out the entire address space, to zero the unitialized data segment 
+    // and the stack segment
+    // bzero(machine->mainMemory, size);
+
+    // then, copy in the code and data segments into memory
+    /*if (noffH.code.size > 0) 
+    {
+        DEBUG('a', "Initializing code segment, at 0x%x, size %d\n", noffH.code.virtualAddr, noffH.code.size);
+        executable->ReadAt(&(machine->mainMemory[noffH.code.virtualAddr]), noffH.code.size, noffH.code.inFileAddr);
     }
+
+    if (noffH.initData.size > 0) 
+    {
+        DEBUG('a', "Initializing data segment, at 0x%x, size %d\n", noffH.initData.virtualAddr, noffH.initData.size);
+        executable->ReadAt(&(machine->mainMemory[noffH.initData.virtualAddr]), noffH.initData.size, noffH.initData.inFileAddr);
+    }*/
 }
 
 //----------------------------------------------------------------------
@@ -198,8 +217,7 @@ AddrSpace::~AddrSpace()
 //	when this thread is context switched out.
 //----------------------------------------------------------------------
 
-void
-AddrSpace::InitRegisters()
+void AddrSpace::InitRegisters()
 {
     int i;
 
@@ -243,4 +261,51 @@ void AddrSpace::RestoreState()
 {
     machine->pageTable = pageTable;
     machine->pageTableSize = numPages;
+}
+
+void AddrSpace::NewPageTable()
+{
+    TranslationEntry newPT = new TranslationEntry(numPages + 8); // add 8 pages for new stack
+
+    for(int i = 0; i < numPages; i++)
+    {
+        newPT[i].virtualPage    =   pageTable[i].virtualPage;
+        newPT[i].physicalPage   =   pageTable[i].physicalPage;
+        newPT[i].valid          =   pageTable[i].valid;
+        newPT[i].use            =   pageTable[i].use;
+        newPT[i].dirty          =   pageTable[i].dirty;
+        newPT[i].readOnly       =   pageTable[i].readOnly;
+    }
+
+    for(int i = numPages; i < numPages + 8; i++)
+    {
+        pageTable[i].virtualPage = i;   // for now, virtual page # = phys page #
+        pageTable[i].physicalPage = memBitMap.Find();
+        pageTable[i].valid = TRUE;
+        pageTable[i].use = FALSE;
+        pageTable[i].dirty = FALSE;
+        pageTable[i].readOnly = FALSE;  
+        // if the code segment was entirely on 
+        // a separate page, we could set its 
+        // pages to be read-only
+
+        // find page memory that nobody is using
+        // copy from executable to that page of memory
+        // how much to copy? pagesize!
+        if (pageTable[i].physicalPage == -1)
+        {
+          // print message
+          interrupt->halt();
+        }
+
+        // I don't think this is right...ß
+        executable->ReadAt(machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize, 40 + pageTable[i].virtualPage * PageSize));
+    }
+
+    delete pageTable;
+    pageTable = newPT;
+
+    numPages = numPages + 8;
+
+    RestoreState();
 }

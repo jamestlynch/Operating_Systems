@@ -20,12 +20,12 @@
 // Copyright (c) 1992-1993 The Regents of the University of California.
 // All rights reserved.  See copyright.h for copyright notice and limitation 
 // of liability and disclaimer of warranty provisions.
-
 #include "copyright.h"
 #include "system.h"
 #include "syscall.h"
 #include <stdio.h>
 #include <iostream>
+#include <string>
 
 using namespace std;
 
@@ -56,7 +56,6 @@ int copyin(unsigned int vaddr, int len, char *buf)
 
       vaddr++;
     }
-
     delete paddr;
     return len;
 }
@@ -269,29 +268,27 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
 {
   locksLock->Acquire();
 
-  if (len <= 0) 
-  { // Validate length is nonzero and positive
+  if (len <= 0) { // Validate length is nonzero and positive
     printf("%s","Length for lock's identifier name must be nonzero and positive\n");
     locksLock->Release();
     return -1;
   }
 
-  char *buf;
-  if ( !(buf = new char[len]) ) 
+  char * buf = new char[len + 1];
+
+  if ( !buf ) 
   { // If error allocating memory for character buffer
     printf("%s","Error allocating kernel buffer for creating new lock!\n");
     locksLock->Release();
     return -1;
   } 
-  else 
-  {
-    if ( copyin(vaddr,len,buf) == -1 ) 
-    { // If failed to read memory from vaddr passed in
-      printf("%s","Bad pointer passed to create new lock\n");
-      locksLock->Release();
-      delete[] buf;
-      return -1;
-    }
+  
+  if ( copyin(vaddr, len, buf) == -1 ) 
+  { // If failed to read memory from vaddr passed in
+    printf("%s","Bad pointer passed to create new lock\n");
+    locksLock->Release();
+    delete[] buf;
+    return -1;
   }
 
   buf[len] = '\0'; //Finished grabbing the identifier for the Lock, add null terminator character
@@ -309,7 +306,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
   locksLock->Release();
 
   delete[] buf;
-  return 0; // TODO: Return the index of the lock
+  return locks.size()-1; // TODO: Return the index of the lock
 }
 
 int checkLockErrors(unsigned int index)
@@ -355,38 +352,43 @@ int checkLockErrors(unsigned int index)
 //    * Lock they're trying to acquire belongs to their process 
 //    * Index is positive
 //  
-void AcquireLock(int index)
+int AcquireLock(int index)
 {
 
   locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
 
   if(checkLockErrors(index) == -1)
   {
+    printf("inside acquire lock, error found.");
     locksLock->Release();
-    return;
+    return -1;
   }
-  // TODO: if lock is set toDestroy == TRUE, prevent other threads from acquiring
-
+  if(locks.at(index)->lock->toDelete==true){
+    printf("You can't acquire this lock since it's going to be deleted."); 
+    locksLock->Release();
+    return -1;  
+  }
   locks.at(index)->lock->Acquire();
   
   locksLock->Release();
-  return;
+  return index;
 }
 
-void ReleaseLock(int index)
+int ReleaseLock(int index)
 {
   locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
   
   if(checkLockErrors(index) == -1)
   {
+    printf("inside release lock, error found.");
     locksLock->Release();
-    return;
+    return -1;
   }
 
   locks.at(index)->lock->Release();
 
   locksLock->Release();
-  return;
+  return index;
 }
 
 // DestroyLock
@@ -433,9 +435,10 @@ int DestroyLock(unsigned int indexlock)
     printf("Lock %d toDelete is set to true. cannot be deleted since waitqueue is not empty. \n", indexlock);
       newKernelLock->toDelete==true;
       locksLock->Release();
-      return 0;
+      return -1;
    }
    locksLock->Release();
+   return 0;
 }
 
 int checkCVErrors(unsigned int indexcv, unsigned int indexlock)
@@ -533,6 +536,7 @@ int Wait(int indexcv, int indexlock)
   if(checkCVErrors(indexcv, indexlock) == -1)
   {
     conditionsLock->Release();
+    printf("inside checking for errors");
     return -1;
   }
 
@@ -679,17 +683,138 @@ else{
   }*/
 }
 
-void Fork_Syscall(/*void (*func)*/)
+void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 {
+  if (len <= 0) 
+  { // Validate length is nonzero and positive
+    printf("Invalid length for thread identifier.\n");
+    conditionsLock->Release();
+    return -1;
+  }
+
+  char * buf = new char[len + 1];
+
+  if ( !buf ) 
+  { // If error allocating memory for character buffer
+    printf("Error allocating kernel buffer for creating new thread!\n");
+    conditionsLock->Release();
+    return -1;
+  } 
+  
+  if ( copyin(vaddr, len, buf) == -1 ) 
+  { // If failed to read memory from vaddr passed in
+    printf("Bad pointer passed to create new thread.\n");
+    delete[] buf;
+    conditionsLock->Release();
+    return -1;
+  }
+
+  buf[len] = '\0';
+
+  processLock->Acquire();
+
+  Process * p = processInfo.at(currentThread->processID);
+  Thread * t = new Thread(buf);
+
+  t->processID = p->processID;
+  t->space = p->space;
+
+  p->numExecutingThreads++;
+
+
 
   //increment threads 
+  //computation for where stackReg should be must be done in Fork_Syscall
+  //bitMap valid-find needs to be stored inside fork
 }
 
-void Exec_Syscall()
-{
+/*
+Multiple Stacks
 
-//increment thread count
-  //create new process in process table. make sure mem allocation is done.
+- Create a new stack in Fork (function in AddrSpace)
+    - Current address space - currentThread->space
+- Create new page table with numPages+8 space
+- Copy all fields at all entries from existing page table to new one
+- for(int i = 0; i < numPages; i++)
+                newpt[i].virtualPage = pageTable[i].virtualPage;
+- Allocate 8 physical pages for new stack
+- Delete old page table
+- pageTable = newPageTable
+- machine->pageTable = pageTable
+*/
+
+void Kernel_Thread(int vaddr)
+{
+  machine->WriteRegister(PCReg, vaddr);
+  machine->WriteRegister(NextPCReg, vaddr + 4);
+
+  currentThread->space->NewPageTable();
+
+  machine->Run();
+  return;
+}
+
+void Exec_Syscall(int vaddr, int len)
+{
+  if (len <= 0) 
+  { // Validate length is nonzero and positive
+    printf("Invalid length for thread identifier.\n");
+    conditionsLock->Release();
+    return -1;
+  }
+
+  char * buf = new char[len + 1];
+
+  if ( !buf ) 
+  { // If error allocating memory for character buffer
+    printf("Error allocating kernel buffer for creating new thread!\n");
+    conditionsLock->Release();
+    return -1;
+  } 
+  
+  if ( copyin(vaddr, len, buf) == -1 ) 
+  { // If failed to read memory from vaddr passed in
+    printf("Bad pointer passed to create new thread.\n");
+    delete[] buf;
+    conditionsLock->Release();
+    return -1;
+  }
+
+  buf[len] = '\0';
+
+  processLock->Acquire();
+
+  OpenFile *executable = fileSystem->Open(filename);
+  AddrSpace *space;
+
+  if (executable == NULL) 
+  {
+    printf("Unable to open file %s\n", filename);
+    return;
+  }
+
+  space = new AddrSpace(executable);
+
+
+  Process *p = new Process();
+  Thread *t = new Thread(buf);
+
+  processInfo.push_back(p);
+
+  p->processID = processInfo.size() - 1;
+  p->space = space;
+  p->numExecutingThreads = 1;
+  p->numSleepingThreads = 0;
+
+  t->processID = p->processID;
+  t->space = space;
+
+  delete executable
+
+  space->InitRegisters();
+  space->RestoreState();
+
+  machine->Run();
 }
 
 void Join_Syscall()
@@ -781,17 +906,19 @@ void ExceptionHandler(ExceptionType which)
       break;
 
       case SC_CreateLock:
-      DEBUG('a', "CreateCV syscall.\n");
+      DEBUG('a', "Create Lock syscall.\n");
       rv= CreateLock_Syscall(machine->ReadRegister(4),
       machine->ReadRegister(5));
       break;
 
       case SC_AcquireLock:
       DEBUG('a', "Acquire Lock syscall.\n");
+      rv = AcquireLock(machine->ReadRegister(4));
       break;
 
       case SC_ReleaseLock:
       DEBUG('a', "Release Lock syscall.\n");
+      rv= ReleaseLock(machine->ReadRegister(4));
       break;
 
       case SC_DestroyLock:

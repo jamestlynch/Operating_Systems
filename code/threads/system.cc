@@ -33,13 +33,13 @@ Timer *timer;                   // the hardware timer device, for invoking conte
 #ifdef USER_PROGRAM
     Machine *machine;
 
-    BitMap *memoryBitMap;
-
+    BitMap *memBitMap;
     
     vector<KernelLock*> locks;
     vector<KernelCV*> conditions;
     vector<Process*> processInfo;
 
+    Lock *memLock;
     Lock *processLock;
     Lock *conditionsLock;
     Lock *locksLock;
@@ -172,10 +172,12 @@ Initialize(int argc, char **argv)
     // Synchronize these tables with locks so only one program can access at a time
     // TODO: Do we really need locks since OS is the only "program" updating/reading from these tables?
     // TODO: Define Lock *processLock;
+    memLock = new Lock("MemBitMapLock");
     conditionsLock = new Lock("KernelCVLock");
     locksLock = new Lock("KernelLocksLock");
 
-    memoryBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes 
+    memBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes 
+
 #endif
 
 #ifdef FILESYS

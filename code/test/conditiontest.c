@@ -1,5 +1,4 @@
 #include "syscall.h"
-int printf(const char* format, ...);
 
 void CreateCondition_Test()
 {
@@ -20,11 +19,15 @@ void CreateCondition_Test()
     {
         Write("CreateCondition failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
     }
-    /*
+
+
+    /* THIS TEST BELOW IS PROBLEMATIC, MAKES NACHOS EXIT WITH ERRORs
+
     conditionlock1 = CreateCV(-1, 1);
     if (conditionlock1 != -1) {
         Write("CreateCondition failed: Should return -1 for invalid pointers to lock identifier.\n", 77, 1);
     }
+    */
 
     conditionlock1 = CreateCV("abc", 3);
     if (conditionlock1 == -1) {
@@ -34,7 +37,7 @@ void CreateCondition_Test()
     conditionlock2 = CreateCV("abc", 3);
     if (conditionlock1 == conditionlock2) {
         Write("CreateCondition failed: Should NOT return the same index when creating two locks.\n", 77, 1);
-    }*/
+    }
 }
 
 void Wait_Test() 
@@ -42,32 +45,53 @@ void Wait_Test()
 
 	int conditionIndex;
 
-	conditionIndex = Wait(1, 1);
+	conditionIndex = Wait(-1, -1);
+    if (conditionIndex != -1){
+        Write("Wait_Locks failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
+    }
+
+    conditionIndex= Wait(-1, 1);
+     if (conditionIndex != -1){
+        Write("Wait_Locks failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
+    }
+
+    conditionIndex= Wait(1, -1);
+     if (conditionIndex != -1){
+        Write("Wait_Locks failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
+    }
 	return;
 
 }
 void Signal_Test(){
+    int signal;
 
 }
 void Broadcast_Test(){
+    int cv;
+    int acq;
+
+    cv= CreateCV("abc", 3);
+    /*cv= CreateCV*/
 
 }
 void DestroyCV_Test()
 {
-	/*int test= DestroyCV(-1);*/
+	int destroy1;
+    int cv;
+
+    cv= CreateCV("abc", 3);
+    
 
 }
 
 int main() {
     /*CreateCondition_Test();*/
 
-    /*Wait_Test();*/
+    Wait_Test();
 
     /*Signal_Test();*/
 
     /*Broadcast_Test();*/
-
-    CreateCondition_Test();
 
 	/*Multiple threads test*/
 }

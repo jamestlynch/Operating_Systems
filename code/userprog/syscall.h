@@ -163,6 +163,8 @@ int DestroyCV(unsigned int indexcv);
 
 int CreateLock(char *name, int size);
 
+int ReleaseLock(int index);
+
 #endif /* IN_ASM */
 
 #endif /* SYSCALL_H */
