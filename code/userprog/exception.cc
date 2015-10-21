@@ -268,29 +268,27 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
 {
   locksLock->Acquire();
 
-  if (len <= 0) 
-  { // Validate length is nonzero and positive
+  if (len <= 0) { // Validate length is nonzero and positive
     printf("%s","Length for lock's identifier name must be nonzero and positive\n");
     locksLock->Release();
     return -1;
   }
 
-  char *buf;
-  if ( !(buf = new char[len]) ) 
+  char * buf = new char[len + 1];
+
+  if ( !buf ) 
   { // If error allocating memory for character buffer
     printf("%s","Error allocating kernel buffer for creating new lock!\n");
     locksLock->Release();
     return -1;
   } 
-  else 
-  {
-    if ( copyin(vaddr,len,buf) == -1 ) 
-    { // If failed to read memory from vaddr passed in
-      printf("%s","Bad pointer passed to create new lock\n");
-      locksLock->Release();
-      delete[] buf;
-      return -1;
-    }
+  
+  if ( copyin(vaddr, len, buf) == -1 ) 
+  { // If failed to read memory from vaddr passed in
+    printf("%s","Bad pointer passed to create new lock\n");
+    locksLock->Release();
+    delete[] buf;
+    return -1;
   }
 
   buf[len] = '\0'; //Finished grabbing the identifier for the Lock, add null terminator character
@@ -702,21 +700,139 @@ else{
   }*/
   //processLock->Release();
 }
+void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 
-void Fork_Syscall(/**void (*func)*/)
 {
-  Process *p= processInfo.at(currentThread->processID);
-  Thread *t = new Thread("");
+  if (len <= 0) 
+  { // Validate length is nonzero and positive
+    printf("Invalid length for thread identifier.\n");
+    conditionsLock->Release();
+    return -1;
+  }
+
+  char * buf = new char[len + 1];
+
+  if ( !buf ) 
+  { // If error allocating memory for character buffer
+    printf("Error allocating kernel buffer for creating new thread!\n");
+    conditionsLock->Release();
+    return -1;
+  } 
+  
+  if ( copyin(vaddr, len, buf) == -1 ) 
+  { // If failed to read memory from vaddr passed in
+    printf("Bad pointer passed to create new thread.\n");
+    delete[] buf;
+    conditionsLock->Release();
+    return -1;
+  }
+
+  buf[len] = '\0';
+
+  processLock->Acquire();
+
+  Process * p = processInfo.at(currentThread->processID);
+  Thread * t = new Thread(buf);
+
+  t->processID = p->processID;
+  t->space = p->space;
+
+  p->numExecutingThreads++;
+
+
+
   //increment threads 
   //computation for where stackReg should be must be done in Fork_Syscall
   //bitMap valid-find needs to be stored inside fork
 }
 
-void Exec_Syscall()
-{
+/*
+Multiple Stacks
 
-//increment thread count
-  //create new process in process table. make sure mem allocation is done.
+- Create a new stack in Fork (function in AddrSpace)
+    - Current address space - currentThread->space
+- Create new page table with numPages+8 space
+- Copy all fields at all entries from existing page table to new one
+- for(int i = 0; i < numPages; i++)
+                newpt[i].virtualPage = pageTable[i].virtualPage;
+- Allocate 8 physical pages for new stack
+- Delete old page table
+- pageTable = newPageTable
+- machine->pageTable = pageTable
+*/
+
+void Kernel_Thread(int vaddr)
+{
+  machine->WriteRegister(PCReg, vaddr);
+  machine->WriteRegister(NextPCReg, vaddr + 4);
+
+  currentThread->space->NewPageTable();
+
+  machine->Run();
+  return;
+}
+
+void Exec_Syscall(int vaddr, int len)
+{
+  if (len <= 0) 
+  { // Validate length is nonzero and positive
+    printf("Invalid length for thread identifier.\n");
+    conditionsLock->Release();
+    return -1;
+  }
+
+  char * buf = new char[len + 1];
+
+  if ( !buf ) 
+  { // If error allocating memory for character buffer
+    printf("Error allocating kernel buffer for creating new thread!\n");
+    conditionsLock->Release();
+    return -1;
+  } 
+  
+  if ( copyin(vaddr, len, buf) == -1 ) 
+  { // If failed to read memory from vaddr passed in
+    printf("Bad pointer passed to create new thread.\n");
+    delete[] buf;
+    conditionsLock->Release();
+    return -1;
+  }
+
+  buf[len] = '\0';
+
+  processLock->Acquire();
+
+  OpenFile *executable = fileSystem->Open(filename);
+  AddrSpace *space;
+
+  if (executable == NULL) 
+  {
+    printf("Unable to open file %s\n", filename);
+    return;
+  }
+
+  space = new AddrSpace(executable);
+
+
+  Process *p = new Process();
+  Thread *t = new Thread(buf);
+
+  processInfo.push_back(p);
+
+  p->processID = processInfo.size() - 1;
+  p->space = space;
+  p->numExecutingThreads = 1;
+  p->numSleepingThreads = 0;
+
+  t->processID = p->processID;
+  t->space = space;
+
+  delete executable
+
+  space->InitRegisters();
+  space->RestoreState();
+
+  machine->Run();
 }
 
 void Join_Syscall()

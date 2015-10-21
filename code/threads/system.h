@@ -70,7 +70,7 @@ class Machine;
     //has all the threads
     //destroy locks/cvs associated w the process
 
-	extern BitMap *memoryBitMap;
+	extern BitMap *memBitMap;
 
 	extern vector<KernelLock*> locks;
 	extern vector<KernelCV*> conditions;
@@ -78,6 +78,7 @@ class Machine;
 
 	//create locks around these tables so only one program can access at a time
 	#include "synch.h"
+    extern Lock *memLock;
 	extern Lock *processLock; //lock on process table
 	extern Lock *conditionsLock;	//lock on cv table
 	extern Lock *locksLock;	//lock on lock table
