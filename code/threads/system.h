@@ -63,7 +63,7 @@ class Machine;
     struct Process
     {
     	AddrSpace *space;
-    	int numSleepThreads;
+    	int numSleepingThreads;
     	int numExecutingThreads;
     	int processID;
     };

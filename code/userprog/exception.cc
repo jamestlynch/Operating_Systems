@@ -313,13 +313,13 @@ int checkLockErrors(unsigned int index)
 {
   if (index < 0) 
   {
-    printf("%s","Invalid lock table index\n");
+    printf("%s","Invalid lock table index, negative.\n");
     return -1;
   }
 
-  if (index > locks.size()) 
+  if (index > locks.size()-1) 
   {
-    printf("%s","Invalid lock table index\n");
+    printf("%s","Invalid lock table index, bigger than size.\n");
     return -1;
   }
 
@@ -355,7 +355,7 @@ int checkLockErrors(unsigned int index)
 int AcquireLock(int index)
 {
 
-  locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
+  // locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
 
   if(checkLockErrors(index) == -1)
   {
@@ -363,20 +363,29 @@ int AcquireLock(int index)
     locksLock->Release();
     return -1;
   }
-  if(locks.at(index)->lock->toDelete==true){
+  if(locks.at(index)->toDelete==true){
     printf("You can't acquire this lock since it's going to be deleted."); 
     locksLock->Release();
     return -1;  
   }
+
+  processLock->Acquire();
+  processInfo.at(currentThread->processID)->numExecutingThreads--;
+  processInfo.at(currentThread->processID)->numSleepingThreads++;
+  processLock->Release();
   locks.at(index)->lock->Acquire();
+  processLock->Acquire();
+  processInfo.at(currentThread->processID)->numExecutingThreads++;
+  processInfo.at(currentThread->processID)->numSleepingThreads--;
+  processLock->Release();
   
-  locksLock->Release();
+  // locksLock->Release();
   return index;
 }
 
 int ReleaseLock(int index)
 {
-  locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
+  // locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
   
   if(checkLockErrors(index) == -1)
   {
@@ -387,7 +396,7 @@ int ReleaseLock(int index)
 
   locks.at(index)->lock->Release();
 
-  locksLock->Release();
+  // locksLock->Release();
   return index;
 }
 
@@ -423,7 +432,7 @@ int DestroyLock(unsigned int indexlock)
      locksLock->Release();
      return -1;
    }
-   if (!(newKernelLock->lock->sleepqueue->IsEmpty())){
+   if (newKernelLock->lock->sleepqueue->IsEmpty()){
     delete newKernelLock->lock;
     delete newKernelLock->space;
     newKernelLock=NULL;
@@ -531,7 +540,7 @@ int CreateCV(unsigned int vaddr, int len)
 
 int Wait(int indexcv, int indexlock)
 {
-  conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
+  // conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
 
   if(checkCVErrors(indexcv, indexlock) == -1)
   {
@@ -539,15 +548,22 @@ int Wait(int indexcv, int indexlock)
     printf("inside checking for errors");
     return -1;
   }
-
+  processLock->Acquire();
+  processInfo.at(currentThread->processID)->numExecutingThreads--;
+  processInfo.at(currentThread->processID)->numSleepingThreads++;
+  processLock->Release();
   conditions.at(indexcv)->condition->Wait(locks.at(indexlock)->lock);
-  conditionsLock->Release();
+  processLock->Acquire();
+  processInfo.at(currentThread->processID)->numExecutingThreads++;
+  processInfo.at(currentThread->processID)->numSleepingThreads--;
+  processLock->Release();
+  // conditionsLock->Release();
   return 0;
 }
 
 int Signal(int indexcv, int indexlock)
 {
-  conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
+  // conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
 
   if(checkCVErrors(indexcv, indexlock) == -1)
   {
@@ -559,13 +575,13 @@ int Signal(int indexcv, int indexlock)
   if (conditions.at(indexcv)->toDelete==true && conditions.at(indexcv)->condition->waitqueue->IsEmpty()){
     DestroyCV(indexcv);
   }
-  conditionsLock->Release();
+  // conditionsLock->Release();
   return 0;
 }
 
 int Broadcast(int indexcv, int indexlock)
 {
-  conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
+  // conditionsLock->Acquire(); //Synchronize condition access, subsequent threads will go on queue
 
   if(checkCVErrors(indexcv, indexlock) == -1)
   {
@@ -578,7 +594,7 @@ int Broadcast(int indexcv, int indexlock)
   if (conditions.at(indexcv)->toDelete==true){
     DestroyCV(indexcv);
   }
-  conditionsLock->Release();
+  // conditionsLock->Release();
   return 0;
   }
 
@@ -614,7 +630,7 @@ int DestroyCV(unsigned int indexcv)
      conditionsLock->Release();
      return -1;
    }
-   if (!(newKernelCV->condition->waitqueue->IsEmpty())){ //AND WAIT QUEUE FOR THE LOCK IS EMPTY
+   if (newKernelCV->condition->waitqueue->IsEmpty()){ //AND WAIT QUEUE FOR THE LOCK IS EMPTY
       delete newKernelCV->condition;
       delete newKernelCV->space;
       newKernelCV=NULL;
@@ -645,13 +661,14 @@ void Yield_Syscall()
 void Exit_Syscall(int status)
 {
   currentThread->Finish();
-//acquire a lock to change the process table..
+//processLock->Acquire();
 /*if (processInfo.at(currentThread->processID)->numExecutingThreads != 1) 
 {
   //thread is not the last one in process
   printf("Thread is not the last one in process. Current thread -> finish called. \n");
     currentThread->Finish();
     processInfo.at(currentThread->processID)->numExecutingThreads--;
+    processLock->Release();
     return;
 }
 if (processInfo.at(currentThread->processID)->numExecutingThreads==1 && ((processInfo.size()-1) == 1)){
@@ -681,9 +698,10 @@ else{
   printf("%s", "You incorrectly called exit. No threads exited.\n");
   //currentThread->Finish(); //needs to be in here according to piazza
   }*/
+  //processLock->Release();
 }
-
 void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
+
 {
   if (len <= 0) 
   { // Validate length is nonzero and positive

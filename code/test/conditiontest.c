@@ -78,10 +78,20 @@ void DestroyCV_Test()
 {
 	int destroy1;
     int cv;
+    int acquire;
+    int release;
 
     cv= CreateCV("abc", 3);
-    
+    destroy1= DestroyCV(cv);
 
+    cv= CreateCV("def", 3);
+    acquire();
+    release();
+
+    cv= CreateCV("def", 3);
+    acquire();
+    DestroyCV();
+    release();
 }
 
 int main() {
