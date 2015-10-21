@@ -186,6 +186,22 @@ CreateLock:
 	j	$31
 	.end CreateLock
 
+	.globl AcquireLock
+	.ent	AcquireLock
+AcquireLock:
+	addiu $2,$0,SC_AcquireLock
+	syscall
+	j	$31
+	.end AcquireLock
+
+	.globl DestroyLock
+	.ent	DestroyLock
+DestroyLock:
+	addiu $2,$0,SC_DestroyLock
+	syscall
+	j	$31
+	.end DestroyLock
+
 
 
 /* dummy function to keep gcc happy */

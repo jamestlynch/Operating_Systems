@@ -20,7 +20,6 @@
 // Copyright (c) 1992-1993 The Regents of the University of California.
 // All rights reserved.  See copyright.h for copyright notice and limitation 
 // of liability and disclaimer of warranty provisions.
-
 #include "copyright.h"
 #include "system.h"
 #include "syscall.h"
@@ -56,7 +55,6 @@ int copyin(unsigned int vaddr, int len, char *buf)
 
       vaddr++;
     }
-
     delete paddr;
     return len;
 }
@@ -309,7 +307,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
   locksLock->Release();
 
   delete[] buf;
-  return 0; // TODO: Return the index of the lock
+  return locks.size()-1; // TODO: Return the index of the lock
 }
 
 int checkLockErrors(unsigned int index)
@@ -355,7 +353,7 @@ int checkLockErrors(unsigned int index)
 //    * Lock they're trying to acquire belongs to their process 
 //    * Index is positive
 //  
-void AcquireLock(int index)
+int AcquireLock(int index)
 {
 
   locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
@@ -363,30 +361,30 @@ void AcquireLock(int index)
   if(checkLockErrors(index) == -1)
   {
     locksLock->Release();
-    return;
+    return -1;
   }
   // TODO: if lock is set toDestroy == TRUE, prevent other threads from acquiring
 
   locks.at(index)->lock->Acquire();
   
   locksLock->Release();
-  return;
+  return index;
 }
 
-void ReleaseLock(int index)
+int ReleaseLock(int index)
 {
   locksLock->Acquire(); // Synchronize lock access, subsequent threads will go on queue
   
   if(checkLockErrors(index) == -1)
   {
     locksLock->Release();
-    return;
+    return -1;
   }
 
   locks.at(index)->lock->Release();
 
   locksLock->Release();
-  return;
+  return 0;
 }
 
 // DestroyLock
@@ -433,9 +431,10 @@ int DestroyLock(unsigned int indexlock)
     printf("Lock %d toDelete is set to true. cannot be deleted since waitqueue is not empty. \n", indexlock);
       newKernelLock->toDelete==true;
       locksLock->Release();
-      return 0;
+      return -1;
    }
    locksLock->Release();
+   return 0;
 }
 
 int checkCVErrors(unsigned int indexcv, unsigned int indexlock)
@@ -533,6 +532,7 @@ int Wait(int indexcv, int indexlock)
   if(checkCVErrors(indexcv, indexlock) == -1)
   {
     conditionsLock->Release();
+    printf("inside checking for errors");
     return -1;
   }
 
@@ -683,6 +683,8 @@ void Fork_Syscall(/*void (*func)*/)
 {
 
   //increment threads 
+  //computation for where stackReg should be must be done in Fork_Syscall
+  //bitMap valid-find needs to be stored inside fork
 }
 
 void Exec_Syscall()
@@ -781,17 +783,19 @@ void ExceptionHandler(ExceptionType which)
       break;
 
       case SC_CreateLock:
-      DEBUG('a', "CreateCV syscall.\n");
+      DEBUG('a', "Create Lock syscall.\n");
       rv= CreateLock_Syscall(machine->ReadRegister(4),
       machine->ReadRegister(5));
       break;
 
       case SC_AcquireLock:
       DEBUG('a', "Acquire Lock syscall.\n");
+      rv = AcquireLock(machine->ReadRegister(4));
       break;
 
       case SC_ReleaseLock:
       DEBUG('a', "Release Lock syscall.\n");
+      rv= ReleaseLock(machine->ReadRegister(4));
       break;
 
       case SC_DestroyLock:
