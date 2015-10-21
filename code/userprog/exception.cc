@@ -702,7 +702,7 @@ else{
 }
 void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 
-{
+{/*
   if (len <= 0) 
   { // Validate length is nonzero and positive
     printf("Invalid length for thread identifier.\n");
@@ -739,11 +739,9 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 
   p->numExecutingThreads++;
 
-
-
   //increment threads 
   //computation for where stackReg should be must be done in Fork_Syscall
-  //bitMap valid-find needs to be stored inside fork
+  //bitMap valid-find needs to be stored inside fork*/
 }
 
 /*
@@ -766,7 +764,7 @@ void Kernel_Thread(int vaddr)
   machine->WriteRegister(PCReg, vaddr);
   machine->WriteRegister(NextPCReg, vaddr + 4);
 
-  currentThread->space->NewPageTable();
+  //currentThread->space->NewPageTable();
 
   machine->Run();
   return;
@@ -774,7 +772,7 @@ void Kernel_Thread(int vaddr)
 
 void Exec_Syscall(int vaddr, int len)
 {
-  if (len <= 0) 
+  /*if (len <= 0) 
   { // Validate length is nonzero and positive
     printf("Invalid length for thread identifier.\n");
     conditionsLock->Release();
@@ -832,7 +830,7 @@ void Exec_Syscall(int vaddr, int len)
   space->InitRegisters();
   space->RestoreState();
 
-  machine->Run();
+  machine->Run();*/
 }
 
 void Join_Syscall()
@@ -842,13 +840,11 @@ void Join_Syscall()
 
 void ExceptionHandler(ExceptionType which) 
 {
-
   int type = machine->ReadRegister(2); // Which syscall?
   int rv = 0; 	// the return value from a syscall
 
   if ( which == SyscallException ) 
   {
-	 
     switch (type) 
     {
       default:
@@ -866,7 +862,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_Exec:
       DEBUG('a', "Exec syscall.\n");
-      Exec_Syscall();
+      Exec_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
       case SC_Join:
@@ -915,7 +911,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_Fork:
       DEBUG('a', "Fork syscall.\n");
-      Fork_Syscall();
+      Fork_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
       break;
 
       case SC_Yield:

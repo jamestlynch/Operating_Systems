@@ -69,7 +69,7 @@ typedef int SpaceId;
 /* Run the executable, stored in the Nachos file "name", and return the 
  * address space identifier
  */
-SpaceId Exec(char *name);
+void Exec_Syscall(int vaddr, int len);
  
 /* Only return once the the user program "id" has finished.  
  * Return the exit status.
