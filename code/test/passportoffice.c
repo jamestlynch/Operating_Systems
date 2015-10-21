@@ -172,71 +172,99 @@ void InitializeClerkData (int clerks[][10], int numClerks)
 	}
 }
 
-void InitializeLocks (int locks[5], int numLocks, char lockNames[5][20], int lockNameLengths[5])
+void InitializeLocks (int locks[5], int numLocks, char lockNames[5], int lockNameLength)
 {
 	int i;
 
 	for (i = 0; i < numLocks; i++)
 	{
-		locks[i] = CreateLock(lockNames[i], lockNameLengths[i]);
+		/*locks[i] = CreateLock(lockNames[i], lockNameLength);*/
+		WriteInt(i);
+		Write(lockNames[i], lockNameLength, 1);
 	}
 }
 
-void InitializeCVs (int conditions[5], int numCVs, char cvNames[5][20], int cvNameLengths[5])
+void InitializeCVs (int conditions[5], int numCVs, char cvNames[5], int cvNameLength)
 {
 	int i;
 
 	for (i = 0; i < numCVs; i++)
 	{
-		conditions[i] = CreateCV(cvNames[i], cvNameLengths[i]);
+		/*conditions[i] = CreateCV(cvNames[i], cvNameLength);*/
 	}
 }
 
 void InitializeApplicationClerkData ()
 {
-	int *appclerkGroupData = clerkGroupData[clerkType_appClerks];
-	int clerkCount = clerkCounts[clerkType_appClerks];
+	int clerkType = clerkType_appClerks;
+	int clerkCount = clerkCounts[clerkType];
+	char *synchStructNames[5];
+	int synchStructNameLength;
 
 	InitializeClerkData(appclerks, clerkCount);
 
-	char clerkLockNames[5][20] = { "App:0-ClerkLock", "App:1-ClerkLock", "App:2-ClerkLock", "App:3-ClerkLock", "App:4-ClerkLock" };
-	int clerkLockNameLengths[5] = { 15, 15, 15, 15, 15 };
-	InitializeLocks(appclerkLocks, clerkCount, clerkLockNames, clerkLockNameLengths);
+	synchStructNames[0] = "App:0-ClerkLock";
+	synchStructNames[1] = "App:1-ClerkLock";
+	synchStructNames[2] = "App:2-ClerkLock";
+	synchStructNames[3] = "App:3-ClerkLock";
+	synchStructNames[4] = "App:4-ClerkLock";
+	synchStructNameLength = 15;
+	InitializeLocks(appclerkLocks, clerkCount, *synchStructNames, synchStructNameLength);
 
-	char lineCVNames[5][20] = { "App:0-LineCV", "App:1-LineCV", "App:2-LineCV", "App:3-LineCV", "App:4-LineCV" };
-	int lineCVNameLengths[5] = { 12, 12, 12, 12, 12 };
-	InitializeCVs(appclerkLineCVs, clerkCount, lineCVNames, lineCVNameLengths);
+	synchStructNames[0] = "App:0-LineCV";
+	synchStructNames[1] = "App:1-LineCV";
+	synchStructNames[2] = "App:2-LineCV";
+	synchStructNames[3] = "App:3-LineCV";
+	synchStructNames[4] = "App:4-LineCV";
+	synchStructNameLength = 12;
+	InitializeCVs(appclerkLineCVs, clerkCount, *synchStructNames, synchStructNameLength);
 
-	char bribeLineCVNames[5][20] = { "App:0-BribeLineCV", "App:1-BribeLineCV", "App:2-BribeLineCV", "App:3-BribeLineCV", "App:4-BribeLineCV" };
-	int bribeLineCVNameLengths[5] = { 17, 17, 17, 17, 17 };
-	InitializeCVs(appclerkBribeLineCVs, clerkCount, bribeLineCVNames, bribeLineCVNameLengths);
+	synchStructNames[0] = "App:0-BribeLineCV";
+	synchStructNames[1] = "App:1-BribeLineCV";
+	synchStructNames[2] = "App:2-BribeLineCV";
+	synchStructNames[3] = "App:3-BribeLineCV";
+	synchStructNames[4] = "App:4-BribeLineCV";
+	synchStructNameLength = 17;
+	InitializeCVs(appclerkBribeLineCVs, clerkCount, *synchStructNames, synchStructNameLength);
 
-	char senatorLineCVNames[5][20] = { "App:0-SenatorLineCV", "App:1-SenatorLineCV", "App:2-SenatorLineCV", "App:3-SenatorLineCV", "App:4-SenatorLineCV" };
-	int senatorLineCVNameLengths[5] = { 19, 19, 19, 19, 19 };
-	InitializeCVs(appclerkSenatorLineCVs, clerkCount, senatorLineCVNames, senatorLineCVNameLengths);
+	synchStructNames[0] = "App:0-SenatorLineCV";
+	synchStructNames[1] = "App:1-SenatorLineCV";
+	synchStructNames[2] = "App:2-SenatorLineCV";
+	synchStructNames[3] = "App:3-SenatorLineCV";
+	synchStructNames[4] = "App:4-SenatorLineCV";
+	synchStructNameLength = 19;
+	InitializeCVs(appclerkSenatorLineCVs, clerkCount, *synchStructNames, synchStructNameLength);
 
-	char workCVNames[5][20] = { "App:0-WorkCV", "App:1-WorkCV", "App:2-WorkCV", "App:3-WorkCV", "App:4-WorkCV" };
-	int workCVNameLengths[5] = { 12, 12, 12, 12, 12 };
-	InitializeCVs(appclerkWorkCVs, clerkCount, workCVNames, workCVNameLengths);
+	synchStructNames[0] = "App:0-WorkCV";
+	synchStructNames[1] = "App:1-WorkCV";
+	synchStructNames[2] = "App:2-WorkCV";
+	synchStructNames[3] = "App:3-WorkCV";
+	synchStructNames[4] = "App:4-WorkCV";
+	synchStructNameLength = 12;
+	InitializeCVs(appclerkWorkCVs, clerkCount, *synchStructNames, synchStructNameLength);
 
-	char breakCVNames[5][20] = { "App:0-BreakCV", "App:1-BreakCV", "App:2-BreakCV", "App:3-BreakCV", "App:4-BreakCV" };
-	int breakCVNameLengths[5] = { 13, 13, 13, 13, 13 };
-	InitializeCVs(appclerkBreakCVs, clerkCount, breakCVNames, breakCVNameLengths);
+	synchStructNames[0] = "App:0-BreakCV";
+	synchStructNames[1] = "App:1-BreakCV";
+	synchStructNames[2] = "App:2-BreakCV";
+	synchStructNames[3] = "App:3-BreakCV";
+	synchStructNames[4] = "App:4-BreakCV";
+	synchStructNameLength = 13;
+	InitializeCVs(appclerkBreakCVs, clerkCount, *synchStructNames, synchStructNameLength);
 
-	appclerkGroupData[index_clerksData] = appclerks;
-	appclerkGroupData[index_clerksCount] = clerkCount;
-	appclerkGroupData[index_clerksMoney] = 0;
-	appclerkGroupData[index_lineLock] = CreateLock("AppClerks-LineLock", 18);
-	appclerkGroupData[index_moneyLock] = CreateLock("AppClerks-MoneyLock", 19);
-	appclerkGroupData[index_clerkLocks] = appclerkLocks;
-	appclerkGroupData[index_lineCVs] = appclerkLineCVs;
-	appclerkGroupData[index_bribeLineCVs] = appclerkBribeLineCVs;
-	appclerkGroupData[index_senatorLineCVs] = appclerkSenatorLineCVs;
-	appclerkGroupData[index_clerkWorkCVs] = appclerkWorkCVs;
-	appclerkGroupData[index_breakCVs] = appclerkBreakCVs;
+	clerkGroupData[clerkType][index_clerksData] = (unsigned int)appclerks;
+	clerkGroupData[clerkType][index_clerksCount] = (unsigned int)clerkCount;
+	clerkGroupData[clerkType][index_clerksMoney] = 0;
+	clerkGroupData[clerkType][index_lineLock] = CreateLock("AppClerks-LineLock", 18);
+	clerkGroupData[clerkType][index_moneyLock] = CreateLock("AppClerks-MoneyLock", 19);
+	clerkGroupData[clerkType][index_clerkLocks] = (unsigned int)appclerkLocks;
+	clerkGroupData[clerkType][index_lineCVs] = (unsigned int)appclerkLineCVs;
+	clerkGroupData[clerkType][index_bribeLineCVs] = (unsigned int)appclerkBribeLineCVs;
+	clerkGroupData[clerkType][index_senatorLineCVs] = (unsigned int)appclerkSenatorLineCVs;
+	clerkGroupData[clerkType][index_clerkWorkCVs] = (unsigned int)appclerkWorkCVs;
+	clerkGroupData[clerkType][index_breakCVs] = (unsigned int)appclerkBreakCVs;
 }
 
-void InitializePictureClerkData ()
+/*void InitializePictureClerkData ()
 {
 	int picclerkGroupData = clerkGroupData[clerkType_pictureClerks];
 	int clerkCount = clerkCounts[clerkType_pictureClerks];
@@ -246,7 +274,11 @@ void InitializePictureClerkData ()
 
 	InitializeClerkData(picclerks, clerkCount);
 
-	synchStructNames = { "Pic:0-ClerkLock", "Pic:1-ClerkLock", "Pic:2-ClerkLock", "Pic:3-ClerkLock", "Pic:4-ClerkLock" };
+	synchStructNames[0] = "Pic:0-ClerkLock";
+	synchStructNames[1] = "Pic:1-ClerkLock";
+	synchStructNames[2] = "Pic:2-ClerkLock";
+	synchStructNames[3] = "Pic:3-ClerkLock";
+	synchStructNames[4] = "Pic:4-ClerkLock";
 	synchStructNameLengths = { 15, 15, 15, 15, 15 };
 	InitializeLocks(picclerkLocks, clerkCount, synchStructNames, synchStructNameLengths);
 
@@ -376,15 +408,16 @@ void InitializeCashierData ()
 	cashierGroupData[index_clerkWorkCVs] = cashiersWorkCVs;
 	cashierGroupData[index_breakCVs] = cashiersBreakCVs;
 }
+*/
 
 void InitializeData ()
 {
 	InitializeCustomerData();
 	InitializeSenatorData();
-	InitializeApplicationClerkData();
-	InitializePictureClerkData();
-	InitializePassportClerkData();
-	InitializeCashierData();
+	/*InitializeApplicationClerkData();*/
+	/*InitializePictureClerkData();*/
+	/*InitializePassportClerkData();*/
+	/*InitializeCashierData();*/
 }
 
 /* ========================================================================================================================================= */
