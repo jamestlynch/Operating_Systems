@@ -3,17 +3,37 @@
  */
 
 #include "syscall.h"
-void BoundsErrorCheck_Test(){
-    int indexlock1;
-    int indexlock2;
-    int lockIndex;
-    int acquire1;
+int CVIndex1, CVIndex2, CVIndex3, CVIndex4;
+int indexlock1, indexlock2;
+int destroy1, acquire1, release1;
+int lockIndex;
 
+int testing1 = 1;
+int testing2 = 0;
+int testing3 = 0;
+int testing5 = 0;
+
+
+void BoundsErrorCheck_Test(){
+    
+
+
+    /*Write("Test2: Two different lock TEST\n", sizeof("Test2: Two different lock TEST\n"), ConsoleOutput);
+    LockIndex2 = CreateLock("SecondLOCK", 9);
+    CVIndex2 = CreateCV("SecondCV", 7);
+    LockIndex3 = CreateLock("ThirdLOCK", 9);
+    CVIndex3 = CreateCV("ThirdCV", 7);
+    /*Fork three functions that are used for the test!*/
+    /*Fork(function4, "changeme", sizeof("changeme"));
+    Fork(function5, "changeme", sizeof("changeme"));
+    Fork(function6, "changeme", sizeof("changeme"));
+    Exit(0);*/
+ 
     lockIndex = CreateLock("def", 3);
 
     indexlock1 = CreateLock("abc", 0);
     if (indexlock1 != -1) {
-    	Write("CreateLock failed: Should return -1 when the length of the lock's identifier is 0.\n", 83, 1);
+    	Write("CreateLock failed: Should return -1 when the length of the lock's identifier is 0.\n", sizeof("CreateLock failed: Should return -1 when the length of the lock's identifier is 0.\n"), 1);
     }
 
     indexlock1 = CreateLock("abc", -1);
@@ -52,19 +72,11 @@ void BoundsErrorCheck_Test(){
     }
     indexlock1= AcquireLock(lockIndex);
     if (indexlock1!= -1){
-            Write("Lock created for acquire test.\n", 77, 1);
+            Write("Lock created for acquire test.\n", sizeof("Lock created for acquire test.\n"), 1);
     }
     indexlock1= ReleaseLock(300);
     if (indexlock1 != -1){
             Write("ReleaseLock0 failed: Should return -1 when lock index is out of bounds.\n", 79, 1);
-    }
-    indexlock1= ReleaseLock(100);
-    if (indexlock1 != -1){
-            Write("ReleaseLock1 failed: Should return -1 when lock index is out of bounds.\n", 79, 1);
-    }
-    indexlock1= ReleaseLock(200);
-    if (indexlock1!=-1){
-            Write("ReleaseLock2 failed: Should return -1 when lock index is out of bounds.\n", 79, 1);
     }
     indexlock1= ReleaseLock(-1);
     if (indexlock1 == -1){
@@ -79,20 +91,24 @@ void BoundsErrorCheck_Test(){
         Write("DestroyLock1 failed: Should return -1 for out of bounds.\n", 74, 1);
     }
 
-
-
     /* Possible other tests: */
     /*  - Bad vaddr: different address space */
     /*  - If vector has no more room ?? */
     /*  - Memory running out ?? */
 }
+void
+passingVars_Test(){
+    lockIndex = CreateLock("def", 3);
+    acquire1=AcquireLock(lockIndex);
+    destroy1=DestroyLock(acquire1);
+    release1=ReleaseLock(lockIndex);
+    if(lockIndex!= -1 && acquire1!=-1 && destroy1 != -1 && release1 != -1){
+        Write("Passed test passing variables\n", sizeof("Success\n"), 1);
+    }
+}
 
 void
 Acquire_Test() {
-    int acquire1;
-    int release1;
-    int lockIndex;
-    int lockIndex2;
 
     lockIndex = CreateLock("abc", 3);
     lockIndex2 = CreateLock("def", 3);
@@ -103,7 +119,7 @@ Acquire_Test() {
     }
     acquire1= AcquireLock(100);
     if (acquire1 != -1){
-            Write("AcquirLock1 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
+            Write("AcquireLock1 failed: Should return -1 when lock index is out of bounds.\n", sizeof("AcquireLock1 failed: Should return -1 when lock index is out of bounds.\n"), 1);
     }
     acquire1= AcquireLock(lockIndex);
     if (acquire1!= -1){
@@ -112,8 +128,6 @@ Acquire_Test() {
 
     /*
     set lock index to be acquired by someone else. go on wait queue.
-
-
 
     AFTER SUCCESSFULL CREATING A LOCK, THE NEXT RELEASE DOESNT WORK AS EXPECTED.
     */
@@ -188,29 +202,69 @@ DestroyLock_Test() {
     //ARE THERE WAITING THREADS? NO, DELETE LOCK IMMEDIATELY. YES, SET TODELETE=TRUE*/
 }
 
-void t5_t1(int lock) {
-    DestroyLock(lock); /*should say sorry you are not owner*/
-    ReleaseLock(lock); /*should say sorry you cannot release lock you do not own*/
 
+void function1() {
+    /*In this function, it increments integer(testing1) by 5 after function 3 wake it up*/
+    AcquireLock(indexlock1);
+    Wait(indexlock1, CVIndex1);
+    testing1 = testing1 + 5;
+    ReleaseLock(indexlock1);
+    DestroyLock(indexlock1);
+    DestroyCV(CVIndex1);
+    Exit(0);
+}
+void function2() {
+    /*In this function, it increments integer(testing1) by 3 after function 3 wake it up*/
+    AcquireLock(indexlock1);
+    Wait(indexlock1, CVIndex1);
+    testing1 = testing1 + 3;
+    ReleaseLock(indexlock1);
+    /*Sinec this function is waken up the last so integer value all calculation 
+    Therefore, we need to check the result and if we can get the expected result, then the test passes*/
+    if(testing1 == 10) {
+        Write("Broadcast/signal test passed\n", sizeof("Broadcast/signal test passed\n"), ConsoleOutput);
+    }else {
+        Write("Broadcast/signal test failed\n", sizeof("Broadcast/signal test failed\n"), ConsoleOutput);
+    }
+    /*At this point, we are done with the test so going to the next function that we can start the next test!*/
+    /*Fork(testStart2, "changeme", sizeof("changeme"));*/
+    Exit(0);
+}
+void function3() {
+    /*In this function, it mutiply the integer(testing1) before waking other condition variable in other two function.
+    in order to see if this broadcast syscall actually wake others condition variable up.
+    Otherwise, integer value is going to be different at the end. */
+    AcquireLock(indexlock1);
+    testing1 = testing1 * 2;
+    Broadcast(indexlock1, CVIndex1);
+    ReleaseLock(indexlock1);
+    Exit(0);
 }
 
-void t5_t2(int lock){
-    AcquireLock(lock); 
-    ReleaseLock(lock);
+
+void test1(){
+    Fork("thread1", 7, function1);
+    Fork("thread2", 7, function2);
+    Fork("thread3", 7, function3);
 }
 
 int 
 main() {
+
     BoundsErrorCheck_Test();
-    int lock1, lock2, lock3, lock4;
-    lock1= CreateLock("abc", 3);
+    passingVars_Test();
+
+    /*test1();*/
+
+/*
+    int lock1;
+
+    lock1 = CreateLock("abc", 3);
     /*lock2= CreateLock("def", 3);
     lock3= CreateLock("ghi", 3);
     lock4= CreateLock("jkl", 3);*/
 
-    Fork("thread1", 7, unsigned int vFuncAddr);
-    Fork("thread2", 7, unsigned int vFuncAddr);
-    Fork("thread3", 7, unsigned int vFuncAddr);
+    
 
 
      /*CreateLock_Test(); */

@@ -16,10 +16,10 @@ int b, c;
 
 int main()
 {
-	Exec("../test/halt.c", 14);
+	Exec("../test/testfiles.c", 14);
 
 	/*Write("Hey", 3, 1);*/
 
-    /*Halt();*/
+    Halt();
     /* not reached */
 }
