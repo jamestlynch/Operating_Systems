@@ -194,6 +194,14 @@ AcquireLock:
 	j	$31
 	.end AcquireLock
 
+	.globl ReleaseLock
+	.ent	ReleaseLock
+ReleaseLock:
+	addiu $2,$0,SC_ReleaseLock
+	syscall
+	j	$31
+	.end ReleaseLock
+
 	.globl DestroyLock
 	.ent	DestroyLock
 DestroyLock:

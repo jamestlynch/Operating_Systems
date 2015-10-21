@@ -109,7 +109,7 @@ void Release_Test(){
             Write("Lock created for acquire test.\n", 77, 1);
     }
 
-        release1= ReleaseLock(300);
+    release1= ReleaseLock(300);
     if (release1 != -1){
             Write("ReleaLock0 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
     }
@@ -131,7 +131,14 @@ void
 DestroyLock_Test() {
     int indexlock1, indexlock2;
     int lockIndex;
+     int destroy1;
+    int lock;
+    int acquire;
+    int release;
 
+    lockIndex = CreateLock("abc", 3);
+    lockIndex = CreateLock("abc", 3);
+    lockIndex = CreateLock("abc", 3);
     lockIndex = CreateLock("abc", 3);
 
     indexlock1 = DestroyLock(-1);
@@ -139,37 +146,33 @@ DestroyLock_Test() {
         Write("DestroyLock failed: Should return -1 for negative index.\n", 74, 1);
     }
     else{
-        Write("Success", 7, 1);
+        Write("Success\n", 8, 1);
     }
     indexlock1 = DestroyLock(1000);
     if (indexlock1 != -1) {
         Write("DestroyLock failed: Should return -1 for index out of bounds.\n", 73, 1);
     }
     else{
-        Write("Success", 7, 1);
+        Write("Success\n", 8, 1);
     }
+
     indexlock1= DestroyLock(lockIndex);
 
-    int destroy1;
-    int cv;
-    int acquire;
-    int release;
+   
 
-    cv= CreateCV("abc", 3);
-    destroy1= DestroyCV(cv);
+    lock= CreateLock("abc", 3);
+    destroy1= DestroyLock(lock);
 
-    cv= CreateCV("def", 3);
-    acquire= AcquireCV(cv);
-    release= ReleaseCV(acquire);
-    destroy1= DestroyCV();
+    lock= CreateLock("def", 3);
+    acquire= AcquireLock(lock);
+    release= ReleaseLock(acquire);
+    destroy1= DestroyLock(release);
 
-    cv= CreateCV("def", 3);
-    acquire();
+    lock= CreateLock("def", 3);
+   /* acquire();
     DestroyCV();
     release();
-    DestroyCV();
-
-
+    DestroyCV();*/
 
     /*LOCK OWNER
     //ARE THERE WAITING THREADS? NO, DELETE LOCK IMMEDIATELY. YES, SET TODELETE=TRUE*/
@@ -178,9 +181,9 @@ DestroyLock_Test() {
 int 
 main() {
      /*CreateLock_Test(); */
-     Acquire_Test();
+     /*Acquire_Test();*/
      /*Release_Test();*/
-    /* DestroyLock_Test(); */
+     DestroyLock_Test();
 
 
 	/* Multiple threads test */
