@@ -1,6 +1,8 @@
 /*	passportoffice.c
  */
 
+#include "syscall.h"
+
 /* ========================================================================================================================================= */
 /*																																			 */
 /*		DATA SETUP																															 */
@@ -30,7 +32,7 @@ int customerData[7] = {
 	0, /* applicationFiled */
 	0, /* photoFiled */
 	0, /* passportCertified */
-	0, /* passportRecorded */
+	0 /* passportRecorded */
 };
 
 int numCustomers = 50;
