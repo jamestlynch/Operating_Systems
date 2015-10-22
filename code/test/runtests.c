@@ -18,7 +18,7 @@ int b, c;
 
 int main()
 {
-	Exec("../test/test", 14);
+	Exec("../test/locktest", 18);
 
     /*Halt();*/
     /* not reached */

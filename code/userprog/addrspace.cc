@@ -150,12 +150,11 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     
     // first, set up the translation 
     memLock->Acquire();
-    pageTable = new TranslationEntry[numPages];
 
+    pageTable = new TranslationEntry[numPages];
     for (i = 0; i < numPages; i++) 
     {
     	pageTable[i].virtualPage = i;	// for now, virtual page # = phys page #
-    	//pageTable[i].physicalPage = i;
         pageTable[i].physicalPage = memBitMap->Find();
     	pageTable[i].valid = TRUE;
     	pageTable[i].use = FALSE;
@@ -171,14 +170,17 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
         // how much to copy? pagesize!
         if (pageTable[i].physicalPage == -1)
         {
-          // print message
+          printf("No more physical memory available.\n");
           interrupt->Halt();
         }
 
-        executable->ReadAt(&(machine->mainMemory[PageSize * pageTable[i].physicalPage]), PageSize, noffH.code.inFileAddr /*+ 40*/ + (pageTable[i].virtualPage * PageSize));
+        //printf("PageSize: %d, physicalPage: %d, virtualPage: %d", PageSize, pageTable[i].physicalPage, pageTable[i].virtualPage);
+
+        executable->ReadAt(&(machine->mainMemory[PageSize * pageTable[i].physicalPage]), PageSize, noffH.code.inFileAddr + (pageTable[i].virtualPage * PageSize));
     }
 
     memLock->Release();
+
 
     
     // zero out the entire address space, to zero the unitialized data segment 
@@ -267,10 +269,11 @@ void AddrSpace::RestoreState()
     machine->pageTableSize = numPages;
 }
 
-void AddrSpace::NewPageTable()
+int AddrSpace::NewPageTable()
 {
-    TranslationEntry* newPT = new TranslationEntry[numPages + 8]; // add 8 pages for new stack
-
+    memLock->Acquire();
+    
+    TranslationEntry * newPT = new TranslationEntry[numPages + 8]; // add 8 pages for new stack
     for(int i = 0; i < numPages; i++)
     {
         newPT[i].virtualPage    =   pageTable[i].virtualPage;
@@ -283,12 +286,12 @@ void AddrSpace::NewPageTable()
 
     for(int i = numPages; i < numPages + 8; i++)
     {
-        pageTable[i].virtualPage = i;   // for now, virtual page # = phys page #
-        pageTable[i].physicalPage = memBitMap->Find();
-        pageTable[i].valid = TRUE;
-        pageTable[i].use = FALSE;
-        pageTable[i].dirty = FALSE;
-        pageTable[i].readOnly = FALSE;  
+        newPT[i].virtualPage = i;   // for now, virtual page # = phys page #
+        newPT[i].physicalPage = memBitMap->Find();
+        newPT[i].valid = TRUE;
+        newPT[i].use = FALSE;
+        newPT[i].dirty = FALSE;
+        newPT[i].readOnly = FALSE;  
         // if the code segment was entirely on 
         // a separate page, we could set its 
         // pages to be read-only
@@ -296,20 +299,21 @@ void AddrSpace::NewPageTable()
         // find page memory that nobody is using
         // copy from executable to that page of memory
         // how much to copy? pagesize!
-        if (pageTable[i].physicalPage == -1)
+        if (newPT[i].physicalPage == -1)
         {
-          // print message
+          printf("No more physical memory available.\n");
           interrupt->Halt();
         }
-
-        // I don't think this is right...
-        //executable->ReadAt(machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize, 40 + pageTable[i].virtualPage * PageSize));
     }
 
     delete pageTable;
-    pageTable = newPT;
 
-    numPages = numPages + 8;
+    pageTable = newPT;
+    numPages += 8;
 
     RestoreState();
+
+    memLock->Release();
+
+    return (numPages * PageSize) - 16;
 }

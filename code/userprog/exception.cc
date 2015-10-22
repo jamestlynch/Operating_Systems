@@ -360,12 +360,12 @@ int AcquireLock(int index)
   if(checkLockErrors(index) == -1)
   {
     printf("inside acquire lock, error found.");
-    locksLock->Release();
+    //locksLock->Release();
     return -1;
   }
   if(locks.at(index)->toDelete==true){
-    printf("You can't acquire this lock since it's going to be deleted."); 
-    locksLock->Release();
+    printf("You can't acquire this lock since it's going to be deleted.\n"); 
+    //locksLock->Release();
     return -1;  
   }
 
@@ -389,8 +389,8 @@ int ReleaseLock(int index)
   
   if(checkLockErrors(index) == -1)
   {
-    printf("inside release lock, error found.");
-    locksLock->Release();
+    printf("inside release lock, error found.\n");
+    //locksLock->Release();
     return -1;
   }
 
@@ -567,6 +567,7 @@ int Signal(int indexcv, int indexlock)
 
   if(checkCVErrors(indexcv, indexlock) == -1)
   {
+    printf("There was an error with input.");
     conditionsLock->Release();
     return -1;
   }
@@ -700,9 +701,18 @@ else{
   }*/
   //processLock->Release();
 }
-void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 
-{/*
+void Kernel_Thread(int vaddr)
+{
+  machine->WriteRegister(PCReg, vaddr);
+  machine->WriteRegister(NextPCReg, vaddr + 4);
+  machine->WriteRegister(StackReg, currentThread->space->NewPageTable());
+
+  machine->Run();
+}
+
+void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
+{
   if (len <= 0) 
   { // Validate length is nonzero and positive
     printf("Invalid length for thread identifier.\n");
@@ -739,11 +749,9 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 
   p->numExecutingThreads++;
 
-  //increment threads 
-  //computation for where stackReg should be must be done in Fork_Syscall
-  //bitMap valid-find needs to be stored inside fork*/
+  t->Fork((VoidFunctionPtr)Kernel_Thread, vFuncAddr);
 
-
+  processLock->Release();
 }
 
 /*
@@ -761,22 +769,10 @@ Multiple Stacks
 - machine->pageTable = pageTable
 */
 
-void Kernel_Thread(int vaddr)
-{
-  machine->WriteRegister(PCReg, vaddr);
-  machine->WriteRegister(NextPCReg, vaddr + 4);
-
-  //currentThread->space->NewPageTable();
-
-  machine->Run();
-  return;
-}
-
 void Exec_Thread()
 {
   currentThread->space->InitRegisters();
   currentThread->space->RestoreState();
-
   machine->Run();
   return;
 }
@@ -806,8 +802,6 @@ void Exec_Syscall(int vaddr, int len)
 
   buf[len] = '\0';
 
-  printf("hello");
-
   processLock->Acquire();
 
   OpenFile *executable = fileSystem->Open(buf);
@@ -821,8 +815,8 @@ void Exec_Syscall(int vaddr, int len)
 
   space = new AddrSpace(executable);
 
-  Process *p = new Process();
-  Thread *t = new Thread(buf);
+  Process * p = new Process();
+  Thread * t = new Thread(buf);
 
   processInfo.push_back(p);
 
@@ -836,9 +830,8 @@ void Exec_Syscall(int vaddr, int len)
 
   delete executable;
 
-
-  machine->Run();
-  t->Fork((VoidFunctionPtr)Exec_Thread,0);
+  t->Fork((VoidFunctionPtr)Exec_Thread, 0);
+  processLock->Release();
 }
 
 void Join_Syscall()
@@ -919,9 +912,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_Fork:
       DEBUG('a', "Fork syscall.\n");
-      Fork_Syscall(machine->ReadRegister(4),
-      machine->ReadRegister(5),
-      machine->ReadRegister(6));
+      Fork_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
       break;
 
       case SC_Yield:

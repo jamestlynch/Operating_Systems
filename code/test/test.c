@@ -14,12 +14,20 @@
 int a[3];
 int b, c;
 
-
+void test()
+{
+	Write("Hey", 3, 1);
+}
 
 int main()
 {
-	Exec("../test/test", 14);
 
-    /*Halt();*/
+	Fork("test", 4, (void*) test);
+
+	Exit(0);
+
+	/*test();*/
+
+    /* Halt(); */
     /* not reached */
 }
