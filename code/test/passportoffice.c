@@ -8,7 +8,7 @@
 /* ========================================================================================================================================= */
 
 /******************************************/
-/* 		  Customer / Senator Data 		  */
+/* 		  	   Customer Data 			  */
 /******************************************/
 
 int moneyOptions[4] = {100, 600, 1100, 1600};
@@ -36,8 +36,7 @@ int customerData[7] = {
 int numCustomers = 50;
 int customers[50][7];
 
-int numSenators = 10;
-int senators[10][7];
+int numCustomersFinished = 0; /* Compare this to (numCustomers + numSenators) to see when program completes. */
 
 void InitializeCustomerData ()
 {
@@ -51,6 +50,20 @@ void InitializeCustomerData ()
 		}
 	}
 }
+
+/******************************************/
+/* 		  	    Senator Data 			  */
+/******************************************/
+
+int numSenators = 10;
+int senators[10][7];
+
+int isSenatorPresent = 0; /* Used to determine whether or not customers should wait for senators to leave PPOffice */
+
+int senatorIndoorLock = CreateLock("SenatorIndoorLock", 17); /* Synchronizes isSenatorPresent */
+int senatorIndoorCV = CreateCV("SenatorIndoorCV", 15); /* Wait on this whenever a senator is inside PPOffice */
+/* TODO: Is this necessary? */
+/*	int senatorOutdoorCV = CreateCV("SenatorOutdoorCV", 16); */
 
 void InitializeSenatorData ()
 {
@@ -76,9 +89,9 @@ int state_clerkOnBreak = 2;
 int index_state = 0;
 int index_currentCustomer = 1;
 int index_money = 2;
-int index_lineCount = 3;
-int index_bribeLineCount = 4;
-int index_senatorLineCount = 5;
+int index_lineLength = 3;
+int index_bribeLineLength = 4;
+int index_senatorLineLength = 5;
 int index_isBeingBribed = 6;
 int index_customerLikedPhoto = 7;
 int index_customerAppReadyToCertify = 8;
@@ -86,13 +99,13 @@ int index_customerAppReadyForPayment = 9;
 
 int numClerkDataEntries = 10;
 
-int clerkData[] = {
+int clerkData[10] = {
 	0, /* state */
 	-1, /* currentCustomer */
 	0, /* money */
-	0, /* lineCount */
-	0, /* bribeLineCount */
-	0, /* senatorLineCount */
+	0, /* lineLength */
+	0, /* bribeLineLength */
+	0, /* senatorLineLength */
 	0, /* isBeingBribed */
 	0, /* customerLikedPhoto */
 	0, /* customerAppReadyToCertify */
@@ -117,6 +130,7 @@ int appclerkLineCVs[5];
 int appclerkBribeLineCVs[5];
 int appclerkSenatorLineCVs[5];
 int appclerkWorkCVs[5];
+int appclerkBribeCVs[5];
 int appclerkBreakCVs[5];
 
 int picclerks[5][10];
@@ -125,6 +139,7 @@ int picclerkLineCVs[5];
 int picclerkBribeLineCVs[5];
 int picclerkSenatorLineCVs[5];
 int picclerkWorkCVs[5];
+int picclerkBribeCVs[5];
 int picclerkBreakCVs[5];
 
 int passportclerks[5][10];
@@ -133,6 +148,7 @@ int passportclerkLineCVs[5];
 int passportclerkBribeLineCVs[5];
 int passportclerkSenatorLineCVs[5];
 int passportclerkWorkCVs[5];
+int passportclerkBribeCVs[5];
 int passportclerkBreakCVs[5];
 
 int cashiers[5][10];
@@ -141,6 +157,7 @@ int cashierLineCVs[5];
 int cashierBribeLineCVs[5];
 int cashierSenatorLineCVs[5];
 int cashierWorkCVs[5];
+int cashierBribeCVs[5];
 int cashierBreakCVs[5];
 
 int index_clerksData = 0;
@@ -152,12 +169,13 @@ int index_clerkLocks = 5;
 int index_lineCVs = 6;
 int index_bribeLineCVs = 7;
 int index_senatorLineCVs = 8;
-int index_clerkWorkCVs = 9;
-int index_breakCVs = 10;
+int index_workCVs = 9;
+int index_bribeCVs = 10;
+int index_breakCVs = 11;
 
-int numClerkGroupDataEntries = 11;
+int numClerkGroupDataEntries = 12;
 
-int clerkGroupData[4][11];
+int clerkGroupData[4][12];
 
 void InitializeClerkData (int clerks[][10], int numClerks)
 {
@@ -209,6 +227,12 @@ void InitializeApplicationClerkData ()
 	appclerkWorkCVs[3] = CreateCV("App:3-WorkCV", 12);
 	appclerkWorkCVs[4] = CreateCV("App:4-WorkCV", 12);
 
+	appclerkBribeCVs[0] = CreateCV("App:0-BribeCV", 13);
+	appclerkBribeCVs[1] = CreateCV("App:1-BribeCV", 13);
+	appclerkBribeCVs[2] = CreateCV("App:2-BribeCV", 13);
+	appclerkBribeCVs[3] = CreateCV("App:3-BribeCV", 13);
+	appclerkBribeCVs[4] = CreateCV("App:4-BribeCV", 13);
+
 	appclerkBreakCVs[0] = CreateCV("App:0-BreakCV", 13);
 	appclerkBreakCVs[1] = CreateCV("App:1-BreakCV", 13);
 	appclerkBreakCVs[2] = CreateCV("App:2-BreakCV", 13);
@@ -224,7 +248,8 @@ void InitializeApplicationClerkData ()
 	clerkGroupData[clerkType][index_lineCVs] = (unsigned int)appclerkLineCVs;
 	clerkGroupData[clerkType][index_bribeLineCVs] = (unsigned int)appclerkBribeLineCVs;
 	clerkGroupData[clerkType][index_senatorLineCVs] = (unsigned int)appclerkSenatorLineCVs;
-	clerkGroupData[clerkType][index_clerkWorkCVs] = (unsigned int)appclerkWorkCVs;
+	clerkGroupData[clerkType][index_workCVs] = (unsigned int)appclerkWorkCVs;
+	clerkGroupData[clerkType][index_bribeCVs] = (unsigned int)appclerkBribeCVs;
 	clerkGroupData[clerkType][index_breakCVs] = (unsigned int)appclerkBreakCVs;
 }
 
@@ -265,6 +290,12 @@ void InitializePictureClerkData ()
 	picclerkWorkCVs[3] = CreateCV("Pic:3-WorkCV", 12);
 	picclerkWorkCVs[4] = CreateCV("Pic:4-WorkCV", 12);
 
+	picclerkBribeCVs[0] = CreateCV("Pic:0-BribeCV", 13);
+	picclerkBribeCVs[1] = CreateCV("Pic:1-BribeCV", 13);
+	picclerkBribeCVs[2] = CreateCV("Pic:2-BribeCV", 13);
+	picclerkBribeCVs[3] = CreateCV("Pic:3-BribeCV", 13);
+	picclerkBribeCVs[4] = CreateCV("Pic:4-BribeCV", 13);
+
 	picclerkBreakCVs[0] = CreateCV("Pic:0-BreakCV", 13);
 	picclerkBreakCVs[1] = CreateCV("Pic:1-BreakCV", 13);
 	picclerkBreakCVs[2] = CreateCV("Pic:2-BreakCV", 13);
@@ -280,7 +311,8 @@ void InitializePictureClerkData ()
 	clerkGroupData[clerkType][index_lineCVs] = (unsigned int)picclerkLineCVs;
 	clerkGroupData[clerkType][index_bribeLineCVs] = (unsigned int)picclerkBribeLineCVs;
 	clerkGroupData[clerkType][index_senatorLineCVs] = (unsigned int)picclerkSenatorLineCVs;
-	clerkGroupData[clerkType][index_clerkWorkCVs] = (unsigned int)picclerkWorkCVs;
+	clerkGroupData[clerkType][index_workCVs] = (unsigned int)picclerkWorkCVs;
+	clerkGroupData[clerkType][index_bribeCVs] = (unsigned int)picclerkBribeCVs;
 	clerkGroupData[clerkType][index_breakCVs] = (unsigned int)picclerkBreakCVs;
 }
 
@@ -321,6 +353,12 @@ void InitializePassportClerkData ()
 	passportclerkWorkCVs[3] = CreateCV("Pas:3-WorkCV", 12);
 	passportclerkWorkCVs[4] = CreateCV("Pas:4-WorkCV", 12);
 
+	passportclerkBribeCVs[0] = CreateCV("Pas:0-BribeCV", 13);
+	passportclerkBribeCVs[1] = CreateCV("Pas:1-BribeCV", 13);
+	passportclerkBribeCVs[2] = CreateCV("Pas:2-BribeCV", 13);
+	passportclerkBribeCVs[3] = CreateCV("Pas:3-BribeCV", 13);
+	passportclerkBribeCVs[4] = CreateCV("Pas:4-BribeCV", 13);
+
 	passportclerkBreakCVs[0] = CreateCV("Pas:0-BreakCV", 13);
 	passportclerkBreakCVs[1] = CreateCV("Pas:1-BreakCV", 13);
 	passportclerkBreakCVs[2] = CreateCV("Pas:2-BreakCV", 13);
@@ -336,7 +374,8 @@ void InitializePassportClerkData ()
 	clerkGroupData[clerkType][index_lineCVs] = (unsigned int)passportclerkLineCVs;
 	clerkGroupData[clerkType][index_bribeLineCVs] = (unsigned int)passportclerkBribeLineCVs;
 	clerkGroupData[clerkType][index_senatorLineCVs] = (unsigned int)passportclerkSenatorLineCVs;
-	clerkGroupData[clerkType][index_clerkWorkCVs] = (unsigned int)passportclerkWorkCVs;
+	clerkGroupData[clerkType][index_workCVs] = (unsigned int)passportclerkWorkCVs;
+	clerkGroupData[clerkType][index_bribeCVs] = (unsigned int)passportclerkBribeCVs;
 	clerkGroupData[clerkType][index_breakCVs] = (unsigned int)passportclerkBreakCVs;
 }
 
@@ -377,6 +416,12 @@ void InitializeCashierData ()
 	cashierWorkCVs[3] = CreateCV("Csh:3-WorkCV", 12);
 	cashierWorkCVs[4] = CreateCV("Csh:4-WorkCV", 12);
 
+	cashierBribeCVs[0] = CreateCV("Csh:0-BribeCV", 13);
+	cashierBribeCVs[1] = CreateCV("Csh:1-BribeCV", 13);
+	cashierBribeCVs[2] = CreateCV("Csh:2-BribeCV", 13);
+	cashierBribeCVs[3] = CreateCV("Csh:3-BribeCV", 13);
+	cashierBribeCVs[4] = CreateCV("Csh:4-BribeCV", 13);
+
 	cashierBreakCVs[0] = CreateCV("Csh:0-BreakCV", 13);
 	cashierBreakCVs[1] = CreateCV("Csh:1-BreakCV", 13);
 	cashierBreakCVs[2] = CreateCV("Csh:2-BreakCV", 13);
@@ -392,9 +437,31 @@ void InitializeCashierData ()
 	clerkGroupData[clerkType][index_lineCVs] = (unsigned int)cashierLineCVs;
 	clerkGroupData[clerkType][index_bribeLineCVs] = (unsigned int)cashierBribeLineCVs;
 	clerkGroupData[clerkType][index_senatorLineCVs] = (unsigned int)cashierSenatorLineCVs;
-	clerkGroupData[clerkType][index_clerkWorkCVs] = (unsigned int)cashierWorkCVs;
+	clerkGroupData[clerkType][index_workCVs] = (unsigned int)cashierWorkCVs;
+	clerkGroupData[clerkType][index_bribeCVs] = (unsigned int)cashierBribeCVs;
 	clerkGroupData[clerkType][index_breakCVs] = (unsigned int)cashierBreakCVs;
 }
+
+/******************************************/
+/* 			   Manager Data 			  */
+/******************************************/
+
+int index_appclerkMoney = 0;
+int index_picclerkMoney = 1;
+int index_passportclerkMoney = 2;
+int index_cashierMoney = 3;
+int index_totalMoney = 4;
+
+int numManagerDataEntries = 5;
+
+int manager[5] = {
+	0, /* appclerkMoney */
+	0, /* picclerkMoney */
+	0, /* passportclerkMoney */
+	0, /* cashierMoney */
+	0 /* totalMoney */
+};
+
 
 void InitializeData ()
 {
@@ -404,15 +471,43 @@ void InitializeData ()
 	InitializePictureClerkData();
 	InitializePassportClerkData();
 	InitializeCashierData();
+	/* Manager is only one instance, no InitializeData function needed. */
 }
 
-/* ========================================================================================================================================= */
-/*																																			 */
-/*		DATA SETUP																															 */
-/*																																			 */
-/* ========================================================================================================================================= */
+/******************************************/
+/* 			 System Job Data 			  */
+/******************************************/
 
-int main() 
+int filingPictureLock = CreateLock("FilingPictureLock", 17);
+int filingApplicationLock = CreateLock("FilingApplicationLock", 21);
+int certifyingPassportLock = CreateLock("CertifyingPassportLock", 22);
+
+int index_systemJobSSN = 0;
+int index_systemJobClerkID = 1;
+
+int systemJob[2] = {
+	-1, /* ssn */
+	-1 /* clerkID */
+};
+
+int numSystemJobs = 50;
+int jobs[50][2];
+
+void InitializeSystemJobs ()
+{
+	int jobID, i;
+
+	for (jobID = 0; jobID < numSystemJobs; jobID++)
+	{
+		for (i = 0; i < 2; i++)
+		{
+			jobs[jobID][i] = systemJob[i];
+		}
+	}
+}
+
+
+int main () 
 {
 	InitializeData();
 }
