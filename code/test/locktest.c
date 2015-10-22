@@ -23,6 +23,7 @@ void t1_t1(){
 }
 void t2_t1()
 {
+
     /* checks acquire and release invalid input is handled properly.*/
     indexcheck1 = AcquireLock(5000);
     indexcheck2 = ReleaseLock(5000);
@@ -89,31 +90,6 @@ void t5_t3(){
     test=ReleaseLock(LockIndex1);
     Write("3 released\n", sizeof("3 released\n"), 1);
 }
-/*
-void t5_t1() {
-    test=AcquireLock(Lockindex1);
-    test=Wait(Lockindex1, CVIndex1);
-    Write("2\n", sizeof("2\n"), 1);
-    test=DestroyLock(Lockindex1);
-    test=ReleaseLock(Lockindex1);
-    Exit(0);
-}
-void t5_t2() {
-    test=AcquireLock(Lockindex1);
-    test=Wait(Lockindex1, CVIndex1);
-    Write("3\n", sizeof("3\n"), 1);
-    test=ReleasLock(Lockindex1);
-    this function is called the last among the functions that are used for the same test. print out the result and FORK next text function
-    Write("Passed destroy test if printed numbers are in increasing order. \n End of test 1\n", sizeof("Passed if numbers are in increasing order. \n End of test 1\n"), 1);
-    Exit(0);
-}
-void t5_t3() {
-    test=Acquire(Lockindex1);
-    Write("1\n", sizeof("1\n"), 1);
-    test=Broadcast(Lockindex1, CVIndex1);
-    test=Release(Lockindex1);
-    Exit(0);
-}*/
 void t6_t1() {
     /*2nd to acquire lock*/
     test=AcquireLock(indexcheck1);
