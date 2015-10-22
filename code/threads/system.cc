@@ -175,6 +175,7 @@ Initialize(int argc, char **argv)
     memLock = new Lock("MemBitMapLock");
     conditionsLock = new Lock("KernelCVLock");
     locksLock = new Lock("KernelLocksLock");
+    processLock = new Lock("ProcessLock");
 
     memBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes 
 

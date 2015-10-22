@@ -701,8 +701,7 @@ else{
   //processLock->Release();
 }
 void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
-
-{/*
+{
   if (len <= 0) 
   { // Validate length is nonzero and positive
     printf("Invalid length for thread identifier.\n");
@@ -742,8 +741,6 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
   //increment threads 
   //computation for where stackReg should be must be done in Fork_Syscall
   //bitMap valid-find needs to be stored inside fork*/
-
-
 }
 
 /*
@@ -766,6 +763,7 @@ void Kernel_Thread(int vaddr)
   machine->WriteRegister(PCReg, vaddr);
   machine->WriteRegister(NextPCReg, vaddr + 4);
 
+  //return value which is the page count -> address (numpages * pagesize - 16)
   //currentThread->space->NewPageTable();
 
   machine->Run();
@@ -776,14 +774,13 @@ void Exec_Thread()
 {
   currentThread->space->InitRegisters();
   currentThread->space->RestoreState();
-
   machine->Run();
   return;
 }
 
 void Exec_Syscall(int vaddr, int len)
 {
-  /*if (len <= 0) 
+  if (len <= 0) 
   { // Validate length is nonzero and positive
     printf("Invalid length for thread identifier.\n");
     return;
@@ -806,8 +803,6 @@ void Exec_Syscall(int vaddr, int len)
 
   buf[len] = '\0';
 
-  printf("hello");
-
   processLock->Acquire();
 
   OpenFile *executable = fileSystem->Open(buf);
@@ -821,8 +816,8 @@ void Exec_Syscall(int vaddr, int len)
 
   space = new AddrSpace(executable);
 
-  Process *p = new Process();
-  Thread *t = new Thread(buf);
+  Process * p = new Process();
+  Thread * t = new Thread(buf);
 
   processInfo.push_back(p);
 
@@ -836,8 +831,6 @@ void Exec_Syscall(int vaddr, int len)
 
   delete executable;
 
-
-  machine->Run();*/
   t->Fork((VoidFunctionPtr)Exec_Thread,0);
 }
 

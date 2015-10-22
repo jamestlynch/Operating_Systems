@@ -155,7 +155,6 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     for (i = 0; i < numPages; i++) 
     {
     	pageTable[i].virtualPage = i;	// for now, virtual page # = phys page #
-    	//pageTable[i].physicalPage = i;
         pageTable[i].physicalPage = memBitMap->Find();
     	pageTable[i].valid = TRUE;
     	pageTable[i].use = FALSE;
@@ -171,14 +170,17 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
         // how much to copy? pagesize!
         if (pageTable[i].physicalPage == -1)
         {
-          // print message
+          printf("No more physical memory available.\n");
           interrupt->Halt();
         }
 
-        executable->ReadAt(&(machine->mainMemory[PageSize * pageTable[i].physicalPage]), PageSize, noffH.code.inFileAddr /*+ 40*/ + (pageTable[i].virtualPage * PageSize));
+        //printf("PageSize: %d, physicalPage: %d, virtualPage: %d", PageSize, pageTable[i].physicalPage, pageTable[i].virtualPage);
+
+        executable->ReadAt(&(machine->mainMemory[PageSize * pageTable[i].physicalPage]), PageSize, noffH.code.inFileAddr + (pageTable[i].virtualPage * PageSize));
     }
 
     memLock->Release();
+
 
     
     // zero out the entire address space, to zero the unitialized data segment 

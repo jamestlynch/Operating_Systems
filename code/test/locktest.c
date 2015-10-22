@@ -201,14 +201,14 @@ void t5_t2(int lock){
 
 int 
 main() {
-    BoundsErrorCheck_Test();
+    /*BoundsErrorCheck_Test();
     int lock1, lock2, lock3, lock4;
     lock1= CreateLock("abc", 3);
     /*lock2= CreateLock("def", 3);
     lock3= CreateLock("ghi", 3);
     lock4= CreateLock("jkl", 3);*/
 
-    Fork("thread1", 7, unsigned int vFuncAddr);
+    /*Fork("thread1", 7, unsigned int vFuncAddr);
     Fork("thread2", 7, unsigned int vFuncAddr);
     Fork("thread3", 7, unsigned int vFuncAddr);
 

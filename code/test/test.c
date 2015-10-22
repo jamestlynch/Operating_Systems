@@ -16,10 +16,9 @@ int b, c;
 
 int main()
 {
-	Exec("../test/test", 14);
 
-	/*Write("Hey", 3, 1);*/
+	Write("test\n", 5, 1);
 
-    /*Halt();*/
+    Halt();
     /* not reached */
 }
