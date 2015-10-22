@@ -507,6 +507,210 @@ void InitializeSystemJobs ()
 }
 
 
+/* ========================================================================================================================================= */
+/*																																			 */
+/*		CUSTOMER																															 */
+/*																																			 */
+/* ========================================================================================================================================= */
+
+int DecideLine (int ssn, int &money, int clerkType, int isSenator)
+{
+	int lineLock;
+	int numClerks;
+	int clerksData[5];
+	int clerkLocks[5];
+	int clerkWorkCVs[5];
+	int bribeCVs[5];
+	int lineCVs[5];
+	int bribeLineCVs[5];
+	int senatorLineCVs[5];
+
+	int i;
+
+	int currentLine = -1;
+	int currentLineLength = 1000;
+
+	int shortestLine = -1;
+	int shortestLineLength = 1000;
+
+	int clerkLineLength; /* Keeps track of either normal line count or senator line count depending on if isSenator */
+
+	lineLock = clerkGroupData[clerkType][index_lineLock];
+	numClerks = clerkCounts[clerkType];
+	clerksData = clerkGroupData[clerkType][index_clerksData];
+	clerkLocks = clerkGroupData[clerkType][index_clerkLocks];
+	clerkWorkCVs = clerkGroupData[clerkType][index_clerkWorkCVs];
+	bribeCVs = clerkGroupData[clerkType][index_bribeCVs];
+	lineCVs = clerkGroupData[clerkType][index_lineCVs];
+	bribeLineCVs = clerkGroupData[clerkType][index_bribeLineCVs];
+	senatorLineCVs = clerkGroupData[clerkType][index_senatorLineCVs];
+
+	/*  TODO: Arrays were cast as unsigned ints, how to convert/cast back to array; or just how to access data inside array, otherwise? */
+
+	/* Check if the senator is present, and if so, "go outside" by waiting on the CV. */
+	/* 	By placing this here, we ensure line order remains consistent, conveniently. */
+	AcquireLock(senatorIndoorLock);
+	if (isSenatorPresent && !isSenator)
+	{
+		/* TODO: Some kind of printf function for writing the required output with ints inside of strings. */
+		WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn);
+		WaitCV(senatorIndoorCV);
+	}
+	ReleaseLock(senatorIndoorLock);
+
+	AcquireLock(lineLock);
+	for (i = 0; i < numClerks; i++)
+	{
+		/* Different lines depending on whether customer or senator. */
+		if (isSenator)
+		{
+			clerkLineLength = clerkData[i][index_senatorLineLength];
+		}
+		else
+		{
+			clerkLineLength = clerkData[i][index_lineLength];
+		}
+
+		/* If clerk is available, go there. */
+		if (clerkLineLength == 0 && clerkData[i][index_state] == state_clerkAvailable)
+		{
+			currentLine = i;
+			currentLineLength = clerkLineLength;
+			break;
+		}
+
+		/* Pick the shortest line of clerks not on break. */
+		if (clerkLineLength < shortestLineLength && clerkData[i][index_state] != state_clerkOnBreak)
+		{
+			currentLine = i;
+			currentLineLength = clerkLineLength;
+		}
+
+		/* If everyone is on break, need to know which line is shortest so we join it. Managers will eventually wake clerks up. */
+		if (clerkLineLength < shortestLineLength)
+		{
+			shortestLine = i;
+			shortestLineLength = clerkLineLength;
+		}
+	}
+
+	/* If everyone was on break, set your line to be the shortest line. */
+	if (currentLine == -1)
+	{
+		currentLine = shortestLine;
+		currentLineLength = shortestLineLength;
+	}
+
+	/* Now that customer has selected a clerk's line, figure out whether to go: */
+	/* 	- Straight to the counter */
+	/* 	- In line */
+	/*	- Bribe */
+	/*	- Senator line (if isSenator) */
+
+	if (clerkData[currentLine][index_state] != state_clerkAvailable)
+	{ /* Clerk is unavailable; Rule out going straight to counter, so now decide which line to wait in. */
+		if (isSenator)
+		{
+			/* TODO: Can we do direct incrementation on array value? */
+			clerkData[currentLine][index_senatorLineLength]++;
+			/* TODO: See above. */
+			/* TODO: Different approach from string array in original PPOffice for clerk type string */
+			/*	WriteOutput("Senator %d has gotten in a regular line for %s %d.", ssn, ); */
+			Wait(senatorLineCVs[currentLine], lineLock);
+			/* TODO: See above. */
+			clerkData[currentLine][index_senatorLineLength]--;
+		}
+		else
+		{ /* Ruled out straight to counter and senator line. Bribe or no bribe? */
+			if (currentLineLength >= 1 && money >= 600 && clerkData[index_state] != state_clerkOnBreak)
+			{ /* If customer has enough money and she's not in a line for a clerk that is on break, always bribe. */
+				/* Let clerk know you are trying to bribe her. */
+				/* TODO: See above. */
+				clerkData[currentLine][index_isBeingBribed]++;
+				Wait(bribeCVs[currentLine], lineLock);
+				/* TODO: See above. */
+				clerkData[currentLine][index_isBeingBribed]--;
+				ReleaseLock(lineLock);
+
+				/* Do customer side of bribe. */
+				AcquireLock(clerkLocks[currentLine]);
+
+				clerkData[currentLine][index_currentCustomer] = ssn;
+				money -= 500;
+				Signal(clerkWorkCVs[currentLine], lineLock);
+				Wait(clerkWorkCVs[currentLine], lineLock);
+				/* TODO: See above. (WriteOutput) */
+				/* TODO: See above. (string array) */
+				/*	WriteOutput("Customer %d has gotten in bribe line for %s %d.", ssn, ); */
+				
+				ReleaseLock(clerkLocks[currentLine]);
+
+				/* Now get into bribe line. */
+				AcquireLock(lineLock);
+
+				/* TODO: See above. (increment operator) */
+				clerkData[currentLine][index_bribeLineLength]++;
+				Wait(bribeLineCVs[currentLine], lineLock);
+
+				/* Woken up. Make sure no senators have entered so that I can do my business with clerk. */
+				AcquireLock(senatorIndoorLock);
+				if (isSenatorPresent && !isSenator)
+				{
+					/* TODO: See above. (WriteOutput) */
+					WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn);
+					Wait(senatorIndoorCV, senatorIndoorLock);
+					ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and re-decide line. */
+					return DecideLine(ssn, money, clerkType, isSenator);
+				}
+				else
+				{
+					ReleaseLock(senatorIndoorLock);
+				}
+
+				/* Made it out of line. */
+				/* TODO: See above. (Decrement operator) */
+				clerkData[currentLine][index_bribeLineLength]--;
+			}
+			else
+			{ /* No other options. Get in regular line. */
+				/* TODO: See above. (Increment operator) */
+				clerkData[currentLine][index_lineLength]++;
+				/* TODO: See above. (WriteOutput) */
+				/* WriteOutput("Customer %d has gotten in a regular line for %s %d.", ssn, currentLine); */
+				Wait(lineCVs[currentLine], lineLock);
+
+				/* Woken up. Make sure no senators have entered so that I can do my business with clerk. */
+				AcquireLock(senatorIndoorLock);
+				if (isSenatorPresent && !isSenator)
+				{
+					/* TODO: See above. (WriteOutput) */
+					WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn);
+					Wait(senatorIndoorCV, senatorIndoorLock);
+					ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and re-decide line. */
+					return DecideLine(ssn, money, clerkType, isSenator);
+				}
+				else
+				{
+					ReleaseLock(senatorIndoorLock);
+				}
+
+				/* Made it out of line. */
+				/* TODO: See above. (Decrement operator) */
+				clerkData[currentLine][index_lineLength]--;
+			}
+		}
+	}
+	else
+	{ /* Line was empty when customer joined, go straight to the counter. */
+		/* TODO: Will this produce the same weird error as before when in C++ */
+		/* 	Before needed to do: clerkGroupData[clerkType].clerkData[currentLine].state = BUSY; */
+		clerkData[index_state] = state_clerkBusy;
+	}
+	ReleaseLock(lineLock);
+
+	return currentLine;
+}
+
 int main () 
 {
 	InitializeData();
