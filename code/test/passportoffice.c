@@ -548,44 +548,53 @@ void InitializeData ()
 /*																																			 */
 /* ========================================================================================================================================= */
 
-int DecideLine (int ssn, int clerkType)
+/* Customers decide which clerk has the shortest line that isn't on 	*/
+/* 	on break. After choosing which clerk, customers then decide (based 	*/
+/*	on whether they have enough money) whether to get into that clerk's */
+/* 	bribe line, or not. If the person is a senator, they have a 		*/
+/*	different group of lines. 											*/
+/* Params: 	customer's ssn 												*/
+/*			type of clerk line (0 = App, 1 = Pic, 2 = Pas, 3 = Csh) 	*/
+/* Return: 	clerkID for line customer picked 							*/
+int DecideLine (int ssn, enum clerktype clerkType)
 {
-	int lineLock;
+	int clerks[5];
 	int numClerks;
-	int clerksData[5];
-	int clerkLocks[5];
-	int clerkWorkCVs[5];
-	int bribeCVs[5];
+
+	int lineLock;
 	int lineCVs[5];
 	int bribeLineCVs[5];
 	int senatorLineCVs[5];
 
-	int i;
-
+	int clerkID; /* Going to iterate over all clerks to make line decision */
 	int currentLine = -1;
 	int currentLineLength = 1000;
-
 	int shortestLine = -1;
 	int shortestLineLength = 1000;
-
 	int clerkLineLength; /* Keeps track of either normal line count or senator line count depending on if isSenator */
 
-	lineLock = clerkGroupData[clerkType][index_lineLock];
-	numClerks = clerkCounts[clerkType];
-	clerksData = clerkGroupData[clerkType][index_clerksData];
-	clerkLocks = clerkGroupData[clerkType][index_clerkLocks];
-	clerkWorkCVs = clerkGroupData[clerkType][index_clerkWorkCVs];
-	bribeCVs = clerkGroupData[clerkType][index_bribeCVs];
-	lineCVs = clerkGroupData[clerkType][index_lineCVs];
-	bribeLineCVs = clerkGroupData[clerkType][index_bribeLineCVs];
-	senatorLineCVs = clerkGroupData[clerkType][index_senatorLineCVs];
+	int clerkLocks[5];
+	int clerkWorkCVs[5];
+	int bribeCVs[5];
+
+	clerks = clerkGroups[clerkType].clerks;
+	numClerks = clerkGroups[clerkType].numClerks;
+
+	lineLock = clerkGroups[clerkType].lineLock;
+	lineCVs = clerkGroups[clerkType].lineCVs;
+	bribeLineCVs = clerkGroups[clerkType].bribeLineCVs;
+	senatorLineCVs = clerkGroups[clerkType].senatorLineCVs;
+
+	clerkLocks = clerkGroups[clerkType].clerkLocks;
+	clerkWorkCVs = clerkGroups[clerkType].clerkWorkCVs;
+	bribeCVs = clerkGroups[clerkType].bribeCVs;
 
 	/*  TODO: Arrays were cast as unsigned ints, how to convert/cast back to array; or just how to access data inside array, otherwise? */
 
 	/* Check if the senator is present, and if so, "go outside" by waiting on the CV. */
 	/* 	By placing this here, we ensure line order remains consistent, conveniently. */
 	AcquireLock(senatorIndoorLock);
-	if (isSenatorPresent && !isSenator)
+	if (isSenatorPresent && (people[ssn].isSenator)?0:1)
 	{
 		/* TODO: Some kind of printf function for writing the required output with ints inside of strings. */
 		WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn);
@@ -594,37 +603,37 @@ int DecideLine (int ssn, int clerkType)
 	ReleaseLock(senatorIndoorLock);
 
 	AcquireLock(lineLock);
-	for (i = 0; i < numClerks; i++)
+	for (clerkID = 0; clerkID < numClerks; clerkID++)
 	{
 		/* Different lines depending on whether customer or senator. */
-		if (isSenator)
+		if (people[ssn].isSenator)
 		{
-			clerkLineLength = clerkData[i][index_senatorLineLength];
+			clerkLineLength = clerks[clerkID].senatorLineLength;
 		}
 		else
 		{
-			clerkLineLength = clerkData[i][index_lineLength];
+			clerkLineLength = clerks[clerkID].lineLength;
 		}
 
 		/* If clerk is available, go there. */
-		if (clerkLineLength == 0 && clerkData[i][index_state] == state_clerkAvailable)
+		if (clerkLineLength == 0 && clerks[clerkID].state == AVAILABLE)
 		{
-			currentLine = i;
+			currentLine = clerkID;
 			currentLineLength = clerkLineLength;
 			break;
 		}
 
 		/* Pick the shortest line of clerks not on break. */
-		if (clerkLineLength < shortestLineLength && clerkData[i][index_state] != state_clerkOnBreak)
+		if (clerkLineLength < shortestLineLength && clerks[clerkID].state != ONBREAK)
 		{
-			currentLine = i;
+			currentLine = clerkID;
 			currentLineLength = clerkLineLength;
 		}
 
 		/* If everyone is on break, need to know which line is shortest so we join it. Managers will eventually wake clerks up. */
 		if (clerkLineLength < shortestLineLength)
 		{
-			shortestLine = i;
+			shortestLine = clerkID;
 			shortestLineLength = clerkLineLength;
 		}
 	}
@@ -642,35 +651,35 @@ int DecideLine (int ssn, int clerkType)
 	/*	- Bribe */
 	/*	- Senator line (if isSenator) */
 
-	if (clerkData[currentLine][index_state] != state_clerkAvailable)
+	if (clerks[currentLine].state != AVAILABLE)
 	{ /* Clerk is unavailable; Rule out going straight to counter, so now decide which line to wait in. */
 		if (isSenator)
 		{
 			/* TODO: Can we do direct incrementation on array value? */
-			clerkData[currentLine][index_senatorLineLength]++;
+			clerks[currentLine].senatorLineLength++;
 			/* TODO: See above. */
 			/* TODO: Different approach from string array in original PPOffice for clerk type string */
 			/*	WriteOutput("Senator %d has gotten in a regular line for %s %d.", ssn, ); */
 			Wait(senatorLineCVs[currentLine], lineLock);
 			/* TODO: See above. */
-			clerkData[currentLine][index_senatorLineLength]--;
+			clerks[currentLine].senatorLineLength--;
 		}
 		else
 		{ /* Ruled out straight to counter and senator line. Bribe or no bribe? */
-			if (currentLineLength >= 1 && money >= 600 && clerkData[index_state] != state_clerkOnBreak)
+			if (currentLineLength >= 1 && money >= 600 && clerks[currentLine].state != ONBREAK)
 			{ /* If customer has enough money and she's not in a line for a clerk that is on break, always bribe. */
 				/* Let clerk know you are trying to bribe her. */
 				/* TODO: See above. */
-				clerkData[currentLine][index_isBeingBribed]++;
+				clerks[currentLine].isBeingBribed++;
 				Wait(bribeCVs[currentLine], lineLock);
 				/* TODO: See above. */
-				clerkData[currentLine][index_isBeingBribed]--;
+				clerks[currentLine].isBeingBribed--;
 				ReleaseLock(lineLock);
 
 				/* Do customer side of bribe. */
 				AcquireLock(clerkLocks[currentLine]);
 
-				clerkData[currentLine][index_currentCustomer] = ssn;
+				clerks[currentLine].currentCustomer = ssn;
 				money -= 500;
 				Signal(clerkWorkCVs[currentLine], lineLock);
 				Wait(clerkWorkCVs[currentLine], lineLock);
@@ -684,18 +693,18 @@ int DecideLine (int ssn, int clerkType)
 				AcquireLock(lineLock);
 
 				/* TODO: See above. (increment operator) */
-				clerkData[currentLine][index_bribeLineLength]++;
+				clerks[currentLine].bribeLineLength++;
 				Wait(bribeLineCVs[currentLine], lineLock);
 
 				/* Woken up. Make sure no senators have entered so that I can do my business with clerk. */
 				AcquireLock(senatorIndoorLock);
-				if (isSenatorPresent && !isSenator)
+				if (isSenatorPresent && (people[ssn].isSenator)?0:1)
 				{
 					/* TODO: See above. (WriteOutput) */
 					WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn);
 					Wait(senatorIndoorCV, senatorIndoorLock);
 					ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and re-decide line. */
-					return DecideLine(ssn, money, clerkType, isSenator);
+					return DecideLine(ssn, clerkType);
 				}
 				else
 				{
@@ -704,25 +713,25 @@ int DecideLine (int ssn, int clerkType)
 
 				/* Made it out of line. */
 				/* TODO: See above. (Decrement operator) */
-				clerkData[currentLine][index_bribeLineLength]--;
+				clerks[currentLine].bribeLineLength--;
 			}
 			else
 			{ /* No other options. Get in regular line. */
 				/* TODO: See above. (Increment operator) */
-				clerkData[currentLine][index_lineLength]++;
+				clerks[currentLine].lineLength++;
 				/* TODO: See above. (WriteOutput) */
 				/* WriteOutput("Customer %d has gotten in a regular line for %s %d.", ssn, currentLine); */
 				Wait(lineCVs[currentLine], lineLock);
 
 				/* Woken up. Make sure no senators have entered so that I can do my business with clerk. */
 				AcquireLock(senatorIndoorLock);
-				if (isSenatorPresent && !isSenator)
+				if (isSenatorPresent && (people[ssn].isSenator)?0:1)
 				{
 					/* TODO: See above. (WriteOutput) */
 					WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn);
 					Wait(senatorIndoorCV, senatorIndoorLock);
 					ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and re-decide line. */
-					return DecideLine(ssn, money, clerkType, isSenator);
+					return DecideLine(ssn clerkType);
 				}
 				else
 				{
@@ -731,20 +740,63 @@ int DecideLine (int ssn, int clerkType)
 
 				/* Made it out of line. */
 				/* TODO: See above. (Decrement operator) */
-				clerkData[currentLine][index_lineLength]--;
+				clerks[currentLine].lineLength--;
 			}
 		}
 	}
 	else
 	{ /* Line was empty when customer joined, go straight to the counter. */
 		/* TODO: Will this produce the same weird error as before when in C++ */
-		/* 	Before needed to do: clerkGroupData[clerkType].clerkData[currentLine].state = BUSY; */
-		clerkData[index_state] = state_clerkBusy;
+		/* 	Before needed to do: clerkGroups[clerkType].clerkData[currentLine].state = BUSY; */
+		clerkData.state = BUSY;
 	}
 	ReleaseLock(lineLock);
 
 	return currentLine;
 }
+
+/* Clerks accept a bribe of $500 from any customer who has determined 	*/
+/* 	they have sufficient money. Clerk resumes deciding whether she 		*/
+/*	should signal a customer to come to her counter, go on break, 		*/
+/*	or accept another bribe after accepting this bribe. 				*/
+/* Params:	clerk's ID 													*/
+/*			type of clerk line (0 = App, 1 = Pic, 2 = Pas, 3 = Csh) 	*/
+void AcceptBribe (int clerkID, enum clerktype clerkType)
+{
+	Clerk clerk;
+	int lineLock;
+	int moneyLock;
+	int clerkLock;
+	int workCV;
+	int bribeCV;
+
+	clerk = clerkGroups[clerkType].clerks[clerkID];
+	lineLock = clerkGroups[clerkType].lineLock;
+	moneyLock = clerkGroups[clerkType].moneyLock;
+	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
+	workCV = clerkGroups[clerkType].workCVs[clerkID];
+	bribeCV = clerkGroups[clerkType].bribeCVs[clerkID];
+
+	/* Should already have lineLock from Clerk decision function */
+
+	Signal(bribeCV, lineLock); /* Let customer know she can wake up to pay you bribe */
+	AcquireLock(clerkLock); /* Synchronize clerk's work for bribe interaction */
+	ReleaseLock(lineLock); /* Done deciding which customer from line */
+	Wait(workCV, clerkLock); /* Wait until she pays after customer wakes up from signal */
+	
+	AcquireLock(moneyLock); /* Synchronize update to clerk's pool of money */
+	clerkGroups[clerkType].totalMoney += 500;
+	ReleaseLock(moneyLock);
+	/* TODO: See above. (WriteOutput) */
+	/* TODO: Map clerkType to clerk name (param 1). */
+	/* 	WriteOutput("%s %d has received $500 from Customer %d", clerkType, clerkID, clerk.currentCustomer); */
+
+	Signal(workCV, clerkLock); /* Let customer know she can get in bribe line. */
+	clerk.currentCustomer = -1;
+	ReleaseLock(clerkLock); /* Done with clerk's work for bribe interaction. */
+}
+
+
 
 int main () 
 {
