@@ -18,6 +18,8 @@ int b, c;
 
 int main()
 {
-    Halt();
+	Exec("../test/locktest", 16);
+
+    /*Halt();*/
     /* not reached */
 }

@@ -29,12 +29,16 @@ class AddrSpace {
 					// stored in the file "executable"
     ~AddrSpace();			// De-allocate an address space
 
-    void InitRegisters();		// Initialize user-level CPU registers,
+    int InitRegisters();		// Initialize user-level CPU registers,
 					// before jumping to user code
 
     void SaveState();			// Save/restore address space-specific
     void RestoreState();		// info on a context switch
     Table fileTable;			// Table of openfiles
+
+    int NewPageTable();
+    void ReclaimStack(int stackPage);
+    void ReclaimPageTable();
 
  private:
     TranslationEntry *pageTable;	// Assume linear page table translation

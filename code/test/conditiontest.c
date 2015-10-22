@@ -1,10 +1,11 @@
 #include "syscall.h"
+#include "syscall.h"
 
 void CreateCondition_Test()
 {
 	int conditionlock1, conditionlock2;
 
-    /*conditionlock1 = CreateCV("abc", -1);
+    conditionlock1 = CreateCV("abc", -1);
     if (conditionlock1 != -1) {
         Write("CreateCondition failed: Should return -1 for negative lock identifier lengths.\n", 74, 1);
     }
@@ -12,7 +13,7 @@ void CreateCondition_Test()
     conditionlock1 = CreateCV("abc", 0);
     if (conditionlock1 != -1) {
         Write("CreateCondition failed: Should return -1 when the length of the lock's identifier is 0.\n", 83, 1);
-    }*/
+    }
 
     conditionlock1 = CreateCV(0, 1);
     if (conditionlock1 != -1) 
@@ -28,7 +29,6 @@ void CreateCondition_Test()
         Write("CreateCondition failed: Should return -1 for invalid pointers to lock identifier.\n", 77, 1);
     }
     */
-
     conditionlock1 = CreateCV("abc", 3);
     if (conditionlock1 == -1) {
         Write("CreateCondition failed: Should NOT return -1 when valid lock identifier and lengths are passed in.\n", 94, 1);
@@ -38,6 +38,19 @@ void CreateCondition_Test()
     if (conditionlock1 == conditionlock2) {
         Write("CreateCondition failed: Should NOT return the same index when creating two locks.\n", 77, 1);
     }
+
+
+    conditionlock1 = DestroyCV(-1);
+    if (conditionlock1 != -1) {
+        Write("CreateCondition failed: Should return -1 for negative lock identifier lengths.\n", sizeof("CreateCondition failed: Should return -1 for negative lock identifier lengths.\n"), 1);
+    }
+
+    conditionlock1 = DestroyCV(1000);
+    if (conditionlock1 != -1) {
+        Write("CreateCondition failed: Should return -1 when the length of the lock's identifier is 0.\n", sizeof("CreateCondition failed: Should return -1 when the length of the lock's identifier is 0.\n"), 1);
+    }
+
+
 }
 
 void Wait_Test() 
@@ -59,6 +72,10 @@ void Wait_Test()
      if (conditionIndex != -1){
         Write("Wait_Locks failed: Should return -1 for bad pointers to lock identifier.\n", 73, 1);
     }
+
+
+
+
 	return;
 
 }
@@ -82,22 +99,22 @@ void DestroyCV_Test()
     int release;
 
     cv= CreateCV("abc", 3);
-    destroy1= DestroyCV(cv);
+    /*estroy1= DestroyCV(cv);*/
 
     cv= CreateCV("def", 3);
-    acquire();
+    /*acquire();
     release();
 
     cv= CreateCV("def", 3);
     acquire();
     DestroyCV();
-    release();
+    release();*/
 }
 
 int main() {
-    /*CreateCondition_Test();*/
+    CreateCondition_Test();
 
-    Wait_Test();
+    /*Wait_Test();*/
 
     /*Signal_Test();*/
 

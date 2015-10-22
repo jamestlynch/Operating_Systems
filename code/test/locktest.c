@@ -4,188 +4,215 @@
 
 #include "syscall.h"
 
-void
-CreateLock_Test() {
-    int indexlock1;
-    int indexlock2;
-
-   /* indexlock1 = CreateLock("abc", 0);
-    if (indexlock1 != -1) {
-    	WriteError("CreateLock failed: Should return -1 when the length of the lock's identifier is 0.\n", 83);
-    }
-
-    indexlock1 = CreateLock("abc", -1);
-    if (indexlock1 != -1) {
-        WriteError("CreateLock failed: Should return -1 for negative lock identifier lengths.\n", 74);
-    }
-    }*/
-
-    indexlock1 = CreateLock(0, 1);
-    if (indexlock1 != -1) {
-        WriteError("CreateLock failed: Should return -1 for bad pointers to lock identifier.\n", 73);
-    }
-
-    /* THIS TEST BELOW CAUSES IT TO BREAK.
-    indexlock1 = CreateLock(-1, 1);
-    if (indexlock1 != -1) {
-        Write("CreateLock failed: Should return -1 for invalid pointers to lock identifier.\n", 77, 1);
-    }*/
-
-    indexlock1 = CreateLock("abc", 3);
-    if (indexlock1 == -1) {
-        WriteError("CreateLock failed: Should NOT return -1 when valid lock identifier and lengths are passed in.\n", 94);
-    }
-
-        WriteInt(indexlock1);
-
-    indexlock2 = CreateLock("abc", 3);
-    if (indexlock1 == indexlock2) {
-        WriteError("CreateLock failed: Should NOT return the same index when creating two locks.\n", 77);
-    }
-
-    /* Possible other tests: */
-    /*  - Bad vaddr: different address space */
-    /*  - If vector has no more room ?? */
-    /*  - Memory running out ?? */
-}
-
-void
-Acquire_Test() {
-    int acquire1;
-    int release1;
-    int lockIndex;
-    int lockIndex2;
-
-    lockIndex = CreateLock("abc", 3);
-    lockIndex2 = CreateLock("def", 3);
-
-    acquire1= AcquireLock(-1);
-    if (acquire1 != -1){
-            Write("AcquirLock1 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
-    }
-    acquire1= AcquireLock(100);
-    if (acquire1 != -1){
-            Write("AcquirLock1 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
-    }
-    acquire1= AcquireLock(lockIndex);
-    if (acquire1!= -1){
-            Write("Lock created for acquire test.\n", 77, 1);
-    }
-
-    /*
-    set lock index to be acquired by someone else. go on wait queue.
-
-
-
-    AFTER SUCCESSFULL CREATING A LOCK, THE NEXT RELEASE DOESNT WORK AS EXPECTED.
-    */
-    /*destroyIndex= DestroyLock(acquire1);
-
-
-	/* Lock is set to delete */
-
-	/* Process is not lock owner */
-}
-void Release_Test(){
-    int acquire1;
-    int release1;
-    int lockIndex;
-    int lockIndex2;
-
-    lockIndex = CreateLock("abc", 3);
-    lockIndex2 = CreateLock("def", 3);
-
-    /*confirm in the correct process, confirm is the lock owner currently- cannot release lock*/
-
-    acquire1= AcquireLock(-1);
-    if (acquire1 != -1){
-            Write("AcquirLock0 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
-    }
-    acquire1= AcquireLock(100);
-    if (acquire1 != -1){
-            Write("AcquirLock1 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
-    }
-
-    acquire1= AcquireLock(lockIndex);
-    if (acquire1!= -1){
-            Write("Lock created for acquire test.\n", 77, 1);
-    }
-
-    release1= ReleaseLock(300);
-    if (release1 != -1){
-            Write("ReleaLock0 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
-    }
-    release1= ReleaseLock(100);
-    if (release1 != -1){
-            Write("ReleaLock1 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
-    }
-    release1= ReleaseLock(200);
-    if (release1!=-1){
-            Write("ReleaLock2 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
-    }
-    release1= ReleaseLock(acquire1);
-    if (release1 == -1){
-            Write("ReleaLock3 failed: Should return -1 when lock index is out of bounds.\n", 77, 1);
-    }
-}
-
-void
-DestroyLock_Test() {
-    int indexlock1, indexlock2;
-    int lockIndex;
-     int destroy1;
-    int lock;
-    int acquire;
-    int release;
-
-    lockIndex = CreateLock("abc", 3);
-    lockIndex = CreateLock("abc", 3);
-    lockIndex = CreateLock("abc", 3);
-    lockIndex = CreateLock("abc", 3);
-
-    indexlock1 = DestroyLock(-1);
-    if (indexlock1 != -1) {
-        Write("DestroyLock failed: Should return -1 for negative index.\n", 74, 1);
+int test;
+int indexcheck1, indexcheck2, indexcheck3, indexcheck4, indexcheck5, indexcheck6, indexcheck7, indexcheck8, indexcheck9, indexcheck10, indexcheck11, indexcheck12;
+int LockIndex1, LockIndex2, LockIndex3, LockIndex4;
+int CVIndex1, CVIndex2, CVIndex3, CVIndex4;
+void t1_t1(){
+    
+    /*checks destroy and create invalid input is handled properly*/
+    indexcheck1= CreateLock("abc", -1);
+    indexcheck2=DestroyLock(indexcheck1+100);
+    indexcheck3=DestroyLock(-100);
+    if (indexcheck1==-1 && indexcheck2==-1 && indexcheck3==-1){
+        Write("passed: create/destroyLOCK validates input\n", sizeof("passed: create/destroyLOCK validates input\n"), 1);
     }
     else{
-        Write("Success\n", 8, 1);
+        Write("failed: create/destroyLOCK validates input\n", sizeof("failed: create/destroyLOCK validates input\n"), 1);
     }
-    indexlock1 = DestroyLock(1000);
-    if (indexlock1 != -1) {
-        Write("DestroyLock failed: Should return -1 for index out of bounds.\n", 73, 1);
+}
+void t2_t1()
+{
+
+    /* checks acquire and release invalid input is handled properly.*/
+    indexcheck1 = AcquireLock(5000);
+    indexcheck2 = ReleaseLock(5000);
+    indexcheck3 = AcquireLock(-1);
+    indexcheck4= ReleaseLock(-1);
+
+    /*this function is called the last among the functions that are used for the same test. print out the result and FORK next text function*/
+    if(indexcheck1 == - 1 && indexcheck2 == -1 && indexcheck3 == -1 && indexcheck4 == -1) {
+        Write("passed: acquire/releaselock validates input\n", sizeof("passed: acquire/releaselock validates input\n"), 1);
+    }else{
+        Write("failed: acquire/releaselock validates input\n", sizeof("failed: acquire/releaselock validates input\n"), 1);
     }
-    else{
-        Write("Success\n", 8, 1);
-    }
-
-    indexlock1= DestroyLock(lockIndex);
-
-   
-
-    lock= CreateLock("abc", 3);
-    destroy1= DestroyLock(lock);
-
-    lock= CreateLock("def", 3);
-    acquire= AcquireLock(lock);
-    release= ReleaseLock(acquire);
-    destroy1= DestroyLock(release);
-
-    lock= CreateLock("def", 3);
-   /* acquire();
-    DestroyCV();
-    release();
-    DestroyCV();*/
-
-    /*LOCK OWNER
-    //ARE THERE WAITING THREADS? NO, DELETE LOCK IMMEDIATELY. YES, SET TODELETE=TRUE*/
+    Exit(0);
 }
 
-int 
-main() {
+void t3_t1(){
+    indexcheck1=CreateCV("def", 1);
+    indexcheck2=DestroyCV(indexcheck1+100);
+    indexcheck3= CreateCV("abc", -1);
+    indexcheck4=DestroyCV(-100);
+    if (indexcheck1==-1 && indexcheck2==-1 && indexcheck3==-1 && indexcheck4==-1){
+        Write("passed: create/destroyCV validates input\n", sizeof("passed: create/destroyCV validates input\n"), 1);
+    }
+    else{
+        Write("failed: create/destroyCV validates input\n", sizeof("failed: create/destroyCV validates input\n"), 1);
+    }
+}
+void t4_t1(){
+    indexcheck1= Signal(1, -1);
+
+    indexcheck2= Signal(-1, 1);
+    indexcheck3= Signal(1000, 1);
+    indexcheck4= Signal(1, 1000);
+    indexcheck5= Broadcast(1, -1);
+    indexcheck6= Broadcast(-1, 1);
+    indexcheck7= Broadcast(1000, 1);
+    indexcheck8= Broadcast(1, 1000);
+    indexcheck9= Wait(1, -1);
+    indexcheck10= Wait(-1, 1);
+    indexcheck11= Wait(1000, 1);
+    indexcheck12= Wait(1, 1000);
+    if (indexcheck1==-1 && indexcheck2==-1 && indexcheck3==-1 && indexcheck4==-1 && indexcheck5==-1 && indexcheck6==-1 && indexcheck7==-1 && indexcheck8==-1 && indexcheck9==-1 && indexcheck10==-1 && indexcheck11==-1 && indexcheck12==-1 ){
+        Write("passed: create/destroyCV validates input\n", sizeof("passed: create/destroyCV validates input\n"), 1);
+    }
+    else{
+        Write("failed: create/destroyCV validates input\n", sizeof("failed: create/destroyCV validates input\n"), 1);
+    }
+}
+void t5_t1(){
+    test=AcquireLock(LockIndex1);
+    Write("1 acquired\n", sizeof("1 acquired\n"), 1);
+    test=ReleaseLock(LockIndex1);
+    Write("1 released\n", sizeof("1 released\n"), 1);
+}
+void t5_t2(){
+    test=AcquireLock(LockIndex1);
+    Write("2 acquired\n", sizeof("2 acquired\n"), 1);
+    test=ReleaseLock(LockIndex1);
+    Write("2 released\n", sizeof("2 released\n"), 1);
+}
+void t5_t3(){
+    test=AcquireLock(LockIndex1);
+    Write("3 acquired\n", sizeof("3 acquired\n"), 1);
+    test=ReleaseLock(LockIndex1);
+    Write("3 released\n", sizeof("3 released\n"), 1);
+}
+void t6_t1() {
+    /*2nd to acquire lock*/
+    test=AcquireLock(indexcheck1);
+    test=Wait(LockIndex1, CVIndex1);
+    Write("2\n", sizeof("2\n"), 1);
+    test=ReleaseLock(indexcheck1);
+    test=DestroyLock(indexcheck1);
+    test=DestroyCV(CVIndex1);
+    Exit(0);
+}
+void t6_t2() {
+    /*3rd to acquire lock*/
+    test=AcquireLock(indexcheck1);
+    test=Wait(LockIndex1, CVIndex1);
+    Write("3\n", sizeof("3\n"), 1);
+    test=ReleaseLock(indexcheck1);
+    Write("Passed broadcast test if printed numbers are in increasing order. \n End of test 1\n", sizeof("Passed if numbers are in increasing order. \n End of test 1\n"), 1);
+    Exit(0);
+}
+void t6_t3() {
+    /*1st to acquire lock*/
+    test=AcquireLock(indexcheck1);
+    Write("1\n", sizeof("1\n"), 1);
+    test=Broadcast(indexcheck1, CVIndex1);
+    test=ReleaseLock(indexcheck1);
+    Exit(0);
+}
+
+void t7_t1(){
+    test=AcquireLock(indexcheck1);
+}
+void t7_t2(){
+    test=AcquireLock(indexcheck1);
+}
+void t7_t3(){
+    test=AcquireLock(indexcheck1);
+}
+
+void test1(){
+    Write("Test 1 start\n", sizeof("Test 1 start\n"), 1);
+    Fork("thread1", 7, t1_t1);
+    Exit(0);
+}
+void test2(){
+    Write("Test 2 start\n", sizeof("Test 2 start\n"), 1);
+    Fork("thread1", 7, t2_t1);
+
+}
+void test3(){
+    Write("Test 3 start\n", sizeof("Test 3 start\n"), 1);
+    Fork("thread1", 7, t3_t1);
+
+}
+void test4(){
+    Write("Test 4 start\n", sizeof("Test 4 start\n"), 1);
+    Fork("thread1", 7, t4_t1);
+}
+void test5(){
+    Write("Test 5 start\n", sizeof("Test 5 start\n"), 1);
+    Fork("thread1", 7, t5_t1);
+    Fork("thread2", 7, t5_t2);
+    Fork("thread3", 7, t5_t3);
+
+}
+void test6(){
+    Write("Test 6 start\n", sizeof("Test 6 start\n"), 1);
+    Fork("thread1", 7, t6_t1);
+    Fork("thread2", 7, t6_t2);
+    Fork("thread3", 7, t6_t3);
+}
+
+int main() 
+{
+    LockIndex1= CreateLock("Lock1", 5);
+    Write("Lock 1 created\n", sizeof("Lock 1 created\n"), 1);
+    LockIndex2 = CreateLock("Lock2", 5);
+    Write("Lock 2 created\n", sizeof("Lock 2 created\n"), 1);
+    LockIndex3 = CreateLock("Lock3", 5);
+    Write("Lock 3 created\n", sizeof("Lock 3 created\n"), 1);
+    LockIndex4 = CreateLock("Lock4", 5);
+    Write("Lock 4 created\n", sizeof("Lock 4 created\n"), 1);
+    CVIndex1 = CreateCV("CV1", 3);
+    Write("CV 1 created\n", sizeof("CV 1 created\n"), 1);
+    CVIndex2 = CreateCV("CV2", 3);
+    Write("CV 2 created\n", sizeof("CV 2 created\n"), 1);
+    CVIndex3 = CreateCV("CV3", 3);
+    Write("CV 3 created\n", sizeof("CV 3 created\n"), 1);
+    CVIndex4 = CreateCV("CV4", 3);
+    Write("CV 4 created\n", sizeof("CV 4 created\n"), 1);
+
+    /*BoundsErrorCheck_Test();
+     passingVars_Test();*/
+
+    test1();
+    test2();
+    
+
+
+    /*test2();
+    test3();
+    test4();
+    test5();*/
+    /*test6();*/
+
+/*
+    int lock1;
+
+    /*BoundsErrorCheck_Test();
+    int lock1, lock2, lock3, lock4;
+    lock1= CreateLock("abc", 3);
+    /*lock2= CreateLock("def", 3);
+    lock3= CreateLock("ghi", 3);
+    lock4= CreateLock("jkl", 3);*/
+
+    /*Fork("thread1", 7, unsigned int vFuncAddr);
+    Fork("thread2", 7, unsigned int vFuncAddr);
+    Fork("thread3", 7, unsigned int vFuncAddr);
+
+
      /*CreateLock_Test(); */
      /*Acquire_Test();*/
      /*Release_Test();*/
-     DestroyLock_Test();
+     /*DestroyLock_Test();*/
 
 
 	/* Multiple threads test */

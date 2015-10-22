@@ -79,14 +79,15 @@ class Lock {
 					// checking in Release, and in
 					// Condition variable ops below.
     List *sleepqueue;
-  private:
-    char* name;				// for debugging
-    // plus some other stuff you'll need to define
-   // Thread *lockOwner;
-    Thread *lockOwner;
     bool state; //0=free, 1=busy
+
+  private:
+    char* name;				
+    // for debugging
+    // plus some other stuff you'll need to define
+    // Thread *lockOwner;
+    Thread *lockOwner;
     bool isHeldBySomeOne;
-    
 };
 
 // The following class defines a "condition variable".  A condition

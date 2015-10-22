@@ -85,8 +85,7 @@ void *Table::Remove(int i) {
 //	endian machine, and we're now running on a big endian machine.
 //----------------------------------------------------------------------
 
-static void 
-SwapHeader (NoffHeader *noffH)
+static void SwapHeader (NoffHeader *noffH)
 {
 	noffH->noffMagic = WordToHost(noffH->noffMagic);
 	noffH->code.size = WordToHost(noffH->code.size);
@@ -135,7 +134,7 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     ASSERT(noffH.noffMagic == NOFFMAGIC);
 
     size = noffH.code.size + noffH.initData.size + noffH.uninitData.size;
-    numPages = divRoundUp(size, PageSize) + divRoundUp(UserStackSize,PageSize);
+    numPages = divRoundUp(size, PageSize) + divRoundUp(UserStackSize, PageSize);
     // we need to increase the size
 	// to leave room for the stack
     size = numPages * PageSize;
@@ -150,16 +149,17 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     
     // first, set up the translation 
     memLock->Acquire();
+
     pageTable = new TranslationEntry[numPages];
     for (i = 0; i < numPages; i++) 
     {
     	pageTable[i].virtualPage = i;	// for now, virtual page # = phys page #
-    	//pageTable[i].physicalPage = i;
-        pageTable[i].physicalPage = memBitMap.Find();
+        pageTable[i].physicalPage = memBitMap->Find();
     	pageTable[i].valid = TRUE;
     	pageTable[i].use = FALSE;
     	pageTable[i].dirty = FALSE;
     	pageTable[i].readOnly = FALSE;  
+
         // if the code segment was entirely on 
 		// a separate page, we could set its 
 		// pages to be read-only
@@ -169,13 +169,18 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
         // how much to copy? pagesize!
         if (pageTable[i].physicalPage == -1)
         {
-          // print message
-          interrupt->halt();
+          printf("No more physical memory available.\n");
+          interrupt->Halt();
         }
 
-        executable->ReadAt(machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize, 40 + pageTable[i].virtualPage * PageSize));
+        //printf("PageSize: %d, physicalPage: %d, virtualPage: %d", PageSize, pageTable[i].physicalPage, pageTable[i].virtualPage);
+
+        executable->ReadAt(&(machine->mainMemory[PageSize * pageTable[i].physicalPage]), PageSize, noffH.code.inFileAddr + (pageTable[i].virtualPage * PageSize));
     }
+
     memLock->Release();
+
+
     
     // zero out the entire address space, to zero the unitialized data segment 
     // and the stack segment
@@ -217,12 +222,12 @@ AddrSpace::~AddrSpace()
 //	when this thread is context switched out.
 //----------------------------------------------------------------------
 
-void AddrSpace::InitRegisters()
+int AddrSpace::InitRegisters()
 {
     int i;
 
     for (i = 0; i < NumTotalRegs; i++)
-	machine->WriteRegister(i, 0);
+	   machine->WriteRegister(i, 0);
 
     // Initial program counter -- must be location of "Start"
     machine->WriteRegister(PCReg, 0);	
@@ -236,6 +241,8 @@ void AddrSpace::InitRegisters()
    // accidentally reference off the end!
     machine->WriteRegister(StackReg, numPages * PageSize - 16);
     DEBUG('a', "Initializing stack register to %x\n", numPages * PageSize - 16);
+
+    return numPages - (UserStackSize / PageSize);
 }
 
 //----------------------------------------------------------------------
@@ -263,10 +270,11 @@ void AddrSpace::RestoreState()
     machine->pageTableSize = numPages;
 }
 
-void AddrSpace::NewPageTable()
+int AddrSpace::NewPageTable()
 {
-    TranslationEntry newPT = new TranslationEntry(numPages + 8); // add 8 pages for new stack
-
+    memLock->Acquire();
+    
+    TranslationEntry * newPT = new TranslationEntry[numPages + (UserStackSize / PageSize)]; // add 8 pages for new stack
     for(int i = 0; i < numPages; i++)
     {
         newPT[i].virtualPage    =   pageTable[i].virtualPage;
@@ -277,14 +285,14 @@ void AddrSpace::NewPageTable()
         newPT[i].readOnly       =   pageTable[i].readOnly;
     }
 
-    for(int i = numPages; i < numPages + 8; i++)
+    for(int i = numPages; i < numPages + (UserStackSize / PageSize); i++)
     {
-        pageTable[i].virtualPage = i;   // for now, virtual page # = phys page #
-        pageTable[i].physicalPage = memBitMap.Find();
-        pageTable[i].valid = TRUE;
-        pageTable[i].use = FALSE;
-        pageTable[i].dirty = FALSE;
-        pageTable[i].readOnly = FALSE;  
+        newPT[i].virtualPage = i;   // for now, virtual page # = phys page #
+        newPT[i].physicalPage = memBitMap->Find();
+        newPT[i].valid = TRUE;
+        newPT[i].use = FALSE;
+        newPT[i].dirty = FALSE;
+        newPT[i].readOnly = FALSE;  
         // if the code segment was entirely on 
         // a separate page, we could set its 
         // pages to be read-only
@@ -292,20 +300,66 @@ void AddrSpace::NewPageTable()
         // find page memory that nobody is using
         // copy from executable to that page of memory
         // how much to copy? pagesize!
-        if (pageTable[i].physicalPage == -1)
+        if (newPT[i].physicalPage == -1)
         {
-          // print message
-          interrupt->halt();
+          printf("No more physical memory available.\n");
+          interrupt->Halt();
         }
-
-        // I don't think this is right...ß
-        executable->ReadAt(machine->mainMemory[PageSize * pageTable[i].physicalPage], PageSize, 40 + pageTable[i].virtualPage * PageSize));
     }
 
     delete pageTable;
-    pageTable = newPT;
 
-    numPages = numPages + 8;
+    pageTable = newPT;
+    numPages += (UserStackSize / PageSize);
 
     RestoreState();
+
+    memLock->Release();
+
+    return numPages;
 }
+
+/*
+- A thread calls Exit - not the last executing thread in the process
+  - Reclaim 8 pages of stock
+  - VPN, PPN, valid = false
+      - memoryBitMap->Clear(ppn);
+- Last executing thread in last process
+    - interrupt->Halt();
+- Last executing thread in a process - not last process (AddrSpace *)
+    - reclaim all unreclaimed memory
+    - Locks/CVs (match AddrSpace * w/ ProcessTable)
+*/
+
+void AddrSpace::ReclaimStack(int stackPage)
+{
+    memLock->Acquire();
+    for(int i = stackPage; i < (UserStackSize / PageSize); i++)
+    {
+        memBitMap->Clear(pageTable[i].physicalPage);
+        pageTable[i].valid = FALSE;
+        pageTable[i].use = FALSE;
+        pageTable[i].dirty = FALSE;
+        pageTable[i].readOnly = FALSE;  
+    }
+    memLock->Release();
+}
+
+void AddrSpace::ReclaimPageTable()
+{
+    memLock->Acquire();
+    for(int i = 0; i < numPages; i++)
+    {
+        if(pageTable[i].valid)
+        {
+            memBitMap->Clear(pageTable[i].physicalPage);
+            pageTable[i].valid = FALSE;
+            pageTable[i].use = FALSE;
+            pageTable[i].dirty = FALSE;
+            pageTable[i].readOnly = FALSE;  
+        }
+    }
+    memLock->Release();
+}
+
+

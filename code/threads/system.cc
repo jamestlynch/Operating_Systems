@@ -175,6 +175,7 @@ Initialize(int argc, char **argv)
     memLock = new Lock("MemBitMapLock");
     conditionsLock = new Lock("KernelCVLock");
     locksLock = new Lock("KernelLocksLock");
+    processLock = new Lock("ProcessLock");
 
     memBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes 
 
@@ -207,13 +208,37 @@ Cleanup()
     
 #ifdef USER_PROGRAM
     delete machine; //delete machine
-    //delete processLock;
-    delete memoryBitMap;
-    //delete locks; // TODO: Figure out if/how to cleanup vectors
-    //delete conditions; // TODO: Figure out if/how to cleanup vectors
-    //delete lockT;
-    //delete processT;
-    //delete cvT;
+
+    delete locksLock;
+    delete conditionsLock;
+    delete processLock;
+    delete memLock;
+
+    delete memBitMap;
+
+    for(int i = 0; i < locks.size(); i++)
+    {
+        if(locks[i])
+        {
+            delete locks[i]->lock;
+        }
+    }
+
+    for(int i = 0; i < conditions.size(); i++)
+    {
+        if(conditions[i])
+        {
+            delete conditions[i]->condition;
+        }
+    }
+
+    for(int i = 0; i < processInfo.size(); i++)
+    {
+        if(processInfo[i])
+        {
+            delete processInfo[i]->space;
+        }
+    }
 #endif
 
 #ifdef FILESYS_NEEDED
