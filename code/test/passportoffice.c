@@ -3,6 +3,9 @@
 
 #include "syscall.h"
 
+typedef enum { false = 0, true = 1 } bool;
+
+
 /* ========================================================================================================================================= */
 /*																																			 */
 /*		DATA SETUP																															 */
@@ -10,46 +13,57 @@
 /* ========================================================================================================================================= */
 
 /******************************************/
-/* 		  	   Customer Data 			  */
+/* 		  	    Person Data 			  */
 /******************************************/
 
 int moneyOptions[4] = {100, 600, 1100, 1600};
 
-int index_turnedInApplication = 0;
-int index_acceptedPassport = 1;
-int index_gotPassport = 2;
-int index_applicationFiled = 3;
-int index_photoFiled = 4;
-int index_passportCertified = 5;
-int index_passportRecorded = 6;
+struct Person {
+	int ssn;
+	int money;
+	bool isSenator;
+};
 
-int numCustomerDataEntries = 7;
+struct Person people[60]; /* numCustomers + numSenators */
 
-int customerData[7] = {
-	0, /* turnedInApplication */
-	0, /* acceptedPassport */
-	0, /* gotPassport */
-	0, /* applicationFiled */
-	0, /* photoFiled */
-	0, /* passportCertified */
-	0 /* passportRecorded */
+/******************************************/
+/* 		  	   Customer Data 			  */
+/******************************************/
+
+struct Customer {
+	bool turnedInApplication;
+	bool acceptedPassport;
+	bool gotPassport;
+	bool applicationFiled;
+	bool photoFiled;
+	bool passportCertified;
+	bool passportRecorded;
 };
 
 int numCustomers = 50;
-int customers[50][7];
+struct Customer customers[60]; /* customers holds all customers and senators - Allows us to keep ssn as index of arrays while still keeping everyone's SSN different. */
 
 int numCustomersFinished = 0; /* Compare this to (numCustomers + numSenators) to see when program completes. */
 
 void InitializeCustomerData ()
 {
-	int ssn, i;
+	int ssn;
 
 	for (ssn = 0; ssn < numCustomers; ssn++)
-	{
-		for (i = 0; i < numCustomerDataEntries; i++)
-		{
-			customers[ssn][i] = customerData[i];
-		}
+	{ 
+		/* customers hold all shared data that clerks update */
+		customers[ssn].turnedInApplication = false;
+		customers[ssn].acceptedPassport = false;
+		customers[ssn].gotPassport = false;
+		customers[ssn].applicationFiled = false;
+		customers[ssn].photoFiled = false;
+		customers[ssn].passportCertified = false;
+		customers[ssn].passportRecorded = false;
+
+		/* people holds all private data that people must update and make public to clerks. */
+		people[ssn].ssn = ssn;
+		people[ssn].money = InitialMoney();
+		people[ssn].isSenator = false;
 	}
 }
 
@@ -58,75 +72,91 @@ void InitializeCustomerData ()
 /******************************************/
 
 int numSenators = 10;
-int senators[10][7];
+/* Senators are stored inside of customers array. See above. */
 
 int isSenatorPresent = 0; /* Used to determine whether or not customers should wait for senators to leave PPOffice */
 
-int senatorIndoorLock = CreateLock("SenatorIndoorLock", 17); /* Synchronizes isSenatorPresent */
-int senatorIndoorCV = CreateCV("SenatorIndoorCV", 15); /* Wait on this whenever a senator is inside PPOffice */
+int senatorIndoorLock; /* Synchronizes isSenatorPresent */
+int senatorIndoorCV; /* Wait on this whenever a senator is inside PPOffice */
 /* TODO: Is this necessary? */
-/*	int senatorOutdoorCV = CreateCV("SenatorOutdoorCV", 16); */
+/*	int senatorOutdoorCV; */
 
 void InitializeSenatorData ()
 {
-	int ssn, i;
+	int ssn;
 
 	for (ssn = numCustomers; ssn < (numCustomers + numSenators); ssn++)
 	{
-		for (i = 0; i < numCustomerDataEntries; i++)
-		{
-			senators[ssn][i] = customerData[i];
-		}
+		/* customers hold all shared data that clerks update */
+		customers[ssn].turnedInApplication = false;
+		customers[ssn].acceptedPassport = false;
+		customers[ssn].gotPassport = false;
+		customers[ssn].applicationFiled = false;
+		customers[ssn].photoFiled = false;
+		customers[ssn].passportCertified = false;
+		customers[ssn].passportRecorded = false;
+
+		/* people holds all private data that people must update and make public to clerks. */
+		people[ssn].ssn = ssn;
+		people[ssn].money = InitialMoney();
+		people[ssn].isSenator = true;
 	}
+
+	senatorIndoorLock = CreateLock("SenatorIndoorLock", 17);
+	senatorIndoorCV = CreateCV("SenatorIndoorCV", 15);
+	/* TODO: Is this necessary? */
+	/*	senatorOutdoorCV = CreateCV("SenatorOutdoorCV", 16); */
 }
 
 /******************************************/
 /* 			    Clerk Data 				  */
 /******************************************/
 
-int state_clerkAvailable = 0;
-int state_clerkBusy = 1;
-int state_clerkOnBreak = 2;
+enum clerkstate { AVAILABLE, BUSY, ONBREAK };
+enum clerktype { APPLICATION, PICTURE, PASSPORT, CASHIER };
 
-int index_state = 0;
-int index_currentCustomer = 1;
-int index_money = 2;
-int index_lineLength = 3;
-int index_bribeLineLength = 4;
-int index_senatorLineLength = 5;
-int index_isBeingBribed = 6;
-int index_customerLikedPhoto = 7;
-int index_customerAppReadyToCertify = 8;
-int index_customerAppReadyForPayment = 9;
+struct Clerk {
+	enum clerkstate state;
+	int currentCustomer;
+	int money;
 
-int numClerkDataEntries = 10;
+	int lineLength;
+	int bribeLineLength;
+	int senatorLineLength;
 
-int clerkData[10] = {
-	0, /* state */
-	-1, /* currentCustomer */
-	0, /* money */
-	0, /* lineLength */
-	0, /* bribeLineLength */
-	0, /* senatorLineLength */
-	0, /* isBeingBribed */
-	0, /* customerLikedPhoto */
-	0, /* customerAppReadyToCertify */
-	0 /* customerAppReadyForPayment */
+	bool isBeingBribed;
+	bool customerLikedPhoto;
+	bool customerAppReadyToCertify;
+	bool customerAppReadyForPayment;
 };
 
-int clerkType_appclerk = 0;
-int clerkType_picclerk = 1;
-int clerkType_passportclerk = 2;
-int clerkType_cashier = 3;
+void InitializeClerkData (Clerk clerks[5], int numClerks)
+{
+	int clerkID;
 
-int clerkCounts [4] = {
-	5, /* clerkType_appClerks */
-	5, /* clerkType_pictureClerks */
-	5, /* clerkType_passportClerks */
-	5  /* clerkType_cashiers */
-};
+	for (clerkID = 0; clerkID < numClerks; clerkID++)
+	{
+		clerks[i].state = AVAILABLE;
+		clerks[i].currentCustomer = -1;
+		clerks[i].money = 0;
 
-int appclerks[5][10];
+		clerks[i].lineLength = 0;
+		clerks[i].bribeLineLength = 0;
+		clerks[i].senatorLineLength = 0;
+
+		clerks[i].isBeingBribed = false;
+		clerks[i].customerLikedPhoto = false;
+		clerks[i].customerAppReadyToCertify = false;
+		clerks[i].customerAppReadyForPayment = false;
+	}
+}
+
+/******************************************/
+/* 			  Clerk Group Data 			  */
+/******************************************/
+
+int numAppClerks = 5;
+struct Clerk appclerks[5];
 int appclerkLocks[5];
 int appclerkLineCVs[5];
 int appclerkBribeLineCVs[5];
@@ -135,7 +165,8 @@ int appclerkWorkCVs[5];
 int appclerkBribeCVs[5];
 int appclerkBreakCVs[5];
 
-int picclerks[5][10];
+int numPicClerks = 5;
+struct Clerk picclerks[5];
 int picclerkLocks[5];
 int picclerkLineCVs[5];
 int picclerkBribeLineCVs[5];
@@ -144,7 +175,8 @@ int picclerkWorkCVs[5];
 int picclerkBribeCVs[5];
 int picclerkBreakCVs[5];
 
-int passportclerks[5][10];
+int numPassportClerks = 5;
+struct Clerk passportclerks[5];
 int passportclerkLocks[5];
 int passportclerkLineCVs[5];
 int passportclerkBribeLineCVs[5];
@@ -153,7 +185,8 @@ int passportclerkWorkCVs[5];
 int passportclerkBribeCVs[5];
 int passportclerkBreakCVs[5];
 
-int cashiers[5][10];
+int numCashiers = 5;
+struct Clerk cashiers[5];
 int cashierLocks[5];
 int cashierLineCVs[5];
 int cashierBribeLineCVs[5];
@@ -162,42 +195,31 @@ int cashierWorkCVs[5];
 int cashierBribeCVs[5];
 int cashierBreakCVs[5];
 
-int index_clerksData = 0;
-int index_clerksCount = 1;
-int index_clerksMoney = 2;
-int index_lineLock = 3;
-int index_moneyLock = 4;
-int index_clerkLocks = 5;
-int index_lineCVs = 6;
-int index_bribeLineCVs = 7;
-int index_senatorLineCVs = 8;
-int index_workCVs = 9;
-int index_bribeCVs = 10;
-int index_breakCVs = 11;
+struct ClerkGroup {
+	Clerk clerks[5];
+	int numClerks;
 
-int numClerkGroupDataEntries = 12;
+	int moneyLock;
+	int groupMoney;
+	
+	int lineLock;
+	int lineCVs[5];
+	int bribeLineCVs[5];
+	int senatorLineCVs[5];
 
-int clerkGroupData[4][12];
+	int clerkLocks[5];
+	int workCVs[5];
+	int bribeCVs[5];
+	int breakCVs[5];
+};
 
-void InitializeClerkData (int clerks[][10], int numClerks)
-{
-	int clerkType, clerkID, i;
-
-	for (clerkID = 0; clerkID < numClerks; clerkID++)
-	{
-		for (i = 0; i < numClerkDataEntries; i++)
-		{
-			clerks[clerkID][i] = clerkData[i];
-		}
-	}
-}
+struct ClerkGroup clerkGroups[4];
 
 void InitializeApplicationClerkData ()
 {
-	int clerkType = clerkType_appclerk;
-	int clerkCount = clerkCounts[clerkType];
+	int clerkType = APPLICATION;
 
-	InitializeClerkData(appclerks, clerkCount);
+	InitializeClerkData(appclerks, numAppClerks);
 
 	appclerkLocks[0] = CreateLock("App:0-ClerkLock", 15);
 	appclerkLocks[1] = CreateLock("App:1-ClerkLock", 15);
@@ -241,26 +263,28 @@ void InitializeApplicationClerkData ()
 	appclerkBreakCVs[3] = CreateCV("App:3-BreakCV", 13);
 	appclerkBreakCVs[4] = CreateCV("App:4-BreakCV", 13);
 
-	clerkGroupData[clerkType][index_clerksData] = (unsigned int)appclerks;
-	clerkGroupData[clerkType][index_clerksCount] = (unsigned int)clerkCount;
-	clerkGroupData[clerkType][index_clerksMoney] = 0;
-	clerkGroupData[clerkType][index_lineLock] = CreateLock("ApplicationClerks-LineLock", 26);
-	clerkGroupData[clerkType][index_moneyLock] = CreateLock("ApplicationClerks-MoneyLock", 27);
-	clerkGroupData[clerkType][index_clerkLocks] = (unsigned int)appclerkLocks;
-	clerkGroupData[clerkType][index_lineCVs] = (unsigned int)appclerkLineCVs;
-	clerkGroupData[clerkType][index_bribeLineCVs] = (unsigned int)appclerkBribeLineCVs;
-	clerkGroupData[clerkType][index_senatorLineCVs] = (unsigned int)appclerkSenatorLineCVs;
-	clerkGroupData[clerkType][index_workCVs] = (unsigned int)appclerkWorkCVs;
-	clerkGroupData[clerkType][index_bribeCVs] = (unsigned int)appclerkBribeCVs;
-	clerkGroupData[clerkType][index_breakCVs] = (unsigned int)appclerkBreakCVs;
+	clerkGroups[clerkType].clerks = appclerks;
+	clerkGroups[clerkType].numClerks = numAppClerks;
+
+	clerkGroups[clerkType].moneyLock = CreateLock("ApplicationClerks-MoneyLock", 27);
+	clerkGroups[clerkType].groupMoney = 0;
+
+	clerkGroups[clerkType].lineLock = CreateLock("ApplicationClerks-LineLock", 26);
+	clerkGroups[clerkType].lineCVs = appclerkLineCVs;
+	clerkGroups[clerkType].bribeLineCVs = appclerkBribeLineCVs;
+	clerkGroups[clerkType].senatorLineCVs = appclerkSenatorLineCVs;
+
+	clerkGroups[clerkType].clerkLocks = appclerkLocks;
+	clerkGroups[clerkType].workCVs = appclerkWorkCVs;
+	clerkGroups[clerkType].bribeCVs = appclerkBribeCVs;
+	clerkGroups[clerkType].breakCVs = appclerkBreakCVs;
 }
 
 void InitializePictureClerkData ()
 {
-	int clerkType = clerkType_picclerk;
-	int clerkCount = clerkCounts[clerkType];
+	int clerkType = PICTURE;
 
-	InitializeClerkData(picclerks, clerkCount);
+	InitializeClerkData(picclerks, numPicClerks);
 
 	picclerkLocks[0] = CreateLock("Pic:0-ClerkLock", 15);
 	picclerkLocks[1] = CreateLock("Pic:1-ClerkLock", 15);
@@ -304,26 +328,28 @@ void InitializePictureClerkData ()
 	picclerkBreakCVs[3] = CreateCV("Pic:3-BreakCV", 13);
 	picclerkBreakCVs[4] = CreateCV("Pic:4-BreakCV", 13);
 
-	clerkGroupData[clerkType][index_clerksData] = (unsigned int)picclerks;
-	clerkGroupData[clerkType][index_clerksCount] = (unsigned int)clerkCount;
-	clerkGroupData[clerkType][index_clerksMoney] = 0;
-	clerkGroupData[clerkType][index_lineLock] = CreateLock("PictureClerks-LineLock", 22);
-	clerkGroupData[clerkType][index_moneyLock] = CreateLock("PictureClerks-MoneyLock", 23);
-	clerkGroupData[clerkType][index_clerkLocks] = (unsigned int)picclerkLocks;
-	clerkGroupData[clerkType][index_lineCVs] = (unsigned int)picclerkLineCVs;
-	clerkGroupData[clerkType][index_bribeLineCVs] = (unsigned int)picclerkBribeLineCVs;
-	clerkGroupData[clerkType][index_senatorLineCVs] = (unsigned int)picclerkSenatorLineCVs;
-	clerkGroupData[clerkType][index_workCVs] = (unsigned int)picclerkWorkCVs;
-	clerkGroupData[clerkType][index_bribeCVs] = (unsigned int)picclerkBribeCVs;
-	clerkGroupData[clerkType][index_breakCVs] = (unsigned int)picclerkBreakCVs;
+	clerkGroups[clerkType].clerks = picclerks;
+	clerkGroups[clerkType].numClerks = numPicClerks;
+
+	clerkGroups[clerkType].moneyLock = CreateLock("PictureClerks-MoneyLock", 23);
+	clerkGroups[clerkType].groupMoney = 0;
+
+	clerkGroups[clerkType].lineLock = CreateLock("PictureClerks-LineLock", 22);
+	clerkGroups[clerkType].lineCVs = picclerkLineCVs;
+	clerkGroups[clerkType].bribeLineCVs = picclerkBribeLineCVs;
+	clerkGroups[clerkType].senatorLineCVs = picclerkSenatorLineCVs;
+
+	clerkGroups[clerkType].clerkLocks = picclerkLocks;
+	clerkGroups[clerkType].workCVs = picclerkWorkCVs;
+	clerkGroups[clerkType].bribeCVs = picclerkBribeCVs;
+	clerkGroups[clerkType].breakCVs = picclerkBreakCVs;
 }
 
 void InitializePassportClerkData ()
 {
-	int clerkType = clerkType_passportclerk;
-	int clerkCount = clerkCounts[clerkType];
+	int clerkType = PASSPORT;
 
-	InitializeClerkData(passportclerks, clerkCount);
+	InitializeClerkData(passportclerks, numPassportClerks);
 
 	passportclerkLocks[0] = CreateLock("Pas:0-ClerkLock", 15);
 	passportclerkLocks[1] = CreateLock("Pas:1-ClerkLock", 15);
@@ -367,26 +393,28 @@ void InitializePassportClerkData ()
 	passportclerkBreakCVs[3] = CreateCV("Pas:3-BreakCV", 13);
 	passportclerkBreakCVs[4] = CreateCV("Pas:4-BreakCV", 13);
 
-	clerkGroupData[clerkType][index_clerksData] = (unsigned int)passportclerks;
-	clerkGroupData[clerkType][index_clerksCount] = (unsigned int)clerkCount;
-	clerkGroupData[clerkType][index_clerksMoney] = 0;
-	clerkGroupData[clerkType][index_lineLock] = CreateLock("PassportClerks-LineLock", 23);
-	clerkGroupData[clerkType][index_moneyLock] = CreateLock("PassportClerks-MoneyLock", 24);
-	clerkGroupData[clerkType][index_clerkLocks] = (unsigned int)passportclerkLocks;
-	clerkGroupData[clerkType][index_lineCVs] = (unsigned int)passportclerkLineCVs;
-	clerkGroupData[clerkType][index_bribeLineCVs] = (unsigned int)passportclerkBribeLineCVs;
-	clerkGroupData[clerkType][index_senatorLineCVs] = (unsigned int)passportclerkSenatorLineCVs;
-	clerkGroupData[clerkType][index_workCVs] = (unsigned int)passportclerkWorkCVs;
-	clerkGroupData[clerkType][index_bribeCVs] = (unsigned int)passportclerkBribeCVs;
-	clerkGroupData[clerkType][index_breakCVs] = (unsigned int)passportclerkBreakCVs;
+	clerkGroups[clerkType].clerks = passportclerks;
+	clerkGroups[clerkType].numClerks = numPassportClerks;
+
+	clerkGroups[clerkType].moneyLock = CreateLock("PassportClerks-MoneyLock", 24);
+	clerkGroups[clerkType].groupMoney = 0;
+
+	clerkGroups[clerkType].lineLock = CreateLock("PassportClerks-LineLock", 23);
+	clerkGroups[clerkType].lineCVs = passportclerkLineCVs;
+	clerkGroups[clerkType].bribeLineCVs = passportclerkBribeLineCVs;
+	clerkGroups[clerkType].senatorLineCVs = passportclerkSenatorLineCVs;
+
+	clerkGroups[clerkType].clerkLocks = passportclerkLocks;
+	clerkGroups[clerkType].workCVs = passportclerkWorkCVs;
+	clerkGroups[clerkType].bribeCVs = passportclerkBribeCVs;
+	clerkGroups[clerkType].breakCVs = passportclerkBreakCVs;
 }
 
 void InitializeCashierData ()
 {
-	int clerkType = clerkType_cashier;
-	int clerkCount = clerkCounts[clerkType];
+	int clerkType = CASHIER;
 
-	InitializeClerkData(cashiers, clerkCount);
+	InitializeClerkData(cashiers, numCashiers);
 
 	cashierLocks[0] = CreateLock("Csh:0-ClerkLock", 15);
 	cashierLocks[1] = CreateLock("Csh:1-ClerkLock", 15);
@@ -430,39 +458,76 @@ void InitializeCashierData ()
 	cashierBreakCVs[3] = CreateCV("Csh:3-BreakCV", 13);
 	cashierBreakCVs[4] = CreateCV("Csh:4-BreakCV", 13);
 
-	clerkGroupData[clerkType][index_clerksData] = (unsigned int)cashiers;
-	clerkGroupData[clerkType][index_clerksCount] = (unsigned int)clerkCount;
-	clerkGroupData[clerkType][index_clerksMoney] = 0;
-	clerkGroupData[clerkType][index_lineLock] = CreateLock("Cashiers-LineLock", 17);
-	clerkGroupData[clerkType][index_moneyLock] = CreateLock("Cashiers-MoneyLock", 18);
-	clerkGroupData[clerkType][index_clerkLocks] = (unsigned int)cashierLocks;
-	clerkGroupData[clerkType][index_lineCVs] = (unsigned int)cashierLineCVs;
-	clerkGroupData[clerkType][index_bribeLineCVs] = (unsigned int)cashierBribeLineCVs;
-	clerkGroupData[clerkType][index_senatorLineCVs] = (unsigned int)cashierSenatorLineCVs;
-	clerkGroupData[clerkType][index_workCVs] = (unsigned int)cashierWorkCVs;
-	clerkGroupData[clerkType][index_bribeCVs] = (unsigned int)cashierBribeCVs;
-	clerkGroupData[clerkType][index_breakCVs] = (unsigned int)cashierBreakCVs;
+	clerkGroups[clerkType].clerks = cashiers;
+	clerkGroups[clerkType].numClerks = numCashiers;
+
+	clerkGroups[clerkType].moneyLock = CreateLock("Cashiers-MoneyLock", 18);
+	clerkGroups[clerkType].groupMoney = 0;
+
+	clerkGroups[clerkType].lineLock = CreateLock("Cashiers-LineLock", 17);
+	clerkGroups[clerkType].lineCVs = cashierLineCVs;
+	clerkGroups[clerkType].bribeLineCVs = cashierBribeLineCVs;
+	clerkGroups[clerkType].senatorLineCVs = cashierSenatorLineCVs;
+
+	clerkGroups[clerkType].clerkLocks = cashierLocks;
+	clerkGroups[clerkType].workCVs = cashierWorkCVs;
+	clerkGroups[clerkType].bribeCVs = cashierBribeCVs;
+	clerkGroups[clerkType].breakCVs = cashierBreakCVs;
 }
 
 /******************************************/
 /* 			   Manager Data 			  */
 /******************************************/
 
-int index_appclerkMoney = 0;
-int index_picclerkMoney = 1;
-int index_passportclerkMoney = 2;
-int index_cashierMoney = 3;
-int index_totalMoney = 4;
-
-int numManagerDataEntries = 5;
-
-int manager[5] = {
-	0, /* appclerkMoney */
-	0, /* picclerkMoney */
-	0, /* passportclerkMoney */
-	0, /* cashierMoney */
-	0 /* totalMoney */
+struct Manager {
+	int appclerkMoney;
+	int picclerkMoney;
+	int passportclerkMoney;
+	int cashierMoney;
+	int totalMoney;
 };
+
+struct Manager manager;
+
+void InitializeManager ()
+{
+	manager.appclerkMoney = 0;
+	manager.picclerkMoney = 0;
+	manager.passportclerkMoney = 0;
+	manager.cashierMoney = 0;
+	manager.totalMoney = 0;
+}
+
+/******************************************/
+/* 			 System Job Data 			  */
+/******************************************/
+
+struct SystemJob {
+	int ssn;
+	int clerkID;
+};
+
+int numSystemJobs = 50;
+int jobs[50];
+
+int filingPictureLock;
+int filingApplicationLock;
+int certifyingPassportLock;
+
+void InitializeSystemJobs ()
+{
+	int jobID;
+
+	for (jobID = 0; jobID < numSystemJobs; jobID++)
+	{
+		jobs[jobID].ssn = -1;
+		jobs[jobID].clerkID = -1;
+	}
+
+	filingPictureLock = CreateLock("FilingPictureLock", 17);
+	filingApplicationLock = CreateLock("FilingApplicationLock", 21);
+	certifyingPassportLock = CreateLock("CertifyingPassportLock", 22);
+}
 
 
 void InitializeData ()
@@ -473,41 +538,9 @@ void InitializeData ()
 	InitializePictureClerkData();
 	InitializePassportClerkData();
 	InitializeCashierData();
-	/* Manager is only one instance, no InitializeData function needed. */
+	InitializeManager();
+	InitializeSystemJobs();
 }
-
-/******************************************/
-/* 			 System Job Data 			  */
-/******************************************/
-
-int filingPictureLock = CreateLock("FilingPictureLock", 17);
-int filingApplicationLock = CreateLock("FilingApplicationLock", 21);
-int certifyingPassportLock = CreateLock("CertifyingPassportLock", 22);
-
-int index_systemJobSSN = 0;
-int index_systemJobClerkID = 1;
-
-int systemJob[2] = {
-	-1, /* ssn */
-	-1 /* clerkID */
-};
-
-int numSystemJobs = 50;
-int jobs[50][2];
-
-void InitializeSystemJobs ()
-{
-	int jobID, i;
-
-	for (jobID = 0; jobID < numSystemJobs; jobID++)
-	{
-		for (i = 0; i < 2; i++)
-		{
-			jobs[jobID][i] = systemJob[i];
-		}
-	}
-}
-
 
 /* ========================================================================================================================================= */
 /*																																			 */
@@ -515,7 +548,7 @@ void InitializeSystemJobs ()
 /*																																			 */
 /* ========================================================================================================================================= */
 
-int DecideLine (int ssn, int &money, int clerkType, int isSenator)
+int DecideLine (int ssn, int clerkType)
 {
 	int lineLock;
 	int numClerks;
