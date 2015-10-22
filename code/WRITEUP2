@@ -1,0 +1,124 @@
+Title:  Writeup for Project 2, Fall 2015
+Date:  10/20/2015
+Group 8
+James Lynch		jamestly@usc.edu
+Austin Spiegel	aspiegel@usc.edu
+Haley Lenner	lenner@usc.edu
+ 
+I. Requirements:
+
+The requirements of the assignment is to create userprograms that can interact with the operating system via syscalls. Basically
+put up a wall between the userprogram and OS code because userprograms are not directly allowed to called operating system code,
+they need to request to do something w/ the operating system and then let the operating system actually perform the function. This also needs to simulate the idea that user programs can only create changes within their own programs and cannot access/create locks or conditions in processes that are not their own. The OS needs to handle these syscalls and perform the action required depending on whether the input is valid or not. We also are implementing several userprog tests to ensure the program works and also convert passport office to c so it can be run as a userprog.
+
+
+II. Assumptions:
+-
+
+III. Design:
+
+Our design idea is to create kernel lock and kernel cv structs and a process struct. These structs will hold Lock *lock, AddrSpace *space, and bool toDelete (locktest).Condition *condition, AddrSpace *space, and bool toDelete (conditiontest). The process will hold the number of executing threads, sleeping threads, address space, and an id for the process. Each of these structs will be stored in vectors, and all of the syscalls will use the vector for quick lookup. These vectors need to be accessed by userprogs one at a time to avoid race conditions so we'll put locks around all of the vectors. The goal is to ultimately make sure that the process addspace is the same space as the lock addspace and the cv addspace when making verifications, to make sure it has the proper access to do so and the lock/cv belongs to the process. For all syscalls we are going to validate the input passed in, which will be vaddr, length, lock indeces, and cv indeces. These all must be within bounds and nonnegative. For createCV and createLock, after validation we are going to create a new kernellock struct and then populate the struct addrspace with curr addrspace, delete=false, and an actual associated lock. Then we will push it to the back of the vector of kernellock struct pointers. For Acquire, we will pass in the index of the kernel lock struct and then do validations. Then update the process table numExecuting threads(-1) and sleeping threads (+1), then call the actual OS method to acquire the lock to run the OS code. Then after that code runs it means the thread is no longer sleeping so we need to increment the numExecutingThreads and decrement sleeping. These are accessing process table so we'll need to acquire the process table lock when making changes. For release lock we will release the lock at the index after validations. Release also needs to prompt a check for destroy, because if todelete is true and this was the last thread to release the lock then destroyLock will need to be called. For DestroyLock, we pass in indexes and do valiadtion tests 
+
+
+
+IV. Implementation:
++ Files Modified: 
+	System.h
+	System.cc
+	Syscall.h
+	exception.cc
+	addrspace.cc
+	start.s
+	thread.cc - added passportID
+	progtest- changed StartProcess to exec 1st thread
+
++ Files added:]
+	passporttest.cc
+	test1.cc
+	test2.cc
+	test3.cc
+	test4.cc
+	test5.cc
+	test6.cc
+
++ Data Structures added/modified
+	
+
+
++ Functions added and in which file.
+
+
+
+
+-- Functions to test simulation:
+
+inside locktest:
+	CreateLock_Test();
+    AcquireLock_Test();
+    ReleaseLock_Test();
+    DestroyLock_Test();
+
+inside conditiontest:
+
+	CreateCondition_Test();
+    Wait_Test();
+    Signal_Test();
+    Broadcast_Test();
+    CreateCondition_Test();
+
+ inside passporttest:
+ 	list every function inside.
+
++ Functions modified and in which file.
+
+	syscall.h	
+		SpaceId Exec(char *name);
+		void Fork(/*void (*func)()*/);
+		void Yield();
+		int CreateCV(char *buffer, int len);
+		int Wait(unsigned int indexcv, unsigned int indexlock);
+		int Signal(unsigned int indexcv, unsigned int indexlock);
+		int Broadcast(unsigned int indexcv, unsigned int indexlock);	
+		int DestroyCV(unsigned int indexcv);
+		int CreateLock(char *name, int size);
+
+	system.cc/system.h
+		void Cleanup();
+		void Initialize();
+
+	addrspace.cc/addrspace.h
+		AddrSpace::AddrSpace(OpenFile *executable); -constructor
+
+	exception.cc
+		SpaceId Exec(char *name);
+		void Fork(/*void (*func)()*/);
+		void Yield();
+		int CreateCV(char *buffer, int len);
+		int Wait(unsigned int indexcv, unsigned int indexlock);
+		int Signal(unsigned int indexcv, unsigned int indexlock);
+		int Broadcast(unsigned int indexcv, unsigned int indexlock);	
+		int DestroyCV(unsigned int indexcv);
+		int CreateLock(char *name, int size);
+
+
+
+V. Testing:  (For each test case, you must show)
++ How to test
+
+    To test the lock and cv syscalls, go to user prog and type the following:
+		run lock and condition tests = 
+			'nachos -x ../test/test1’
+			'nachos -x ../test/test2'
+			'nachos -x ../test/test3’
+			'nachos -x ../test/test4’
+			'nachos -x ../test/test5’
+			'nachos -x ../test/test6’
+		run passport office = 'nachos -x ../test/passporttest'
+
++ Test Output
+
+- Our output will say pass/fail for validation tests 1-4. For test 5, it shows we support mutual exclusion and lock functionality is in place with syscalls by acquiring and releasig lock 1, then lock 2, then lock 3. There should not be any overlap since they are all acquiring the same lock. Test 6 is showing how broadcast works by waiting on a condition variable and then being woken up by the thread who acquired the lock and called broacast, and then printing out to console when things are woken up. 
+
+VI. Discussion:
+
+All of our syscalls work. Along with fork exec and exit. When testing with random -rs values there may be seg faults because we didn't go back and fix the original passport office. Our tests display proper functionality for the syscalls, fork exec and exit and the simulation works when we are not using rs values. 
