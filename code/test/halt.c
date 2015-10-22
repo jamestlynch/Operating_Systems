@@ -18,8 +18,6 @@ int b, c;
 
 int main()
 {
-	Exec("../test/test", 14);
-
-    /*Halt();*/
+    Halt();
     /* not reached */
 }

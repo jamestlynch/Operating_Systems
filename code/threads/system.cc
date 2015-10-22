@@ -208,13 +208,37 @@ Cleanup()
     
 #ifdef USER_PROGRAM
     delete machine; //delete machine
-    //delete processLock;
+
+    delete locksLock;
+    delete conditionsLock;
+    delete processLock;
+    delete memLock;
+
     delete memBitMap;
-    //delete locks; // TODO: Figure out if/how to cleanup vectors
-    //delete conditions; // TODO: Figure out if/how to cleanup vectors
-    //delete lockT;
-    //delete processT;
-    //delete cvT;
+
+    for(int i = 0; i < locks.size(); i++)
+    {
+        if(locks[i])
+        {
+            delete locks[i]->lock;
+        }
+    }
+
+    for(int i = 0; i < conditions.size(); i++)
+    {
+        if(conditions[i])
+        {
+            delete conditions[i]->condition;
+        }
+    }
+
+    for(int i = 0; i < processInfo.size(); i++)
+    {
+        if(processInfo[i])
+        {
+            delete processInfo[i]->space;
+        }
+    }
 #endif
 
 #ifdef FILESYS_NEEDED

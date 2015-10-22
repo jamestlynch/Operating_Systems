@@ -24,36 +24,42 @@
 //----------------------------------------------------------------------
 void StartProcess(char *filename)
 {
+    processLock->Acquire();
+
     OpenFile *executable = fileSystem->Open(filename);
     AddrSpace *space;
 
     if (executable == NULL) 
     {
 	   printf("Unable to open file %s\n", filename);
+       processLock->Release();
 	   return;
     }
 
-
-
     space = new AddrSpace(executable);
-        
+
+    Process * p = new Process();
+
+    processInfo.push_back(p);
+    p->processID = processInfo.size() - 1;
+    p->space = space;
+    p->numExecutingThreads = 1;
+    p->numSleepingThreads = 0;
+
+    currentThread->processID = p->processID;
     currentThread->space = space;
 
     delete executable;			// close file
 
-
-
-    space->InitRegisters();		// set the initial register values
+    currentThread->stackPage = space->InitRegisters();		// set the initial register values
     space->RestoreState();		// load page table register
 
-
+    processLock->Release();
 
     machine->Run();			// jump to the user progam
     ASSERT(FALSE);			// machine->Run never returns;
 					// the address space exits
 					// by doing the syscall "exit"
-
-
 }
 
 // Data structures needed for the console test.  Threads making

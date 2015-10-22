@@ -85,8 +85,7 @@ void *Table::Remove(int i) {
 //	endian machine, and we're now running on a big endian machine.
 //----------------------------------------------------------------------
 
-static void 
-SwapHeader (NoffHeader *noffH)
+static void SwapHeader (NoffHeader *noffH)
 {
 	noffH->noffMagic = WordToHost(noffH->noffMagic);
 	noffH->code.size = WordToHost(noffH->code.size);
@@ -223,12 +222,12 @@ AddrSpace::~AddrSpace()
 //	when this thread is context switched out.
 //----------------------------------------------------------------------
 
-void AddrSpace::InitRegisters()
+int AddrSpace::InitRegisters()
 {
     int i;
 
     for (i = 0; i < NumTotalRegs; i++)
-	machine->WriteRegister(i, 0);
+	   machine->WriteRegister(i, 0);
 
     // Initial program counter -- must be location of "Start"
     machine->WriteRegister(PCReg, 0);	
@@ -242,6 +241,8 @@ void AddrSpace::InitRegisters()
    // accidentally reference off the end!
     machine->WriteRegister(StackReg, numPages * PageSize - 16);
     DEBUG('a', "Initializing stack register to %x\n", numPages * PageSize - 16);
+
+    return numPages - (UserStackSize / PageSize);
 }
 
 //----------------------------------------------------------------------
@@ -273,7 +274,7 @@ int AddrSpace::NewPageTable()
 {
     memLock->Acquire();
     
-    TranslationEntry * newPT = new TranslationEntry[numPages + 8]; // add 8 pages for new stack
+    TranslationEntry * newPT = new TranslationEntry[numPages + (UserStackSize / PageSize)]; // add 8 pages for new stack
     for(int i = 0; i < numPages; i++)
     {
         newPT[i].virtualPage    =   pageTable[i].virtualPage;
@@ -284,7 +285,7 @@ int AddrSpace::NewPageTable()
         newPT[i].readOnly       =   pageTable[i].readOnly;
     }
 
-    for(int i = numPages; i < numPages + 8; i++)
+    for(int i = numPages; i < numPages + (UserStackSize / PageSize); i++)
     {
         newPT[i].virtualPage = i;   // for now, virtual page # = phys page #
         newPT[i].physicalPage = memBitMap->Find();
@@ -309,11 +310,56 @@ int AddrSpace::NewPageTable()
     delete pageTable;
 
     pageTable = newPT;
-    numPages += 8;
+    numPages += (UserStackSize / PageSize);
 
     RestoreState();
 
     memLock->Release();
 
-    return (numPages * PageSize) - 16;
+    return numPages;
 }
+
+/*
+- A thread calls Exit - not the last executing thread in the process
+  - Reclaim 8 pages of stock
+  - VPN, PPN, valid = false
+      - memoryBitMap->Clear(ppn);
+- Last executing thread in last process
+    - interrupt->Halt();
+- Last executing thread in a process - not last process (AddrSpace *)
+    - reclaim all unreclaimed memory
+    - Locks/CVs (match AddrSpace * w/ ProcessTable)
+*/
+
+void AddrSpace::ReclaimStack(int stackPage)
+{
+    memLock->Acquire();
+    for(int i = stackPage; i < (UserStackSize / PageSize); i++)
+    {
+        memBitMap->Clear(pageTable[i].physicalPage);
+        pageTable[i].valid = FALSE;
+        pageTable[i].use = FALSE;
+        pageTable[i].dirty = FALSE;
+        pageTable[i].readOnly = FALSE;  
+    }
+    memLock->Release();
+}
+
+void AddrSpace::ReclaimPageTable()
+{
+    memLock->Acquire();
+    for(int i = 0; i < numPages; i++)
+    {
+        if(pageTable[i].valid)
+        {
+            memBitMap->Clear(pageTable[i].physicalPage);
+            pageTable[i].valid = FALSE;
+            pageTable[i].use = FALSE;
+            pageTable[i].dirty = FALSE;
+            pageTable[i].readOnly = FALSE;  
+        }
+    }
+    memLock->Release();
+}
+
+

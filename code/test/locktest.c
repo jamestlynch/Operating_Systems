@@ -161,8 +161,8 @@ void test6(){
     Fork("thread3", 7, t6_t3);
 }
 
-int 
-main() {
+int main() 
+{
     LockIndex1= CreateLock("Lock1", 5);
     Write("Lock 1 created\n", sizeof("Lock 1 created\n"), 1);
     LockIndex2 = CreateLock("Lock2", 5);
@@ -183,9 +183,9 @@ main() {
     /*BoundsErrorCheck_Test();
      passingVars_Test();*/
 
+    test1();
     test2();
-    /*test2();
-
+    
 
 
     /*test2();

@@ -448,8 +448,6 @@ int DestroyLock(int indexlock)
   return -1;
 }
 
-
-
 int checkCVErrors(int indexcv, int indexlock)
 {
   if (indexcv < 0 || indexlock < 0) 
@@ -601,7 +599,7 @@ int Broadcast(int indexcv, int indexlock)
   KernelCV * curKernelCV = conditions.at(indexlock);
   curKernelCV->condition->Broadcast(locks.at(indexlock)->lock);
 
-  if (curKernelCV->toDelete)
+  if(curKernelCV->toDelete)
   {
     conditionsLock->Acquire();
     DeleteCondition(indexcv);
@@ -668,16 +666,21 @@ void Yield_Syscall()
   currentThread->Yield();
 }
 
+
 void Exit_Syscall(int status)
 {
   processLock->Acquire();
 
-  if (processInfo.at(currentThread->processID)->numExecutingThreads > 1) 
+  if(processInfo.at(currentThread->processID)->numExecutingThreads > 1) 
   {
     printf("Thread is not last in process. Finishing thread.\n");
+    
+    processInfo.at(currentThread->processID)->numExecutingThreads--;
 
     currentThread->Finish();
-    processInfo.at(currentThread->processID)->numExecutingThreads--;
+
+    currentThread->space->ReclaimStack(currentThread->stackPage);
+
     processLock->Release();
     return;
   }
@@ -691,20 +694,36 @@ void Exit_Syscall(int status)
       {
         if (locks.at(i)->space == currentThread->space)
         {
-          delete locks.at(i)->lock;
-          delete locks.at(i);
-
-          locks.at(i) = NULL;
+          locksLock->Acquire();
+          DeleteLock(i);
+          locksLock->Release();
         }
       }
     }
-    for (unsigned int i = 0; i< conditions.size(); i++){
-      if (conditions.at(i)->space == processInfo.at(currentThread->processID)->space){
-        delete conditions.at(i)->space;
-        delete conditions.at(i)->condition;
-        conditions.at(i)=NULL;
+
+    for (int i = 0; i< conditions.size(); i++)
+    {
+      if(conditions.at(i))
+      {
+        if (conditions.at(i)->space == currentThread->space)
+        {
+          conditionsLock->Acquire();
+          DeleteCondition(i);
+          conditionsLock->Release();
+        }
       }
     }
+    
+    currentThread->Finish();
+
+    currentThread->space->ReclaimPageTable();
+
+    // Delete process
+    Process * p = processInfo.at(currentThread->processID);
+    delete p->space;
+    delete p;
+    processInfo.at(currentThread->processID) = NULL;
+
     processLock->Release();
     return;
   }
@@ -719,7 +738,13 @@ void Kernel_Thread(int vaddr)
 {
   machine->WriteRegister(PCReg, vaddr);
   machine->WriteRegister(NextPCReg, vaddr + 4);
-  machine->WriteRegister(StackReg, currentThread->space->NewPageTable());
+
+  int stackPage = currentThread->space->NewPageTable();
+  int stackAddr = (stackPage * PageSize) - 16;
+
+  currentThread->stackPage = stackPage - (UserStackSize / PageSize);
+
+  machine->WriteRegister(StackReg, stackAddr);
 
   machine->Run();
 }
@@ -769,10 +794,10 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 
 void Exec_Thread()
 {
-  currentThread->space->InitRegisters();
+  currentThread->stackPage = currentThread->space->InitRegisters();
   currentThread->space->RestoreState();
+
   machine->Run();
-  return;
 }
 
 void Exec_Syscall(int vaddr, int len)
@@ -808,6 +833,7 @@ void Exec_Syscall(int vaddr, int len)
   if (executable == NULL) 
   {
     printf("Unable to open file %s\n", buf);
+    processLock->Release();
     return;
   }
 
