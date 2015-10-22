@@ -14,11 +14,11 @@
 int a[3];
 int b, c;
 
+
+
 int main()
 {
 	Exec("../test/test", 14);
-
-	/*Write("Hey", 3, 1);*/
 
     /*Halt();*/
     /* not reached */

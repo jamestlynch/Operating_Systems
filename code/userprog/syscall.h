@@ -141,7 +141,7 @@ void Exit(int status);
 /* Fork a thread to run a procedure ("func") in the *same* address space 
  * as the current thread.
  */
-void Fork(/*void (*func)()*/);
+void Fork(char *name, int len, void (*func)());
 
 /* Yield the CPU to another runnable thread, whether in this address space 
  * or not. 

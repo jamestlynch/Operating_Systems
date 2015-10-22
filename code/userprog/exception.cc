@@ -700,6 +700,16 @@ else{
   }*/
   //processLock->Release();
 }
+
+void Kernel_Thread(int vaddr)
+{
+  machine->WriteRegister(PCReg, vaddr);
+  machine->WriteRegister(NextPCReg, vaddr + 4);
+  machine->WriteRegister(StackReg, currentThread->space->NewPageTable());
+
+  machine->Run();
+}
+
 void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 {
   if (len <= 0) 
@@ -738,9 +748,9 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 
   p->numExecutingThreads++;
 
-  //increment threads 
-  //computation for where stackReg should be must be done in Fork_Syscall
-  //bitMap valid-find needs to be stored inside fork*/
+  t->Fork((VoidFunctionPtr)Kernel_Thread, vFuncAddr);
+
+  processLock->Release();
 }
 
 /*
@@ -757,18 +767,6 @@ Multiple Stacks
 - pageTable = newPageTable
 - machine->pageTable = pageTable
 */
-
-void Kernel_Thread(int vaddr)
-{
-  machine->WriteRegister(PCReg, vaddr);
-  machine->WriteRegister(NextPCReg, vaddr + 4);
-
-  //return value which is the page count -> address (numpages * pagesize - 16)
-  //currentThread->space->NewPageTable();
-
-  machine->Run();
-  return;
-}
 
 void Exec_Thread()
 {
@@ -831,7 +829,9 @@ void Exec_Syscall(int vaddr, int len)
 
   delete executable;
 
-  t->Fork((VoidFunctionPtr)Exec_Thread,0);
+  t->Fork((VoidFunctionPtr)Exec_Thread, 0);
+
+  processLock->Release();
 }
 
 void Join_Syscall()
@@ -912,9 +912,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_Fork:
       DEBUG('a', "Fork syscall.\n");
-      Fork_Syscall(machine->ReadRegister(4),
-      machine->ReadRegister(5),
-      machine->ReadRegister(6));
+      Fork_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
       break;
 
       case SC_Yield:
