@@ -16,13 +16,12 @@ typedef enum { false = 0, true = 1 } bool;
 /* 		  	    Person Data 			  */
 /******************************************/
 
-enum persontype = { APPLICATION, PICTURE, PASSPORT, CASHIER, CUSTOMER, SENATOR, MANAGER };
-int moneyOptions[4] = {100, 600, 1100, 1600};
+enum persontype { APPLICATION, PICTURE, PASSPORT, CASHIER, CUSTOMER, SENATOR, MANAGER };
 
 struct Person {
 	int id;
 	int money;
-	enum type;
+	enum persontype type;
 };
 
 struct Person people[81]; /* numCustomers + numSenators + numAppClerks + numPicClerks + numPassportClerks + numCashiers + numManagers */
@@ -40,6 +39,20 @@ struct Customer {
 	bool passportCertified;
 	bool passportRecorded;
 };
+
+int moneyOptions[4] = {100, 600, 1100, 1600};
+
+int InitialMoney()
+{
+	int moneyIndex;
+
+	/* TODO: Random syscall. */
+	/* 	moneyIndex = Random(0, 4); */
+	moneyIndex = 1;
+
+	return moneyOptions[moneyIndex];
+}
+
 
 int numCustomers = 50;
 struct Customer customers[60]; /* Same info for customers/senators: SIZE = numCustomers + numSenators */
@@ -102,7 +115,7 @@ void InitializeSenatorData ()
 		customers[ssn].passportRecorded = false;
 
 		/* people holds all private data that people must update and make public to clerks. */
-		people[ssn].id = senatorID;
+		people[ssn].id = ssn;
 		people[ssn].money = InitialMoney();
 		people[ssn].type = SENATOR;
 	}
@@ -135,7 +148,7 @@ struct Clerk {
 	bool customerAppReadyForPayment;
 };
 
-void InitializeClerkData (Clerk clerks[5], int numClerks, enum persontype clerkType)
+void InitializeClerkData (struct Clerk clerks[5], int numClerks, enum persontype clerkType)
 {
 	int clerkID;
 	int ssn;
@@ -211,7 +224,7 @@ int cashierBribeCVs[5];
 int cashierBreakCVs[5];
 
 struct ClerkGroup {
-	Clerk clerks[5];
+	struct Clerk clerks[5];
 	int numClerks;
 
 	int moneyLock;
@@ -234,7 +247,7 @@ void InitializeApplicationClerkData ()
 {
 	enum persontype clerkType = APPLICATION;
 
-	InitializeClerkData(appclerks, numAppClerks);
+	InitializeClerkData(appclerks, numAppClerks, clerkType);
 
 	appclerkLocks[0] = CreateLock("App:0-ClerkLock", 15);
 	appclerkLocks[1] = CreateLock("App:1-ClerkLock", 15);
@@ -299,7 +312,7 @@ void InitializePictureClerkData ()
 {
 	enum persontype clerkType = PICTURE;
 
-	InitializeClerkData(picclerks, numPicClerks);
+	InitializeClerkData(picclerks, numPicClerks, clerkType);
 
 	picclerkLocks[0] = CreateLock("Pic:0-ClerkLock", 15);
 	picclerkLocks[1] = CreateLock("Pic:1-ClerkLock", 15);
@@ -364,7 +377,7 @@ void InitializePassportClerkData ()
 {
 	enum persontype clerkType = PASSPORT;
 
-	InitializeClerkData(passportclerks, numPassportClerks);
+	InitializeClerkData(passportclerks, numPassportClerks, clerkType);
 
 	passportclerkLocks[0] = CreateLock("Pas:0-ClerkLock", 15);
 	passportclerkLocks[1] = CreateLock("Pas:1-ClerkLock", 15);
@@ -429,7 +442,7 @@ void InitializeCashierData ()
 {
 	enum persontype clerkType = CASHIER;
 
-	InitializeClerkData(cashiers, numCashiers);
+	InitializeClerkData(cashiers, numCashiers, clerkType);
 
 	cashierLocks[0] = CreateLock("Csh:0-ClerkLock", 15);
 	cashierLocks[1] = CreateLock("Csh:1-ClerkLock", 15);
@@ -531,7 +544,7 @@ struct SystemJob {
 };
 
 int numSystemJobs = 50;
-int jobs[50];
+struct SystemJob jobs[50];
 
 int filingPictureLock;
 int filingApplicationLock;
@@ -579,48 +592,34 @@ void InitializeData ()
 /* Params: 	customer's ssn 												*/
 /*			type of clerk line (0 = App, 1 = Pic, 2 = Pas, 3 = Csh) 	*/
 /* Return: 	clerkID for line customer picked 							*/
-int DecideLine (int ssn, enum persontype clerkType)
+int DecideClerk (int ssn, enum persontype clerkType)
 {
-	int clerks[5];
+	struct Clerk clerks[5];
 	int numClerks;
 
 	int lineLock;
-	int lineCVs[5];
-	int bribeLineCVs[5];
-	int senatorLineCVs[5];
 
 	int clerkID; /* Going to iterate over all clerks to make line decision */
-	int currentLine = -1;
+	int currentClerk = -1;
 	int currentLineLength = 1000;
 	int shortestLine = -1;
 	int shortestLineLength = 1000;
 	int clerkLineLength; /* Keeps track of either normal line count or senator line count depending on if isSenator */
 
-	int clerkLocks[5];
-	int clerkWorkCVs[5];
-	int bribeCVs[5];
-
 	clerks = clerkGroups[clerkType].clerks;
 	numClerks = clerkGroups[clerkType].numClerks;
 
 	lineLock = clerkGroups[clerkType].lineLock;
-	lineCVs = clerkGroups[clerkType].lineCVs;
-	bribeLineCVs = clerkGroups[clerkType].bribeLineCVs;
-	senatorLineCVs = clerkGroups[clerkType].senatorLineCVs;
-
-	clerkLocks = clerkGroups[clerkType].clerkLocks;
-	clerkWorkCVs = clerkGroups[clerkType].clerkWorkCVs;
-	bribeCVs = clerkGroups[clerkType].bribeCVs;
 
 	/*  TODO: Arrays were cast as unsigned ints, how to convert/cast back to array; or just how to access data inside array, otherwise? */
 
 	/* Check if the senator is present, and if so, "go outside" by waiting on the CV. */
 	/* 	By placing this here, we ensure line order remains consistent, conveniently. */
 	AcquireLock(senatorIndoorLock);
-	if (isSenatorPresent && (people[ssn].isSenator)?0:1)
+	if (isSenatorPresent && people[ssn].type != SENATOR)
 	{
 		/* TODO: Some kind of printf function for writing the required output with ints inside of strings. */
-		WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn);
+		/*	WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn); */
 		WaitCV(senatorIndoorCV);
 	}
 	ReleaseLock(senatorIndoorLock);
@@ -629,7 +628,7 @@ int DecideLine (int ssn, enum persontype clerkType)
 	for (clerkID = 0; clerkID < numClerks; clerkID++)
 	{
 		/* Different lines depending on whether customer or senator. */
-		if (people[ssn].isSenator)
+		if (people[ssn].type == SENATOR)
 		{
 			clerkLineLength = clerks[clerkID].senatorLineLength;
 		}
@@ -641,7 +640,7 @@ int DecideLine (int ssn, enum persontype clerkType)
 		/* If clerk is available, go there. */
 		if (clerkLineLength == 0 && clerks[clerkID].state == AVAILABLE)
 		{
-			currentLine = clerkID;
+			currentClerk = clerkID;
 			currentLineLength = clerkLineLength;
 			break;
 		}
@@ -649,7 +648,7 @@ int DecideLine (int ssn, enum persontype clerkType)
 		/* Pick the shortest line of clerks not on break. */
 		if (clerkLineLength < shortestLineLength && clerks[clerkID].state != ONBREAK)
 		{
-			currentLine = clerkID;
+			currentClerk = clerkID;
 			currentLineLength = clerkLineLength;
 		}
 
@@ -662,11 +661,38 @@ int DecideLine (int ssn, enum persontype clerkType)
 	}
 
 	/* If everyone was on break, set your line to be the shortest line. */
-	if (currentLine == -1)
+	if (currentClerk == -1)
 	{
-		currentLine = shortestLine;
+		currentClerk = shortestLine;
 		currentLineLength = shortestLineLength;
 	}
+
+	return currentClerk;
+}
+
+void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
+{
+	struct Clerk clerk;
+
+	int lineLock;
+	int lineCVs[5];
+	int bribeLineCVs[5];
+	int senatorLineCVs[5];
+
+	int clerkLocks[5];
+	int workCVs[5];
+	int bribeCVs[5];
+
+	clerk = clerkGroups[clerkType].clerks[clerkID];
+
+	lineLock = clerkGroups[clerkType].lineLock;
+	lineCVs = clerkGroups[clerkType].lineCVs;
+	bribeLineCVs = clerkGroups[clerkType].bribeLineCVs;
+	senatorLineCVs = clerkGroups[clerkType].senatorLineCVs;
+
+	clerkLocks = clerkGroups[clerkType].clerkLocks;
+	workCVs = clerkGroups[clerkType].workCVs;
+	bribeCVs = clerkGroups[clerkType].bribeCVs;
 
 	/* Now that customer has selected a clerk's line, figure out whether to go: */
 	/* 	- Straight to the counter */
@@ -674,60 +700,62 @@ int DecideLine (int ssn, enum persontype clerkType)
 	/*	- Bribe */
 	/*	- Senator line (if isSenator) */
 
-	if (clerks[currentLine].state != AVAILABLE)
-	{ /* Clerk is unavailable; Rule out going straight to counter, so now decide which line to wait in. */
-		if (isSenator)
+	if (clerk.state != AVAILABLE)
+	{ 
+		/* Clerk is unavailable; Rule out going straight to counter, so now decide which line to wait in. */
+		if (people[ssn].type == SENATOR)
 		{
 			/* TODO: Can we do direct incrementation on array value? */
-			clerks[currentLine].senatorLineLength++;
+			clerk.senatorLineLength++;
 			/* TODO: See above. */
 			/* TODO: Different approach from string array in original PPOffice for clerk type string */
 			/*	WriteOutput("Senator %d has gotten in a regular line for %s %d.", ssn, ); */
-			Wait(senatorLineCVs[currentLine], lineLock);
+			Wait(senatorLineCVs[clerkID], lineLock);
 			/* TODO: See above. */
-			clerks[currentLine].senatorLineLength--;
+			clerk.senatorLineLength--;
 		}
 		else
-		{ /* Ruled out straight to counter and senator line. Bribe or no bribe? */
-			if (currentLineLength >= 1 && money >= 600 && clerks[currentLine].state != ONBREAK)
+		{ 
+			/* Ruled out straight to counter and senator line. Bribe or no bribe? */
+			if (clerk.lineLength >= 1 && people[ssn].money >= 600 && clerk.state != ONBREAK)
 			{ /* If customer has enough money and she's not in a line for a clerk that is on break, always bribe. */
 				/* Let clerk know you are trying to bribe her. */
 				/* TODO: See above. */
-				clerks[currentLine].numCustomersBribing++;
-				Wait(bribeCVs[currentLine], lineLock);
+				clerk.numCustomersBribing++;
+				Wait(bribeCVs[clerkID], lineLock);
 				/* TODO: See above. */
-				clerks[currentLine].numCustomersBribing--;
+				clerk.numCustomersBribing--;
 				ReleaseLock(lineLock);
 
 				/* Do customer side of bribe. */
-				AcquireLock(clerkLocks[currentLine]);
+				AcquireLock(clerkLocks[clerkID]);
 
-				clerks[currentLine].currentCustomer = ssn;
-				money -= 500;
-				Signal(clerkWorkCVs[currentLine], lineLock);
-				Wait(clerkWorkCVs[currentLine], lineLock);
+				clerk.currentCustomer = ssn;
+				people[ssn].money -= 500; /* Pay $500 for bribe */
+				Signal(workCVs[clerkID], lineLock);
+				Wait(workCVs[clerkID], lineLock);
 				/* TODO: See above. (WriteOutput) */
 				/* TODO: See above. (string array) */
 				/*	WriteOutput("Customer %d has gotten in bribe line for %s %d.", ssn, ); */
 				
-				ReleaseLock(clerkLocks[currentLine]);
+				ReleaseLock(clerkLocks[clerkID]);
 
 				/* Now get into bribe line. */
 				AcquireLock(lineLock);
 
 				/* TODO: See above. (increment operator) */
-				clerks[currentLine].bribeLineLength++;
-				Wait(bribeLineCVs[currentLine], lineLock);
+				clerk.bribeLineLength++;
+				Wait(bribeLineCVs[clerkID], lineLock);
 
 				/* Woken up. Make sure no senators have entered so that I can do my business with clerk. */
 				AcquireLock(senatorIndoorLock);
-				if (isSenatorPresent && (people[ssn].isSenator)?0:1)
+				if (isSenatorPresent && people[ssn].type != SENATOR)
 				{
 					/* TODO: See above. (WriteOutput) */
 					WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn);
 					Wait(senatorIndoorCV, senatorIndoorLock);
 					ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and re-decide line. */
-					return DecideLine(ssn, clerkType);
+					return WaitInLine(ssn, clerkID, clerkType);
 				}
 				else
 				{
@@ -736,25 +764,25 @@ int DecideLine (int ssn, enum persontype clerkType)
 
 				/* Made it out of line. */
 				/* TODO: See above. (Decrement operator) */
-				clerks[currentLine].bribeLineLength--;
+				clerk.bribeLineLength--;
 			}
 			else
 			{ /* No other options. Get in regular line. */
 				/* TODO: See above. (Increment operator) */
-				clerks[currentLine].lineLength++;
+				clerk.lineLength++;
 				/* TODO: See above. (WriteOutput) */
-				/* WriteOutput("Customer %d has gotten in a regular line for %s %d.", ssn, currentLine); */
-				Wait(lineCVs[currentLine], lineLock);
+				/* WriteOutput("Customer %d has gotten in a regular line for %s %d.", ssn, clerkID); */
+				Wait(lineCVs[clerkID], lineLock);
 
 				/* Woken up. Make sure no senators have entered so that I can do my business with clerk. */
 				AcquireLock(senatorIndoorLock);
-				if (isSenatorPresent && (people[ssn].isSenator)?0:1)
+				if (isSenatorPresent && people[ssn].type != SENATOR)
 				{
 					/* TODO: See above. (WriteOutput) */
 					WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn);
 					Wait(senatorIndoorCV, senatorIndoorLock);
 					ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and re-decide line. */
-					return DecideLine(ssn clerkType);
+					return WaitInLine(ssn, clerkID, clerkType);
 				}
 				else
 				{
@@ -763,24 +791,24 @@ int DecideLine (int ssn, enum persontype clerkType)
 
 				/* Made it out of line. */
 				/* TODO: See above. (Decrement operator) */
-				clerks[currentLine].lineLength--;
+				clerk.lineLength--;
 			}
 		}
 	}
 	else
 	{ /* Line was empty when customer joined, go straight to the counter. */
 		/* TODO: Will this produce the same weird error as before when in C++ */
-		/* 	Before needed to do: clerkGroups[clerkType].clerkData[currentLine].state = BUSY; */
-		clerkData.state = BUSY;
+		/* 	Before needed to do: clerkGroups[clerkType].clerkData[clerkID].state = BUSY; */
+		clerk.state = BUSY;
 	}
 	ReleaseLock(lineLock);
 
-	return currentLine;
+	return;
 }
 
 void Customer (int ssn)
 {
-	Person customer;
+	struct Person customer;
 	int applicationFirst;
 	int clerkID;
 
@@ -794,30 +822,36 @@ void Customer (int ssn)
 	if (applicationFirst)
 	{
 		/* Go to Application Clerk */
-		clerkID = DecideLine(ssn, APPLICATION);
+		clerkID = DecideClerk(ssn, APPLICATION);
+		WaitInLine(ssn, clerkID, APPLICATION);
 		FileApplication(clerkID);
 		
 		/* Go to Picture Clerk */
-		clerkID = DecideLine(ssn, PICTURE);
+		clerkID = DecideClerk(ssn, PICTURE);
+		WaitInLine(ssn, clerkID, PICTURE);
 		GetPictureTaken(clerkID);
 	}
 	else
 	{
 		/* Go to Picture Clerk */
-		clerkID = DecideLine(ssn, PICTURE);
+		clerkID = DecideClerk(ssn, PICTURE);
+		WaitInLine(ssn, clerkID, PICTURE);
 		GetPictureTaken(clerkID);
 		
 		/* Go to Application Clerk */
-		clerkID = DecideLine(ssn, APPLICATION);
+		clerkID = DecideClerk(ssn, APPLICATION);
+		WaitInLine(ssn, clerkID, APPLICATION);
 		FileApplication(clerkID);
 	}
 
 	/* Go to Passport Clerk */
-	clerkID = DecideLine(ssn, PASSPORT);
+	clerkID = DecideClerk(ssn, PASSPORT);
+	WaitInLine(ssn, clerkID, PASSPORT);
 	CertifyPassport(clerkID);
 
 	/* Go to Cashier */
-	clerkID = DecideLine(ssn, CASHIER);
+	clerkID = DecideClerk(ssn, CASHIER);
+	WaitInLine(ssn, clerkID, CASHIER);
 	PayForPassport(clerkID);
 }
 
@@ -829,7 +863,7 @@ void Customer (int ssn)
 /*			type of clerk line (0 = App, 1 = Pic, 2 = Pas, 3 = Csh) 	*/
 void AcceptBribe (int clerkID, enum persontype clerkType)
 {
-	Clerk clerk;
+	struct Clerk clerk;
 	int lineLock;
 	int moneyLock;
 	int clerkLock;
@@ -851,7 +885,7 @@ void AcceptBribe (int clerkID, enum persontype clerkType)
 	Wait(workCV, clerkLock); /* Wait until she pays after customer wakes up from signal */
 	
 	AcquireLock(moneyLock); /* Synchronize update to clerk's pool of money */
-	clerkGroups[clerkType].totalMoney += 500;
+	clerkGroups[clerkType].groupMoney += 500;
 	ReleaseLock(moneyLock);
 	/* TODO: See above. (WriteOutput) */
 	/* TODO: Map clerkType to clerk name (param 1). */
@@ -900,7 +934,7 @@ void DoInteraction (int clerkID, enum persontype clerkType)
 
 enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 {
-	Clerk clerk;
+	struct Clerk clerk;
 	int lineLock;
 	int lineCV;
 	int bribeLineCV;
@@ -929,7 +963,7 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 		
 		if (clerk.bribeLineLength > 0)
 		{
-			Broadcast(bribeLineCVs, lineLock);
+			Broadcast(bribeLineCV, lineLock);
 		}
 
 		/* Now that all customers "went outside," handle senator(s). */
@@ -943,7 +977,7 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 			return DOINTERACTION;
 		}
 	}
-	ReleaseLock(senatorIndoorLock) /* Done checking if senator is present. */
+	ReleaseLock(senatorIndoorLock); /* Done checking if senator is present. */
 
 	/* Next priority: Take care of customers trying to bribe me. */
 	if (clerk.numCustomersBribing > 0)
@@ -983,7 +1017,7 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 
 void Clerk(int ssn)
 {
-	Person clerk;
+	struct Person clerk;
 	enum clerkinteraction interaction;
 
 	clerk = people[ssn];
