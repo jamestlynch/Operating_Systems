@@ -504,6 +504,71 @@ void InitializeData ()
 
 /* ========================================================================================================================================= */
 /*																																			 */
+/*		CUSTOMER - APPLICATION CLERK INTERACTION 																							 */
+/*																																			 */
+/* ========================================================================================================================================= */
+
+void FileApplication (int ssn, int clerkID)
+{
+
+}
+
+void ApplicationClerkWork (int clerkID)
+{
+
+}
+
+/* ========================================================================================================================================= */
+/*																																			 */
+/*		CUSTOMER - PICTURE CLERK INTERACTION 																								 */
+/*																																			 */
+/* ========================================================================================================================================= */
+
+void GetPictureTaken (int ssn, int clerkID)
+{
+
+}
+
+void PictureClerkWork (int clerkID)
+{
+
+}
+
+/* ========================================================================================================================================= */
+/*																																			 */
+/*		CUSTOMER - PASSPORT CLERK INTERACTION 																								 */
+/*																																			 */
+/* ========================================================================================================================================= */
+
+void CertifyPassport (int ssn, int clerkID)
+{
+
+}
+
+void PassportClerkWork (int clerkID)
+{
+
+}
+
+/* ========================================================================================================================================= */
+/*																																			 */
+/*		CUSTOMER - CASHIER INTERACTION 																										 */
+/*																																			 */
+/* ========================================================================================================================================= */
+
+void PayForPassport (int ssn, int clerkID)
+{
+
+}
+
+void CashierWork (int clerkID)
+{
+
+}
+
+
+/* ========================================================================================================================================= */
+/*																																			 */
 /*		CUSTOMER																															 */
 /*																																			 */
 /* ========================================================================================================================================= */
@@ -742,36 +807,42 @@ void Customer (int ssn)
 		/* Go to Application Clerk */
 		clerkID = DecideClerk(ssn, APPLICATION);
 		WaitInLine(ssn, clerkID, APPLICATION);
-		FileApplication(clerkID);
+		FileApplication(ssn, clerkID);
 		
 		/* Go to Picture Clerk */
 		clerkID = DecideClerk(ssn, PICTURE);
 		WaitInLine(ssn, clerkID, PICTURE);
-		GetPictureTaken(clerkID);
+		GetPictureTaken(ssn, clerkID);
 	}
 	else
 	{
 		/* Go to Picture Clerk */
 		clerkID = DecideClerk(ssn, PICTURE);
 		WaitInLine(ssn, clerkID, PICTURE);
-		GetPictureTaken(clerkID);
+		GetPictureTaken(ssn, clerkID);
 		
 		/* Go to Application Clerk */
 		clerkID = DecideClerk(ssn, APPLICATION);
 		WaitInLine(ssn, clerkID, APPLICATION);
-		FileApplication(clerkID);
+		FileApplication(ssn, clerkID);
 	}
 
 	/* Go to Passport Clerk */
 	clerkID = DecideClerk(ssn, PASSPORT);
 	WaitInLine(ssn, clerkID, PASSPORT);
-	CertifyPassport(clerkID);
+	CertifyPassport(ssn, clerkID);
 
 	/* Go to Cashier */
 	clerkID = DecideClerk(ssn, CASHIER);
 	WaitInLine(ssn, clerkID, CASHIER);
-	PayForPassport(clerkID);
+	PayForPassport(ssn, clerkID);
 }
+
+/* ========================================================================================================================================= */
+/*																																			 */
+/*		CLERKS																																 */
+/*																																			 */
+/* ========================================================================================================================================= */
 
 /* Clerks accept a bribe of $500 from any customer who has determined 	*/
 /* 	they have sufficient money. Clerk resumes deciding whether she 		*/
