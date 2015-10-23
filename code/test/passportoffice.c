@@ -34,7 +34,7 @@ struct Customer {
 	bool acceptedPassport;
 	bool gotPassport;
 	bool applicationFiled;
-	bool photoFiled;
+	bool pictureFiled;
 	bool passportCertified;
 	bool passportRecorded;
 };
@@ -69,7 +69,7 @@ void InitializeCustomerData ()
 		customers[ssn].acceptedPassport = false;
 		customers[ssn].gotPassport = false;
 		customers[ssn].applicationFiled = false;
-		customers[ssn].photoFiled = false;
+		customers[ssn].pictureFiled = false;
 		customers[ssn].passportCertified = false;
 		customers[ssn].passportRecorded = false;
 
@@ -109,7 +109,7 @@ void InitializeSenatorData ()
 		customers[ssn].acceptedPassport = false;
 		customers[ssn].gotPassport = false;
 		customers[ssn].applicationFiled = false;
-		customers[ssn].photoFiled = false;
+		customers[ssn].pictureFiled = false;
 		customers[ssn].passportCertified = false;
 		customers[ssn].passportRecorded = false;
 
@@ -465,11 +465,13 @@ void InitializeManager ()
 struct SystemJob {
 	int ssn;
 	int clerkID;
+	enum persontype type;
 };
 
 int numSystemJobs = 50;
 struct SystemJob jobs[50];
 
+int systemJobFindLock; /* Used to synchronize search for available system jobs */
 int filingPictureLock;
 int filingApplicationLock;
 int certifyingPassportLock;
@@ -482,8 +484,10 @@ void InitializeSystemJobs ()
 	{
 		jobs[jobID].ssn = -1;
 		jobs[jobID].clerkID = -1;
+		jobs[jobID].type = CUSTOMER;
 	}
 
+	systemJobFindLock = CreateLock("SystemJobFindLock", 17);
 	filingPictureLock = CreateLock("FilingPictureLock", 17);
 	filingApplicationLock = CreateLock("FilingApplicationLock", 21);
 	certifyingPassportLock = CreateLock("CertifyingPassportLock", 22);
@@ -496,12 +500,12 @@ void InitializeSystemJobs ()
 /* ========================================================================================================================================= */
 
 enum outputstatement { 
-	Clerk_SignalledCustomer, Clerk_ReceivedSSN, Clerk_RecordedCompletedApplication
+	Clerk_SignalledCustomer, Clerk_ReceivedSSN, Clerk_SystemJobComplete
 	Clerk_ReceivedBribe, Clerk_GoingOnBreak, Clerk_ComingOffBreak,
 	Clerk_TookPicture, Clerk_ToldByCustomerDoesNotLikePicture, Clerk_ToldByCustomerDoesLikePicture,
-	Clerk_DeterminedAppAndPicNotCompleted, Clerk_DeterminedAppAndPicCompleted, Clerk_RecordedPassport,
-	Clerk_VerifiedPassportCertified, Clerk_ReceivedPayment, Clerk_ReceivedPaymentGoBackInLine,
-	Clerk_ProvidedPassport, Clerk_RecordedCustomerGivenPassport,
+	Clerk_DeterminedAppAndPicNotCompleted, Clerk_DeterminedAppAndPicCompleted, Clerk_VerifiedPassportCertified, 
+	Clerk_ReceivedPayment, Clerk_ReceivedPaymentGoBackInLine, Clerk_ProvidedPassport, 
+	Clerk_RecordedCustomerGivenPassport,
 	
 	Manager_WokeUpClerk, Manager_CountedMoneyForClerk, Manager_CountedTotalMoney,
 	
@@ -586,8 +590,43 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 					break;
 			}
 			break;
-		case Clerk_RecordedCompletedApplication:
-			WriteTwo("ApplicationClerk %d has recorded a completed application for Customer %d", clerkID, ssn);
+		case Clerk_SystemJobComplete:
+			switch(clerkType)
+			{
+				case APPLICATION:	
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteTwo("ApplicationClerk %d has recorded a completed application for Customer %d", clerkID, ssn);
+							break;
+						case SENATOR:
+							WriteTwo("ApplicationClerk %d has recorded a completed application for Senator %d", clerkID, ssn);
+							break;
+					}
+					break;
+				case PICTURE:	
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteTwo("PictureClerk %d has filed a picture for Customer %d", clerkID, ssn);
+							break;
+						case SENATOR:
+							WriteTwo("PictureClerk %d has filed a picture for Senator %d", clerkID, ssn);
+							break;
+					}
+					break;
+				case PASSPORT:	
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteTwo("PassportClerk %d has recorded Customer %d passport documentation", clerkID, ssn);
+							break;
+						case SENATOR:
+							WriteTwo("PassportClerk %d has recorded Senator %d passport documentation", clerkID, ssn);
+							break;
+					}
+					break;
+			}
 			break;
 		case Clerk_ReceivedBribe:
 			WriteTwo("ApplicationClerk %d has received $500 from Customer %d", clerkID, ssn);
@@ -606,9 +645,6 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 			break;
 		case Clerk_DeterminedAppAndPicCompleted:
 			WriteTwo("PassportClerk %d has determined that Customer %d has both their application and picture completed", clerkID, ssn);
-			break;
-		case Clerk_RecordedPassport:
-			WriteTwo("PassportClerk %d has recorded Customer %d passport documentation", clerkID, ssn);
 			break;
 		case Clerk_VerifiedPassportCertified:
 			WriteTwo("Cashier %d has verified that Customer %d has been certified by a PassportClerk", clerkID, ssn);
@@ -858,69 +894,6 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 	}
 }
 
-/* ========================================================================================================================================= */
-/*																																			 */
-/*		CUSTOMER - APPLICATION CLERK INTERACTION 																							 */
-/*																																			 */
-/* ========================================================================================================================================= */
-
-void FileApplication (int ssn, int clerkID)
-{
-
-}
-
-void ApplicationClerkWork (int clerkID)
-{
-
-}
-
-/* ========================================================================================================================================= */
-/*																																			 */
-/*		CUSTOMER - PICTURE CLERK INTERACTION 																								 */
-/*																																			 */
-/* ========================================================================================================================================= */
-
-void GetPictureTaken (int ssn, int clerkID)
-{
-
-}
-
-void PictureClerkWork (int clerkID)
-{
-
-}
-
-/* ========================================================================================================================================= */
-/*																																			 */
-/*		CUSTOMER - PASSPORT CLERK INTERACTION 																								 */
-/*																																			 */
-/* ========================================================================================================================================= */
-
-void CertifyPassport (int ssn, int clerkID)
-{
-
-}
-
-void PassportClerkWork (int clerkID)
-{
-
-}
-
-/* ========================================================================================================================================= */
-/*																																			 */
-/*		CUSTOMER - CASHIER INTERACTION 																										 */
-/*																																			 */
-/* ========================================================================================================================================= */
-
-void PayForPassport (int ssn, int clerkID)
-{
-
-}
-
-void CashierWork (int clerkID)
-{
-
-}
 
 
 /* ========================================================================================================================================= */
@@ -1133,6 +1106,134 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 	return;
 }
 
+void GetBackInLine (int ssn, enum persontype clerkType)
+{
+	int clerkID;
+
+	clerkID = DecideClerk(ssn, clerkType);
+	WaitInLine(ssn, clerkID, clerkType);
+	CustomerInteraction(ssn, clerkID, clerkType);
+}
+
+void MakePhotoDecision (int ssn, int clerkID, enum persontype clerkType)
+{
+	int clerkLock;
+	int workCV;
+
+	int amountLiked;
+
+	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
+	workCV = clerkGroups[clerkType].workCV[clerkID];
+
+	/* Picture Clerk already took my picture, decide if I like it. */
+
+	/* TODO: Random syscall. See above. */
+	/*	amountLiked = Random(1, 100); */
+	amountLiked = 100;
+	if (amountLiked > 50) 
+	{
+		/* I liked the photo */
+		WriteOutput(Customer_DoesLikePicture, PICTURE, people[ssn].type, ssn, clerkID);
+		clerkGroups[PICTURE].clerks[clerkID].customerLikedPhoto = true;
+	} 
+	else
+	{
+	    /* I did not like the photo, going to get back in line. */
+	   	WriteOutput(Customer_DoesNotLikePicture, PICTURE, people[ssn].type, ssn, clerkID);
+	    clerkGroups[PICTURE].clerks[clerkID].customerLikedPhoto = false;
+
+	    Signal(workCV, clerkLock);
+	    ReleaseLock(clerkLock);
+
+	    GetBackInLine(ssn, clerkType);
+	}
+}
+
+void PayForPassport (int ssn, int clerkID)
+{
+	int clerkLock;
+	int workCV;
+
+	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
+	workCV = clerkGroups[clerkType].workCV[clerkID];
+
+	people[ssn].money -= 100;
+
+	WriteOutput(Customer_PaidForPassport, PASSPORT, people[ssn].type, ssn, clerkID);
+	Signal(workCV, clerkLock);
+	Wait(workCV, clerkLock);
+}
+
+void PunishTooSoon (int ssn, int clerkID, enum persontype clerkType)
+{
+	/* TODO: Moved the customer leaving the clerk BEFORE punishing, verify this is correct. */
+	int clerkLock;
+	int workCV;
+
+	int punishmentTime;
+	int i;
+
+	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
+	workCV = clerkGroups[clerkType].workCV[clerkID];
+
+	Signal(workCV, clerkLock);
+	ReleaseLock(clerkLock);
+
+	/* TODO: Random syscall. See above. */
+	/*	punishmentTime = Random(100, 1000); */
+	punishmentTime = 100;
+
+	for (i = 0; i < punishmentTime; i++)
+	{
+		Yield();
+	}
+
+	GetBackInLine(ssn, clerkType);
+}
+
+void CustomerInteraction (int ssn, int clerkID, enum persontype clerkType)
+{
+	int clerkLock;
+	int workCV;
+
+	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
+	workCV = clerkGroups[clerkType].workCV[clerkID];
+
+	AcquireLock(clerkLock);
+	clerkGroups[clerkType].clerks[clerkID].currentCustomer = ssn;
+	WriteOutput(Customer_GaveSSN, clerkType, people[ssn].type, ssn, clerkID);
+	Signal(workCV, clerkLock);
+	Wait(workCV, clerkLock);
+
+	switch (clerkType) 
+	{
+		case APPLICATION:
+			break; /* No extra work for Filing Application (for customer) */
+		case PICTURE:
+			MakePhotoDecision(ssn, clerkID, PICTURE);
+			break;
+		case PASSPORT:
+			if(clerkGroups[clerkType].clerks[clerkID].customerAppReadyToCertify == false)
+			{
+				PunishTooSoon(ssn, clerkID, PASSPORT);
+			}
+			break;
+		case CASHIER:
+			if(clerkGroups[clerkType].clerks[clerkID].customerAppReadyForPayment == false)
+			{
+				PunishTooSoon(ssn, clerkID, CASHIER);
+			}
+			else
+			{
+				PayForPassport(ssn, clerkID);
+			}
+			break;
+	}
+
+	Signal(workCV, clerkLock);
+	ReleaseLock(clerkLock);
+}
+
 void Customer (int ssn)
 {
 	struct Person customer;
@@ -1151,35 +1252,35 @@ void Customer (int ssn)
 		/* Go to Application Clerk */
 		clerkID = DecideClerk(ssn, APPLICATION);
 		WaitInLine(ssn, clerkID, APPLICATION);
-		FileApplication(ssn, clerkID);
+		CustomerInteraction(ssn, clerkID, APPLICATION);
 		
 		/* Go to Picture Clerk */
 		clerkID = DecideClerk(ssn, PICTURE);
 		WaitInLine(ssn, clerkID, PICTURE);
-		GetPictureTaken(ssn, clerkID);
+		CustomerInteraction(ssn, clerkID, PICTURE);
 	}
 	else
 	{
 		/* Go to Picture Clerk */
 		clerkID = DecideClerk(ssn, PICTURE);
 		WaitInLine(ssn, clerkID, PICTURE);
-		GetPictureTaken(ssn, clerkID);
+		CustomerInteraction(ssn, clerkID, PICTURE);
 		
 		/* Go to Application Clerk */
 		clerkID = DecideClerk(ssn, APPLICATION);
 		WaitInLine(ssn, clerkID, APPLICATION);
-		FileApplication(ssn, clerkID);
+		CustomerInteraction(ssn, clerkID, APPLICATION);
 	}
 
 	/* Go to Passport Clerk */
 	clerkID = DecideClerk(ssn, PASSPORT);
 	WaitInLine(ssn, clerkID, PASSPORT);
-	CertifyPassport(ssn, clerkID);
+	CustomerInteraction(ssn, clerkID, PASSPORT);
 
 	/* Go to Cashier */
 	clerkID = DecideClerk(ssn, CASHIER);
 	WaitInLine(ssn, clerkID, CASHIER);
-	PayForPassport(ssn, clerkID);
+	CustomerInteraction(ssn, clerkID, CASHIER);
 }
 
 /* ========================================================================================================================================= */
@@ -1238,23 +1339,195 @@ void TakeBreak (int clerkID, enum persontype clerkType)
 	WriteOutput(Clerk_ComingOffBreak, clerkType, clerkType, ssn, clerkID);
 }
 
-void DoInteraction (int clerkID, enum persontype clerkType)
+int CreateSystemJob (int ssn, int clerkID, enum persontype clerkType)
 {
+	int jobID;
+
+	AcquireLock(systemJobFindLock);
+
+	/* Find free system job */
+	for (jobID = 0; jobID < numSystemJobs; jobID++)
+	{
+		if (jobs[jobID].ssn == -1 && jobs[jobID].clerkID == -1 && jobs[jobID].type == CUSTOMER)
+		{
+			jobs[jobID].ssn = ssn;
+			jobs[jobID].clerkID = clerkID;
+			jobs[jobID].clerkType = clerkType;
+			return jobID;
+		}
+	}
+
+	ReleaseLock(systemJobFindLock);
+
+	return -1;
+}
+
+void ResetSystemJob (int jobID)
+{
+	AcquireLock(systemJobFindLock);
+
+	/* Reset job so other System Jobs can use. */
+	jobs[jobID].ssn = -1;
+	jobs[jobID].clerkID = -1;
+	jobs[jobID].type = CUSTOMER;
+
+	ReleaseLock(systemJobFindLock);
+}
+
+void RunSystemJob (int jobID)
+{
+	int systemLock;
+	int filingTime;
+	int elapsedTime;
+
+	switch (jobs[jobID].clerkType)
+	{
+		case APPLICATION:
+			systemLock = filingApplicationLock;
+			break;
+		case PICTURE:
+			systemLock = filingPictureLock;
+			break;
+		case PASSPORT:
+			systemLock = certifyingPassportLock;
+			break;
+		case CASHIER:
+			break; /* Casier not responsible for filing anything in the system */
+	}
+
+	/* TODO: Random syscall. See above. */
+	/* 	filingTime = Random(20, 100); */
+	filingTime = 20;
+
+	for (elapsedTime = 0; elapsedTime < filingTime; elapsedTime++)
+	{
+		Yield();
+	}
+
+	AcquireLock(systemLock);
+
+	switch (jobs[jobID].clerkType)
+	{
+		case APPLICATION:
+			customers[ssn].applicationFiled = true;
+			break;
+		case PICTURE:
+			customers[ssn].pictureFiled = true;
+			break;
+		case PASSPORT:
+			customers[ssn].passportCertified = true;
+			break;
+		case CASHIER:
+			break; /* Casier not responsible for filing anything in the system */
+	}
+
+	WriteOutput(Clerk_SystemJobComplete, clerkType, people[ssn].type, ssn, clerkID);
+	ReleaseLock(systemLock);
+
+	ResetSystemJob(jobID);
+}
+
+void ClerkInteraction (int clerkID, enum persontype clerkType)
+{
+	int lineLock;
+	int clerkLock;
+	int workCV;
+
+	int customerSSN;
+
+	int jobID;
+
+	lineLock = clerkGroups[clerkType].lineLock;
+	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
+	workCV = clerkGroups[clerkType].workCV[clerkID];
+
+	customerSSN = clerkGroups[clerkType].clerks[clerkID].currentCustomer;
+
+	AcquireLock(clerkLock);
+	ReleaseLock(lineLock);
+	Wait(workCV, clerkLock);
+	Yield(); /* Simulate work */
+
 	switch (clerkType) 
 	{
 		case APPLICATION:
-			ApplicationClerkWork(clerkID);
-			break;
+			break; /* Below: File application. */
 		case PICTURE:
-			PictureClerkWork(clerkID);
-			break;
+			break; /* Below: Take picture with Signal, File if Customer liked picture. */
 		case PASSPORT:
-			PassportClerkWork(clerkID);
+			AcquireLock(filingApplicationLock);
+			AcquireLock(filingPictureLock);
+			if (customers[customerSSN].applicationFiled == false || customers[customerSSN].photoFiled == false)
+			{
+				clerkGroups[clerkType].clerks[clerkID].customerAppReadyToCertify = false;
+				WriteOutput(Clerk_DeterminedAppAndPicNotCompleted, clerkType, people[customerSSN].type, customerSSN, clerkID);
+			}
+			else
+			{
+				clerkGroups[clerkType].clerks[clerkID].customerAppReadyToCertify = true;
+				WriteOutput(Clerk_DeterminedAppAndPicCompleted, clerkType, people[customerSSN].type, customerSSN, clerkID);
+				
+				/* Certify Passport in the system */
+				jobID = CreateSystemJob(ssn, clerkID, clerkType);
+				Fork(RunSystemJob, jobID);
+			}
+			ReleaseLock(filingApplicationLock);
+			ReleaseLock(filingPictureLock);
 			break;
 		case CASHIER:
-			CashierWork(clerkID);
+			AcquireLock(certifyingPassportLock);
+			if (customers[customerSSN].passportCertified == false)
+			{
+				clerkGroups[clerkType].clerks[clerkID].customerAppReadyForPayment = false;
+			}
+			else
+			{
+				clerkGroups[clerkType].clerks[clerkID].customerAppReadyForPayment = true;
+				Signal(workCV, clerkLock);
+				Wait(workCV, clerkLock);
+
+				AcquireLock(clerkGroups[clerkType].moneyLock);
+				clerkGroups[clerkType].groupMoney += 100;
+				WriteOutput(Clerk_ReceivedPayment, clerkType, people[customerSSN].type, customerSSN, clerkID);
+				ReleaseLock(clerkGroups[clerkType].moneyLock);
+
+				customers[customerSSN].gotPassport = true;
+			}
+			ReleaseLock(certifyingPassportLock);
 			break;
 	}
+
+	Signal(workCV, clerkLock);
+	Wait(workCV, clerkLock);
+
+	switch (clerkType)
+	{
+		case APPLICATION:
+			/* File Application in the system */
+			jobID = CreateSystemJob(ssn, clerkID, clerkType);
+			Fork(RunSystemJob, jobID);
+			break; /* Application Clerk already did work */
+		case PICTURE:
+			if (clerkGroups[clerkType].clerks[clerkID].customerLikedPhoto == true)
+			{
+				/* File Photo in the system */
+				jobID = CreateSystemJob(ssn, clerkID, clerkType);
+				Fork(RunSystemJob, jobID);
+			}
+			clerkGroups[clerkType].clerks[clerkID].customerLikedPhoto = false; /* Done checking if Customer liked photo; "forget" so ready for next Customer. */
+			break;
+		case PASSPORT:
+			clerkGroups[clerkType].clerks[clerkID].customerAppReadyToCertify = false; /* Done checking if Customer App/Picture filed; "forget" so ready for next Customer. */
+			break;
+		case CASHIER:
+			clerkGroups[clerkType].clerks[clerkID].customerAppReadyForPayment = false; /* Done checking if Customer can pay for passport; "forget" so ready for next Customer. */
+			break;
+	}
+
+	/* Done with Customer, reset so we're ready for next Customer. */
+	clerkGroups[clerkType].clerks[clerkID].currentCustomer = -1;
+
+	ReleaseLock(clerkLock);
 }
 
 enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
@@ -1349,7 +1622,7 @@ void Clerk(int ssn)
 				AcceptBribe(clerk.id, clerk.type);
 				break;
 			case DOINTERACTION:
-				DoInteraction(clerk.id, clerk.type);
+				ClerkInteraction(clerk.id, clerk.type);
 				break;
 			case TAKEBREAK:
 				TakeBreak(clerk.id, clerk.type);
