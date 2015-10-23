@@ -959,8 +959,7 @@ int DecideClerk (int ssn, enum persontype clerkType)
 	AcquireLock(senatorIndoorLock);
 	if (isSenatorPresent && people[ssn].type != SENATOR)
 	{
-		/* TODO: Some kind of printf function for writing the required output with ints inside of strings. */
-		/*	WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn); */
+		WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
 		Wait(senatorIndoorCV, senatorIndoorLock);
 	}
 	ReleaseLock(senatorIndoorLock);
@@ -1042,9 +1041,7 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 		{
 			/* TODO: Can we do direct incrementation on array value? */
 			clerkGroups[clerkType].clerks[clerkID].senatorLineLength++;
-			/* TODO: See above. */
-			/* TODO: Different approach from string array in original PPOffice for clerk type string */
-			/*	WriteOutput("Senator %d has gotten in a regular line for %s %d.", ssn, ); */
+			WriteOutput(Customer_GotInRegularLine, clerkType, SENATOR, ssn, clerkID);
 			Wait(senatorLineCV, lineLock);
 			/* TODO: See above. */
 			clerkGroups[clerkType].clerks[clerkID].senatorLineLength--;
@@ -1069,9 +1066,7 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 				people[ssn].money -= 500; /* Pay $500 for bribe */
 				Signal(workCV, lineLock);
 				Wait(workCV, lineLock);
-				/* TODO: See above. (WriteOutput) */
-				/* TODO: See above. (string array) */
-				/*	WriteOutput("Customer %d has gotten in bribe line for %s %d.", ssn, ); */
+				WriteOutput(Customer_GotInBribeLine, clerkType, CUSTOMER, ssn, clerkID);
 				
 				ReleaseLock(clerkLock);
 
@@ -1086,8 +1081,7 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 				AcquireLock(senatorIndoorLock);
 				if (isSenatorPresent && people[ssn].type != SENATOR)
 				{
-					/* TODO: See above. (WriteOutput) */
-					/* 	WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn); */
+					WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
 					Wait(senatorIndoorCV, senatorIndoorLock);
 					ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and re-decide line. */
 					return WaitInLine(ssn, clerkID, clerkType);
@@ -1105,16 +1099,14 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 			{ /* No other options. Get in regular line. */
 				/* TODO: See above. (Increment operator) */
 				clerkGroups[clerkType].clerks[clerkID].lineLength++;
-				/* TODO: See above. (WriteOutput) */
-				/* WriteOutput("Customer %d has gotten in a regular line for %s %d.", ssn, clerkID); */
+				WriteOutput(Customer_GotInRegularLine, clerkType, CUSTOMER, ssn, clerkID);
 				Wait(lineCV, lineLock);
 
 				/* Woken up. Make sure no senators have entered so that I can do my business with clerk. */
 				AcquireLock(senatorIndoorLock);
 				if (isSenatorPresent && people[ssn].type != SENATOR)
 				{
-					/* TODO: See above. (WriteOutput) */
-					/*	WriteOutput("Customer %d is going outside the Passport Office because there is a Senator present.", ssn); */
+					WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
 					Wait(senatorIndoorCV, senatorIndoorLock);
 					ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and re-decide line. */
 					return WaitInLine(ssn, clerkID, clerkType);
@@ -1225,9 +1217,7 @@ void AcceptBribe (int clerkID, enum persontype clerkType)
 	AcquireLock(moneyLock); /* Synchronize update to clerk's pool of money */
 	clerkGroups[clerkType].groupMoney += 500;
 	ReleaseLock(moneyLock);
-	/* TODO: See above. (WriteOutput) */
-	/* TODO: Map clerkType to clerk name (param 1). */
-	/* 	WriteOutput("%s %d has received $500 from Customer %d", clerkType, clerkID, clerk.currentCustomer); */
+	WriteOutput(Clerk_ReceivedBribe, clerkType, CUSTOMER, ssn, clerkID);
 
 	Signal(workCV, clerkLock); /* Let customer know she can get in bribe line. */
 	clerkGroups[clerkType].clerks[clerkID].currentCustomer = -1;
@@ -1242,13 +1232,9 @@ void TakeBreak (int clerkID, enum persontype clerkType)
 	lineLock = clerkGroups[clerkType].lineLock;
 	breakCV = clerkGroups[clerkType].breakCVs[clerkID];
 
-	/* TODO: See above. (WriteOutput) */
-	/* TODO: Map clerkType to clerk name (param 1). */
-	/*	WriteOutput("%s %d is going on break.", clerkType, clerkID); */
+	WriteOutput(Clerk_GoingOnBreak, clerkType, clerkType, ssn, clerkID);
 	Wait(breakCV, lineLock); /* Waiting on breakCV = "going on break" */
-	/* TODO: See above. (WriteOutput) */
-	/* TODO: Map clerkType to clerk name (param 1). */
-	/*	WriteOutput("%s %d is coming off break.", clerkType, clerkID); */
+	WriteOutput(Clerk_ComingOffBreak, clerkType, clerkType, ssn, clerkID);
 }
 
 void DoInteraction (int clerkID, enum persontype clerkType)
@@ -1305,9 +1291,7 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 		/* Now that all customers "went outside," handle senator(s). */
 		if (clerkGroups[clerkType].clerks[clerkID].senatorLineLength > 0)
 		{
-			/* TODO: See above. (WriteOutput) */
-			/* TODO: Map clerkType to clerk name (param 1). */
-			/*	WriteOutput("%s %d has signalled a Senator to come to their counter", clerkType, clerkID); */
+			/* WriteOutput(Clerk_SignalledCustomer, clerkType, SENATOR, -1, clerkID); */
 			Signal(senatorLineCV, lineLock); /* Let first waiting senator know she can come to counter. */
 			clerkGroups[clerkType].clerks[clerkID].state = BUSY;
 			return DOINTERACTION;
@@ -1324,9 +1308,7 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 	/* Nobody is actively trying to bribe, but past bribers are waiting. */
 	else if (clerkGroups[clerkType].clerks[clerkID].bribeLineLength > 0)
 	{
-		/* TODO: See above. (WriteOutput) */
-		/* TODO: Map clerkType to clerk name (param 1). */
-		/*	WriteOutput("%s %d has signalled a Customer to come to their counter", clerkType, clerkID); */
+		WriteOutput(Clerk_SignalledCustomer, clerkType, CUSTOMER, -1, clerkID);
 		Signal(bribeLineCV, lineLock); /* Let first waiting briber know she can come to counter. */
 		clerkGroups[clerkType].clerks[clerkID].state = BUSY;
 		return DOINTERACTION;
@@ -1335,9 +1317,7 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 	/* No bribers, take care of normal customers (if there are any). */
 	else if (clerkGroups[clerkType].clerks[clerkID].lineLength > 0)
 	{
-		/* TODO: See above. (WriteOutput) */
-		/* TODO: Map clerkType to clerk name (param 1). */
-		/*	WriteOutput("%s %d has signalled a Customer to come to their counter", clerkType, clerkID); */
+		WriteOutput(Clerk_SignalledCustomer, clerkType, CUSTOMER, -1, clerkID);
 		Signal(lineCV, lineLock); /* Let first waiting customer know she can come to counter. */
 		clerkGroups[clerkType].clerks[clerkID].state = BUSY;
 		return DOINTERACTION;
