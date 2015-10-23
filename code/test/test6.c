@@ -17,6 +17,14 @@ void t6_t2() {
     Write("THIRD\n", sizeof("THIRD\n"), 1);
     Exit(0);
 }
+void t6_t3() {
+    /*1st to acquire lock*/
+    test=AcquireLock(lockindex);
+    Write("thread calls broadcast\n", sizeof("thread calls broadcast\n"), 1);
+    test=Broadcast(test, cvindex);
+    test=ReleaseLock(lockindex);
+    Exit(0);
+}
 void t6_t4() {
     /*3rd to acquire lock*/
     test=AcquireLock(lockindex);
@@ -24,14 +32,6 @@ void t6_t4() {
     Write("FORTH\n", sizeof("FORTH\n"), 1);
     Write("Passed broadcast test if FINISHED numbers are in increasing order.\n", sizeof("Passed broadcast test if FINISHED numbers are in increasing order.\n"), 1);
     test=ReleaseLock(test);
-    Exit(0);
-}
-void t6_t3() {
-    /*1st to acquire lock*/
-    test=AcquireLock(lockindex);
-    Write("thread calls broadcast\n", sizeof("thread calls broadcast\n"), 1);
-    test=Broadcast(test, cvindex);
-    test=ReleaseLock(lockindex);
     Exit(0);
 }
 int
