@@ -854,6 +854,7 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 					break;
 			}
 			break;
+		}
 	}
 }
 
