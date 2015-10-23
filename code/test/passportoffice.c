@@ -657,9 +657,7 @@ int DecideClerk (int ssn, enum persontype clerkType)
 }
 
 void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
-{
-	struct Clerk clerk;
-	
+{	
 	int lineLock;
 	int lineCV;
 	int bribeLineCV;
@@ -668,7 +666,6 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 	int workCV;
 	int bribeCV;
 
-	clerk = clerkGroups[clerkType].clerks[clerkID];
 	lineLock = clerkGroups[clerkType].lineLock;
 	lineCV = clerkGroups[clerkType].lineCVs[clerkID];
 	bribeLineCV = clerkGroups[clerkType].bribeLineCVs[clerkID];
@@ -683,37 +680,37 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 	/*	- Bribe */
 	/*	- Senator line (if isSenator) */
 
-	if (clerk.state != AVAILABLE)
+	if (clerkGroups[clerkType].clerks[clerkID].state != AVAILABLE)
 	{ 
 		/* Clerk is unavailable; Rule out going straight to counter, so now decide which line to wait in. */
 		if (people[ssn].type == SENATOR)
 		{
 			/* TODO: Can we do direct incrementation on array value? */
-			clerk.senatorLineLength++;
+			clerkGroups[clerkType].clerks[clerkID].senatorLineLength++;
 			/* TODO: See above. */
 			/* TODO: Different approach from string array in original PPOffice for clerk type string */
 			/*	WriteOutput("Senator %d has gotten in a regular line for %s %d.", ssn, ); */
 			Wait(senatorLineCV, lineLock);
 			/* TODO: See above. */
-			clerk.senatorLineLength--;
+			clerkGroups[clerkType].clerks[clerkID].senatorLineLength--;
 		}
 		else
 		{ 
 			/* Ruled out straight to counter and senator line. Bribe or no bribe? */
-			if (clerk.lineLength >= 1 && people[ssn].money >= 600 && clerk.state != ONBREAK)
+			if (clerkGroups[clerkType].clerks[clerkID].state != ONBREAK && people[ssn].money >= 600 && clerkGroups[clerkType].clerks[clerkID].lineLength >= 1)
 			{ /* If customer has enough money and she's not in a line for a clerk that is on break, always bribe. */
 				/* Let clerk know you are trying to bribe her. */
 				/* TODO: See above. */
-				clerk.numCustomersBribing++;
+				clerkGroups[clerkType].clerks[clerkID].numCustomersBribing++;
 				Wait(bribeCV, lineLock);
 				/* TODO: See above. */
-				clerk.numCustomersBribing--;
+				clerkGroups[clerkType].clerks[clerkID].numCustomersBribing--;
 				ReleaseLock(lineLock);
 
 				/* Do customer side of bribe. */
 				AcquireLock(clerkLock);
 
-				clerk.currentCustomer = ssn;
+				clerkGroups[clerkType].clerks[clerkID].currentCustomer = ssn;
 				people[ssn].money -= 500; /* Pay $500 for bribe */
 				Signal(workCV, lineLock);
 				Wait(workCV, lineLock);
@@ -727,7 +724,7 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 				AcquireLock(lineLock);
 
 				/* TODO: See above. (increment operator) */
-				clerk.bribeLineLength++;
+				clerkGroups[clerkType].clerks[clerkID].bribeLineLength++;
 				Wait(bribeLineCV, lineLock);
 
 				/* Woken up. Make sure no senators have entered so that I can do my business with clerk. */
@@ -747,12 +744,12 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 
 				/* Made it out of line. */
 				/* TODO: See above. (Decrement operator) */
-				clerk.bribeLineLength--;
+				clerkGroups[clerkType].clerks[clerkID].bribeLineLength--;
 			}
 			else
 			{ /* No other options. Get in regular line. */
 				/* TODO: See above. (Increment operator) */
-				clerk.lineLength++;
+				clerkGroups[clerkType].clerks[clerkID].lineLength++;
 				/* TODO: See above. (WriteOutput) */
 				/* WriteOutput("Customer %d has gotten in a regular line for %s %d.", ssn, clerkID); */
 				Wait(lineCV, lineLock);
@@ -774,15 +771,14 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 
 				/* Made it out of line. */
 				/* TODO: See above. (Decrement operator) */
-				clerk.lineLength--;
+				clerkGroups[clerkType].clerks[clerkID].lineLength--;
 			}
 		}
 	}
 	else
-	{ /* Line was empty when customer joined, go straight to the counter. */
-		/* TODO: Will this produce the same weird error as before when in C++ */
-		/* 	Before needed to do: clerkGroups[clerkType].clerkData[clerkID].state = BUSY; */
-		clerk.state = BUSY;
+	{ 
+		/* Line was empty when customer joined, go straight to the counter. */
+		clerkGroups[clerkType].clerks[clerkID].state = BUSY;
 	}
 	ReleaseLock(lineLock);
 
@@ -852,14 +848,12 @@ void Customer (int ssn)
 /*			type of clerk line (0 = App, 1 = Pic, 2 = Pas, 3 = Csh) 	*/
 void AcceptBribe (int clerkID, enum persontype clerkType)
 {
-	struct Clerk clerk;
 	int lineLock;
 	int moneyLock;
 	int clerkLock;
 	int workCV;
 	int bribeCV;
 
-	clerk = clerkGroups[clerkType].clerks[clerkID];
 	lineLock = clerkGroups[clerkType].lineLock;
 	moneyLock = clerkGroups[clerkType].moneyLock;
 	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
@@ -881,7 +875,7 @@ void AcceptBribe (int clerkID, enum persontype clerkType)
 	/* 	WriteOutput("%s %d has received $500 from Customer %d", clerkType, clerkID, clerk.currentCustomer); */
 
 	Signal(workCV, clerkLock); /* Let customer know she can get in bribe line. */
-	clerk.currentCustomer = -1;
+	clerkGroups[clerkType].clerks[clerkID].currentCustomer = -1;
 	ReleaseLock(clerkLock); /* Done with clerk's work for bribe interaction. */
 }
 
@@ -923,14 +917,12 @@ void DoInteraction (int clerkID, enum persontype clerkType)
 
 enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 {
-	struct Clerk clerk;
 	int lineLock;
 	int lineCV;
 	int bribeLineCV;
 	int senatorLineCV;
 	int breakCV;
 
-	clerk = clerkGroups[clerkType].clerks[clerkID];
 	lineLock = clerkGroups[clerkType].lineLock;
 	lineCV = clerkGroups[clerkType].lineCVs[clerkID];
 	bribeLineCV = clerkGroups[clerkType].bribeLineCVs[clerkID];
@@ -945,61 +937,61 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 		/* If senator is present, customers need to be woken up so they can "go outside." */
 		ReleaseLock(senatorIndoorLock); /* Done checking if senator is present. (Release ASAP for other clerks) */
 		
-		if (clerk.lineLength > 0)
+		if (clerkGroups[clerkType].clerks[clerkID].lineLength > 0)
 		{
 			Broadcast(lineCV, lineLock);
 		}
 		
-		if (clerk.bribeLineLength > 0)
+		if (clerkGroups[clerkType].clerks[clerkID].bribeLineLength > 0)
 		{
 			Broadcast(bribeLineCV, lineLock);
 		}
 
 		/* Now that all customers "went outside," handle senator(s). */
-		if (clerk.senatorLineLength > 0)
+		if (clerkGroups[clerkType].clerks[clerkID].senatorLineLength > 0)
 		{
 			/* TODO: See above. (WriteOutput) */
 			/* TODO: Map clerkType to clerk name (param 1). */
 			/*	WriteOutput("%s %d has signalled a Senator to come to their counter", clerkType, clerkID); */
 			Signal(senatorLineCV, lineLock); /* Let first waiting senator know she can come to counter. */
-			clerk.state = BUSY;
+			clerkGroups[clerkType].clerks[clerkID].state = BUSY;
 			return DOINTERACTION;
 		}
 	}
 	ReleaseLock(senatorIndoorLock); /* Done checking if senator is present. */
 
 	/* Next priority: Take care of customers trying to bribe me. */
-	if (clerk.numCustomersBribing > 0)
+	if (clerkGroups[clerkType].clerks[clerkID].numCustomersBribing > 0)
 	{
 		return ACCEPTBRIBE;
 	}
 
 	/* Nobody is actively trying to bribe, but past bribers are waiting. */
-	else if (clerk.bribeLineLength > 0)
+	else if (clerkGroups[clerkType].clerks[clerkID].bribeLineLength > 0)
 	{
 		/* TODO: See above. (WriteOutput) */
 		/* TODO: Map clerkType to clerk name (param 1). */
 		/*	WriteOutput("%s %d has signalled a Customer to come to their counter", clerkType, clerkID); */
 		Signal(bribeLineCV, lineLock); /* Let first waiting briber know she can come to counter. */
-		clerk.state = BUSY;
+		clerkGroups[clerkType].clerks[clerkID].state = BUSY;
 		return DOINTERACTION;
 	}
 
 	/* No bribers, take care of normal customers (if there are any). */
-	else if (clerk.lineLength > 0)
+	else if (clerkGroups[clerkType].clerks[clerkID].lineLength > 0)
 	{
 		/* TODO: See above. (WriteOutput) */
 		/* TODO: Map clerkType to clerk name (param 1). */
 		/*	WriteOutput("%s %d has signalled a Customer to come to their counter", clerkType, clerkID); */
 		Signal(lineCV, lineLock); /* Let first waiting customer know she can come to counter. */
-		clerk.state = BUSY;
+		clerkGroups[clerkType].clerks[clerkID].state = BUSY;
 		return DOINTERACTION;
 	}
 
 	/* No customers to take care of, go on break until manager wakes me up. */
 	else
 	{
-		clerk.state = ONBREAK;
+		clerkGroups[clerkType].clerks[clerkID].state = ONBREAK;
 		return TAKEBREAK;	
 	}
 }
