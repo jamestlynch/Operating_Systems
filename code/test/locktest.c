@@ -77,18 +77,21 @@ void t5_t1(){
     Write("1 acquired\n", sizeof("1 acquired\n"), 1);
     test=ReleaseLock(LockIndex1);
     Write("1 released\n", sizeof("1 released\n"), 1);
+    Exit(0);
 }
 void t5_t2(){
     test=AcquireLock(LockIndex1);
     Write("2 acquired\n", sizeof("2 acquired\n"), 1);
     test=ReleaseLock(LockIndex1);
     Write("2 released\n", sizeof("2 released\n"), 1);
+    Exit(0);
 }
 void t5_t3(){
     test=AcquireLock(LockIndex1);
     Write("3 acquired\n", sizeof("3 acquired\n"), 1);
     test=ReleaseLock(LockIndex1);
     Write("3 released\n", sizeof("3 released\n"), 1);
+    Exit(0);
 }
 void t6_t1() {
     /*2nd to acquire lock*/
@@ -152,10 +155,12 @@ void test5(){
     Fork("thread1", 7, t5_t1);
     Fork("thread2", 7, t5_t2);
     Fork("thread3", 7, t5_t3);
+    Exit(0);
 
 }
 void test6(){
     Write("Test 6 start\n", sizeof("Test 6 start\n"), 1);
+    indexcheck1=CreateLock("abc", 3);
     Fork("thread1", 7, t6_t1);
     Fork("thread2", 7, t6_t2);
     Fork("thread3", 7, t6_t3);
@@ -183,8 +188,8 @@ int main()
     /*BoundsErrorCheck_Test();
      passingVars_Test();*/
 
-    test1();
-    test2();
+    test6();
+    /*test2();
     
 
 

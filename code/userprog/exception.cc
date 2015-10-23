@@ -266,17 +266,24 @@ void Close_Syscall(int fd) {
 //      Thread belong to same process as thread creator
 int checkLockErrors(int index)
 {
+  printf("index %d.\n", index);
+  printf("lock size: %d", locks.size());
   if (index < 0) 
   {
     printf("%s","Invalid lock table index, negative.\n");
     return -1;
   }
 
-  if (index > locks.size() - 1) 
+  int size = locks.size();
+
+printf("size: %d", size - 1);
+
+  if (index > size - 1) 
   {
     printf("%s","Invalid lock table index, bigger than size.\n");
     return -1;
   }
+  printf("after > lock vector size %d.\n", index);
 
   KernelLock * curKernelLock = locks.at(index);
 
@@ -298,8 +305,7 @@ int checkLockErrors(int index)
 int CreateLock_Syscall(unsigned int vaddr, int len) 
 {
   locksLock->Acquire();
-
-  if (len <= 0) 
+  if (len < 0) 
   { // Validate length is nonzero and positive
     printf("%s","Length for lock's identifier name must be nonzero and positive\n");
     locksLock->Release();
@@ -344,6 +350,8 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
 
 int AcquireLock(int index)
 {
+    printf("Lock index %d at beginning of acquire lock.\n", index);
+
   if(checkLockErrors(index) == -1)
   {
     return -1;
@@ -383,6 +391,7 @@ void DeleteLock(int indexlock)
 
 int ReleaseLock(int indexlock)
 {
+  printf("Lock index %d at beginning of release lock.\n", indexlock);
   if(checkLockErrors(indexlock) == -1)
   {
     return -1;
@@ -411,8 +420,8 @@ int DestroyLock(int indexlock)
     locksLock->Release();
     return -1;
   }
-
-  if (indexlock > locks.size()) 
+  int size= locks.size();
+  if (indexlock > size) 
   {
     printf("%s","index out of bounds for destroy\n");
     locksLock->Release();
@@ -455,8 +464,9 @@ int checkCVErrors(int indexcv, int indexlock)
     printf("%s","Invalid index.\n");
     return -1;
   }
-
-  if (indexcv > conditions.size() - 1 || indexlock > locks.size() - 1) 
+  int csize= conditions.size();
+  int lsize= locks.size();
+  if (indexcv > csize - 1 || indexlock > lsize - 1) 
   {
     printf("%s","Index out of bounds.\n");
     return -1;
@@ -548,12 +558,17 @@ int Wait(int indexcv, int indexlock)
   processInfo.at(currentThread->processID)->numSleepingThreads++;
   processLock->Release();
 
+  printf("condition before");
+
   conditions.at(indexcv)->condition->Wait(locks.at(indexlock)->lock);
 
-  processLock->Acquire();
-  processInfo.at(currentThread->processID)->numExecutingThreads++;
-  processInfo.at(currentThread->processID)->numSleepingThreads--;
-  processLock->Release();
+  printf("condition after");
+
+    processLock->Acquire();
+    processInfo.at(currentThread->processID)->numExecutingThreads++;
+    processInfo.at(currentThread->processID)->numSleepingThreads--;
+    processLock->Release();
+  
 
   return 0;
 }
@@ -577,7 +592,10 @@ int Signal(int indexcv, int indexlock)
   }
 
   KernelCV * curKernelCV = conditions.at(indexlock);
+
   curKernelCV->condition->Signal(locks.at(indexlock)->lock);
+
+
 
   if(curKernelCV->toDelete && curKernelCV->condition->waitqueue->IsEmpty())
   {
@@ -619,8 +637,8 @@ int DestroyCV(int indexcv)
     conditionsLock->Release();
     return -1;
   }
-
-  if (indexcv > conditions.size()) 
+  int size= conditions.size();
+  if (indexcv > size) 
   {
     printf("%s","index out of bounds for destroy\n");
     conditionsLock->Release();
@@ -669,6 +687,7 @@ void Yield_Syscall()
 
 void Exit_Syscall(int status)
 {
+  currentThread->Yield();
   processLock->Acquire();
 
   if(processInfo.at(currentThread->processID)->numExecutingThreads > 1) 
@@ -677,18 +696,19 @@ void Exit_Syscall(int status)
     
     processInfo.at(currentThread->processID)->numExecutingThreads--;
 
-    currentThread->Finish();
-
     currentThread->space->ReclaimStack(currentThread->stackPage);
 
     processLock->Release();
+
+    currentThread->Finish();
+
     return;
   }
   else if(processInfo.size() > 1)
   {
     printf("Thread is last in process. Cleaning up process.\n");
-
-    for (int i = 0; i < locks.size(); i++)
+    int lsize=locks.size();
+    for (int i = 0; i < lsize; i++)
     {
       if(locks.at(i))
       {
@@ -700,8 +720,8 @@ void Exit_Syscall(int status)
         }
       }
     }
-
-    for (int i = 0; i< conditions.size(); i++)
+    int csize= conditions.size();
+    for (int i = 0; i< csize; i++)
     {
       if(conditions.at(i))
       {
@@ -713,9 +733,6 @@ void Exit_Syscall(int status)
         }
       }
     }
-    
-    currentThread->Finish();
-
     currentThread->space->ReclaimPageTable();
 
     // Delete process
@@ -725,13 +742,16 @@ void Exit_Syscall(int status)
     processInfo.at(currentThread->processID) = NULL;
 
     processLock->Release();
+    currentThread->Finish();
     return;
   }
 
   printf("Thread is last in process and this is last process. Nachos halting.\n");
+  processLock->Release();
+
   interrupt->Halt();
   
-  processLock->Release();
+  
 }
 
 void Kernel_Thread(int vaddr)

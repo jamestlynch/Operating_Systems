@@ -31,7 +31,7 @@ CPP = $(GCCDIR)cpp
 INCDIR =-I../userprog -I../threads
 CFLAGS = -G 0 -c $(INCDIR)
 
-all: halt matmult sort testfiles locktest conditiontest test runtests
+all: halt matmult sort testfiles locktest conditiontest runtests test1 test2 test3 test4 test5 test6 test7 test8
 
 start.o: start.s ../userprog/syscall.h
 	$(CPP) $(CPPFLAGS) start.s > strt.s
@@ -74,17 +74,60 @@ conditiontest: conditiontest.o start.o
 	$(LD) $(LDFLAGS) start.o conditiontest.o -o conditiontest.coff
 	../bin/coff2noff conditiontest.coff conditiontest
 
-test.o: test.c
-	$(CC) $(CFLAGS) -c test.c
-test: test.o start.o
-	$(LD) $(LDFLAGS) start.o test.o -o test.coff
-	../bin/coff2noff test.coff test
 
 runtests.o: runtests.c
 	$(CC) $(CFLAGS) -c runtests.c
 runtests: runtests.o start.o
 	$(LD) $(LDFLAGS) start.o runtests.o -o runtests.coff
 	../bin/coff2noff runtests.coff runtests
+
+test1.o: test1.c
+	$(CC) $(CFLAGS) -c test1.c
+test1: test1.o start.o
+	$(LD) $(LDFLAGS) start.o test1.o -o test1.coff
+	../bin/coff2noff test1.coff test1
+
+test2.o: test2.c
+	$(CC) $(CFLAGS) -c test2.c
+test2: test2.o start.o
+	$(LD) $(LDFLAGS) start.o test2.o -o test2.coff
+	../bin/coff2noff test2.coff test2
+
+test3.o: test3.c
+	$(CC) $(CFLAGS) -c test3.c
+test3: test3.o start.o
+	$(LD) $(LDFLAGS) start.o test3.o -o test3.coff
+	../bin/coff2noff test3.coff test3
+
+test4.o: test4.c
+	$(CC) $(CFLAGS) -c test4.c
+test4: test4.o start.o
+	$(LD) $(LDFLAGS) start.o test4.o -o test4.coff
+	../bin/coff2noff test4.coff test4
+
+test5.o: test5.c
+	$(CC) $(CFLAGS) -c test5.c
+test5: test5.o start.o
+	$(LD) $(LDFLAGS) start.o test5.o -o test5.coff
+	../bin/coff2noff test5.coff test5
+
+test6.o: test6.c
+	$(CC) $(CFLAGS) -c test6.c
+test6: test6.o start.o
+	$(LD) $(LDFLAGS) start.o test6.o -o test6.coff
+	../bin/coff2noff test6.coff test6
+
+test7.o: test7.c
+	$(CC) $(CFLAGS) -c test7.c
+test7: test7.o start.o
+	$(LD) $(LDFLAGS) start.o test7.o -o test7.coff
+	../bin/coff2noff test7.coff test7
+
+test8.o: test8.c
+	$(CC) $(CFLAGS) -c test8.c
+test8: test8.o start.o
+	$(LD) $(LDFLAGS) start.o test8.o -o test8.coff
+	../bin/coff2noff test8.coff test8
 
 clean:
 	rm -f *.o *.coff
