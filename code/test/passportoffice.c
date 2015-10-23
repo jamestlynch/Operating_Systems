@@ -11,6 +11,9 @@ typedef enum { false = 0, true = 1 } bool;
 /*																																			 */
 /* ========================================================================================================================================= */
 
+int threadParam;
+int paramLock;
+
 /******************************************/
 /* 		  	    Person Data 			  */
 /******************************************/
@@ -512,7 +515,7 @@ enum outputstatement {
 	Customer_GotInRegularLine, Customer_GotInBribeLine, Customer_GaveSSN,
 	Customer_DoesNotLikePicture, Customer_DoesLikePicture, Customer_WentTooSoon,
 	Customer_PaidForPassport, Customer_GoingOutsideForSenator, Customer_LeavingPassportOffice,
-}
+};
 
 void WriteOutput (enum outputstatement statement, enum persontype clerkType, enum persontype customerType, int ssn, int clerkID)
 {
@@ -755,19 +758,23 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 			{
 				case APPLICATION:
 					Write("Manager has woken up an ApplicationClerk",
-						sizeof("Manager has woken up an ApplicationClerk"));
+						sizeof("Manager has woken up an ApplicationClerk"),
+						1);
 					break;
 				case PICTURE:
 					Write("Manager has woken up an PictureClerk",
-						sizeof("Manager has woken up an PictureClerk"));
+						sizeof("Manager has woken up an PictureClerk"),
+						1);
 					break;
 				case PASSPORT:
 					Write("Manager has woken up an PassportClerk",
-						sizeof("Manager has woken up an PassportClerk"));
+						sizeof("Manager has woken up an PassportClerk"),
+						1);
 					break;
 				case CASHIER:
 					Write("Manager has woken up an Cashier",
-						sizeof("Manager has woken up an Cashier"));
+						sizeof("Manager has woken up an Cashier"),
+						1);
 					break;
 			}
 			break;
@@ -861,10 +868,16 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							WriteTwo("Customer %d has gotten in regular line for Cashier %d.", ssn, clerkID);
+							WriteTwo("Customer %d has gotten in regular line for Cashier %d.",
+								sizeof("Customer %d has gotten in regular line for Cashier %d."),
+								ssn,
+								clerkID);
 							break;
 						case SENATOR:
-							WriteTwo("Senator %d has gotten in regular line for Cashier %d.", ssn, clerkID);
+							WriteTwo("Senator %d has gotten in regular line for Cashier %d.",
+								sizeof("Senator %d has gotten in regular line for Cashier %d."),
+								ssn,
+								clerkID);
 							break;
 					}
 					break;
@@ -874,16 +887,28 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 			switch(clerkType)
 			{
 				case APPLICATION:
-					WriteTwo("Customer %d has gotten in bribe line for ApplicationClerk %d.", ssn, clerkID);
+					WriteTwo("Customer %d has gotten in bribe line for ApplicationClerk %d.",
+						sizeof("Customer %d has gotten in bribe line for ApplicationClerk %d."),
+						ssn,
+						clerkID);
 					break;
 				case PICTURE:
-					WriteTwo("Customer %d has gotten in bribe line for PictureClerk %d.", ssn, clerkID);
+					WriteTwo("Customer %d has gotten in bribe line for PictureClerk %d.",
+						sizeof("Customer %d has gotten in bribe line for PictureClerk %d."),
+						ssn,
+						clerkID);
 					break;
 				case PASSPORT:
-					WriteTwo("Customer %d has gotten in bribe line for PassportClerk %d.", ssn, clerkID);
+					WriteTwo("Customer %d has gotten in bribe line for PassportClerk %d.",
+						sizeof("Customer %d has gotten in bribe line for PassportClerk %d."),
+						ssn,
+						clerkID);
 					break;
 				case CASHIER:
-					WriteTwo("Customer %d has gotten in bribe line for Cashier %d.", ssn, clerkID);
+					WriteTwo("Customer %d has gotten in bribe line for Cashier %d.",
+						sizeof("Customer %d has gotten in bribe line for Cashier %d."),
+						ssn,
+						clerkID);
 					break;
 			}
 			break;
@@ -894,10 +919,16 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							WriteThree("Customer %d has given SSN %d to ApplicationClerk %d.", ssn, ssn, clerkID);
+							WriteTwo("Customer %d has given SSN to ApplicationClerk %d.", 
+								sizeof("Customer %d has given SSN to ApplicationClerk %d."),
+								ssn,
+								clerkID);
 							break;
 						case SENATOR:
-							WriteThree("Senator %d has given SSN %d to ApplicationClerk %d.", ssn, ssn, clerkID);
+							WriteTwo("Senator %d has given SSN to ApplicationClerk %d.",
+								sizeof("Senator %d has given SSN to ApplicationClerk %d."),
+								ssn,
+								clerkID);
 							break;
 					}
 					break;
@@ -905,10 +936,16 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							WriteThree("Customer %d has given SSN %d to PictureClerk %d.", ssn, ssn, clerkID);
+							WriteTwo("Customer %d has given SSN to PictureClerk %d.",
+								sizeof("Customer %d has given SSN to PictureClerk %d."),
+								ssn,
+								clerkID);
 							break;
 						case SENATOR:
-							WriteThree("Senator %d has given SSN %d to PictureClerk %d.", ssn, ssn, clerkID);
+							WriteTwo("Senator %d has given SSN to PictureClerk %d.",
+								sizeof("Senator %d has given SSN to PictureClerk %d."),
+								ssn, 
+								clerkID);
 							break;
 					}
 					break;
@@ -916,10 +953,16 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							WriteThree("Customer %d has given SSN %d to PassportClerk %d.", ssn, ssn, clerkID);
+							WriteTwo("Customer %d has given SSN to PassportClerk %d.",
+								sizeof("Customer %d has given SSN to PassportClerk %d."),
+								ssn,
+								clerkID);
 							break;
 						case SENATOR:
-							WriteThree("Senator %d has given SSN %d to PassportClerk %d.", ssn, ssn, clerkID);
+							WriteTwo("Senator %d has given SSN to PassportClerk %d.",
+								sizeof("Senator %d has given SSN to PassportClerk %d."),
+								ssn,
+								clerkID);
 							break;
 					}
 					break;
@@ -927,10 +970,16 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							WriteThree("Customer %d has given SSN %d to Cashier %d.", ssn, ssn, clerkID);
+							WriteTwo("Customer %d has given SSN to Cashier %d.",
+								sizeof("Customer %d has given SSN to Cashier %d."),
+								ssn,
+								clerkID);
 							break;
 						case SENATOR:
-							WriteThree("Senator %d has given SSN %d to Cashier %d.", ssn, ssn, clerkID);
+							WriteTwo("Senator %d has given SSN to Cashier %d.",
+								sizeof("Senator %d has given SSN to Cashier %d."),
+								ssn,
+								clerkID);
 							break;
 					}
 					break;
@@ -940,10 +989,16 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 			switch(customerType)
 			{
 				case CUSTOMER:
-					WriteTwo("Customer %d does not like their picture from PictureClerk %d.", ssn, clerkID);
+					WriteTwo("Customer %d does not like their picture from PictureClerk %d.",
+						sizeof("Customer %d does not like their picture from PictureClerk %d."),
+						ssn,
+						clerkID);
 					break;
 				case SENATOR:
-					WriteTwo("Senator %d does not like their picture from PictureClerk %d.", ssn, clerkID);
+					WriteTwo("Senator %d does not like their picture from PictureClerk %d.",
+						sizeof("Senator %d does not like their picture from PictureClerk %d."),
+						ssn,
+						clerkID);
 					break;
 			}
 			break;
@@ -951,10 +1006,16 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 			switch(customerType)
 			{
 				case CUSTOMER:
-					WriteTwo("Customer %d does like their picture from PictureClerk %d.", ssn, clerkID);
+					WriteTwo("Customer %d does like their picture from PictureClerk %d.",
+						sizeof("Customer %d does like their picture from PictureClerk %d."),
+						ssn,
+						clerkID);
 					break;
 				case SENATOR:
-					WriteTwo("Senator %d does like their picture from PictureClerk %d.", ssn, clerkID);
+					WriteTwo("Senator %d does like their picture from PictureClerk %d.",
+						sizeof("Senator %d does like their picture from PictureClerk %d."),
+						ssn,
+						clerkID);
 					break;
 			}
 			break;
@@ -965,10 +1026,16 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							WriteTwo("Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line.", ssn, clerkID);
+							WriteTwo("Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line.",
+								sizeof("Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line."),
+								ssn,
+								clerkID);
 							break;
 						case SENATOR:
-							WriteTwo("Senator %d has gone to PassportClerk %d too soon. They are going to the back of the line.", ssn, clerkID);
+							WriteTwo("Senator %d has gone to PassportClerk %d too soon. They are going to the back of the line.",
+								sizeof("Senator %d has gone to PassportClerk %d too soon. They are going to the back of the line."),
+								ssn,
+								clerkID);
 							break;
 					}
 					break;
@@ -976,10 +1043,16 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							WriteTwo("Customer %d has gone to Cashier %d too soon. They are going to the back of the line.", ssn, clerkID);
+							WriteTwo("Customer %d has gone to Cashier %d too soon. They are going to the back of the line.",
+								sizeof("Customer %d has gone to Cashier %d too soon. They are going to the back of the line."),
+								ssn,
+								clerkID);
 							break;
 						case SENATOR:
-							WriteTwo("Senator %d has gone to Cashier %d too soon. They are going to the back of the line.", ssn, clerkID);
+							WriteTwo("Senator %d has gone to Cashier %d too soon. They are going to the back of the line.",
+								sizeof("Senator %d has gone to Cashier %d too soon. They are going to the back of the line."),
+								ssn,
+								clerkID);
 							break;
 					}
 					break;
@@ -988,24 +1061,36 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 			switch(customerType)
 			{
 				case CUSTOMER:
-					WriteTwo("Customer %d has given Cashier %d $100.", ssn, clerkID);
+					WriteTwo("Customer %d has given Cashier %d $100.",
+						sizeof("Customer %d has given Cashier %d $100."),
+						ssn,
+						clerkID);
 					break;
 				case SENATOR:
-					WriteTwo("Senator %d has given Cashier %d $100.", ssn, clerkID);
+					WriteTwo("Senator %d has given Cashier %d $100.",
+						sizeof("Senator %d has given Cashier %d $100."),
+						ssn,
+						clerkID);
 					break;
 			}
 			break;
 		case Customer_GoingOutsideForSenator:
-			WriteOne("Customer %d is going outside the Passport Office because their is a Senator present.", ssn);
+			WriteOne("Customer %d is going outside the Passport Office because their is a Senator present.",
+				sizeof("Customer %d is going outside the Passport Office because their is a Senator present."),
+				ssn);
 			break;
 		case Customer_LeavingPassportOffice:
 			switch(customerType)
 			{
 				case CUSTOMER:
-					WriteOne("Customer %d is leaving the Passport Office.", ssn);
+					WriteOne("Customer %d is leaving the Passport Office.",
+						sizeof("Customer %d is leaving the Passport Office."),
+						ssn);
 					break;
 				case SENATOR:
-					WriteOne("Senator %d is leaving the Passport Office.", ssn);
+					WriteOne("Senator %d is leaving the Passport Office.",
+						sizeof("Senator %d is leaving the Passport Office."),
+						ssn);
 					break;
 			}
 			break;
@@ -1225,14 +1310,7 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 	return;
 }
 
-void GetBackInLine (int ssn, enum persontype clerkType)
-{
-	int clerkID;
-
-	clerkID = DecideClerk(ssn, clerkType);
-	WaitInLine(ssn, clerkID, clerkType);
-	CustomerInteraction(ssn, clerkID, clerkType);
-}
+void GetBackInLine (int ssn, enum persontype clerkType);
 
 void MakePhotoDecision (int ssn, int clerkID, enum persontype clerkType)
 {
@@ -1242,7 +1320,7 @@ void MakePhotoDecision (int ssn, int clerkID, enum persontype clerkType)
 	int amountLiked;
 
 	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
-	workCV = clerkGroups[clerkType].workCV[clerkID];
+	workCV = clerkGroups[clerkType].workCVs[clerkID];
 
 	/* Picture Clerk already took my picture, decide if I like it. */
 
@@ -1273,8 +1351,8 @@ void PayForPassport (int ssn, int clerkID)
 	int clerkLock;
 	int workCV;
 
-	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
-	workCV = clerkGroups[clerkType].workCV[clerkID];
+	clerkLock = clerkGroups[CASHIER].clerkLocks[clerkID];
+	workCV = clerkGroups[CASHIER].workCVs[clerkID];
 
 	people[ssn].money -= 100;
 
@@ -1293,7 +1371,7 @@ void PunishTooSoon (int ssn, int clerkID, enum persontype clerkType)
 	int i;
 
 	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
-	workCV = clerkGroups[clerkType].workCV[clerkID];
+	workCV = clerkGroups[clerkType].workCVs[clerkID];
 
 	Signal(workCV, clerkLock);
 	ReleaseLock(clerkLock);
@@ -1316,7 +1394,7 @@ void CustomerInteraction (int ssn, int clerkID, enum persontype clerkType)
 	int workCV;
 
 	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
-	workCV = clerkGroups[clerkType].workCV[clerkID];
+	workCV = clerkGroups[clerkType].workCVs[clerkID];
 
 	AcquireLock(clerkLock);
 	clerkGroups[clerkType].clerks[clerkID].currentCustomer = ssn;
@@ -1353,6 +1431,15 @@ void CustomerInteraction (int ssn, int clerkID, enum persontype clerkType)
 	ReleaseLock(clerkLock);
 }
 
+void GetBackInLine (int ssn, enum persontype clerkType)
+{
+	int clerkID;
+
+	clerkID = DecideClerk(ssn, clerkType);
+	WaitInLine(ssn, clerkID, clerkType);
+	CustomerInteraction(ssn, clerkID, clerkType);
+}
+
 void Leave (int ssn)
 {
 	numCustomersFinished++;
@@ -1370,13 +1457,19 @@ void Leave (int ssn)
 	{
 		WriteOutput(Customer_LeavingPassportOffice, CUSTOMER, CUSTOMER, ssn, ssn);
 	}
+
+	Exit(0);
 }
 
-void Customer (int ssn)
+void Customer ()
 {
+	int ssn;
 	struct Person customer;
 	int applicationFirst;
 	int clerkID;
+
+	ssn = threadParam;
+	ReleaseLock(paramLock);
 
 	customer = people[ssn];
 
@@ -1468,7 +1561,7 @@ void AcceptBribe (int clerkID, enum persontype clerkType)
 	AcquireLock(moneyLock); /* Synchronize update to clerk's pool of money */
 	clerkGroups[clerkType].groupMoney += 500;
 	ReleaseLock(moneyLock);
-	WriteOutput(Clerk_ReceivedBribe, clerkType, CUSTOMER, ssn, clerkID);
+	WriteOutput(Clerk_ReceivedBribe, clerkType, CUSTOMER, -1, clerkID);
 
 	Signal(workCV, clerkLock); /* Let customer know she can get in bribe line. */
 	clerkGroups[clerkType].clerks[clerkID].currentCustomer = -1;
@@ -1483,9 +1576,9 @@ void TakeBreak (int clerkID, enum persontype clerkType)
 	lineLock = clerkGroups[clerkType].lineLock;
 	breakCV = clerkGroups[clerkType].breakCVs[clerkID];
 
-	WriteOutput(Clerk_GoingOnBreak, clerkType, clerkType, ssn, clerkID);
+	WriteOutput(Clerk_GoingOnBreak, clerkType, clerkType, -1, clerkID);
 	Wait(breakCV, lineLock); /* Waiting on breakCV = "going on break" */
-	WriteOutput(Clerk_ComingOffBreak, clerkType, clerkType, ssn, clerkID);
+	WriteOutput(Clerk_ComingOffBreak, clerkType, clerkType, -1, clerkID);
 }
 
 int CreateSystemJob (int ssn, int clerkID, enum persontype clerkType)
@@ -1501,7 +1594,7 @@ int CreateSystemJob (int ssn, int clerkID, enum persontype clerkType)
 		{
 			jobs[jobID].ssn = ssn;
 			jobs[jobID].clerkID = clerkID;
-			jobs[jobID].clerkType = clerkType;
+			jobs[jobID].type = clerkType;
 			return jobID;
 		}
 	}
@@ -1523,13 +1616,20 @@ void ResetSystemJob (int jobID)
 	ReleaseLock(systemJobFindLock);
 }
 
-void RunSystemJob (int jobID)
+void RunSystemJob ()
 {
+	int jobID;
 	int systemLock;
 	int filingTime;
 	int elapsedTime;
+	int ssn;
 
-	switch (jobs[jobID].clerkType)
+	jobID = threadParam;
+	ReleaseLock(paramLock);
+
+	ssn = jobs[jobID].ssn;
+
+	switch (jobs[jobID].type)
 	{
 		case APPLICATION:
 			systemLock = filingApplicationLock;
@@ -1555,7 +1655,7 @@ void RunSystemJob (int jobID)
 
 	AcquireLock(systemLock);
 
-	switch (jobs[jobID].clerkType)
+	switch (jobs[jobID].type)
 	{
 		case APPLICATION:
 			customers[ssn].applicationFiled = true;
@@ -1570,10 +1670,12 @@ void RunSystemJob (int jobID)
 			break; /* Casier not responsible for filing anything in the system */
 	}
 
-	WriteOutput(Clerk_SystemJobComplete, clerkType, people[ssn].type, ssn, clerkID);
+	WriteOutput(Clerk_SystemJobComplete, jobs[jobID].type, people[ssn].type, ssn, jobs[jobID].clerkID);
 	ReleaseLock(systemLock);
 
 	ResetSystemJob(jobID);
+
+	Exit(0);
 }
 
 void ClerkInteraction (int clerkID, enum persontype clerkType)
@@ -1588,7 +1690,7 @@ void ClerkInteraction (int clerkID, enum persontype clerkType)
 
 	lineLock = clerkGroups[clerkType].lineLock;
 	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
-	workCV = clerkGroups[clerkType].workCV[clerkID];
+	workCV = clerkGroups[clerkType].workCVs[clerkID];
 
 	customerSSN = clerkGroups[clerkType].clerks[clerkID].currentCustomer;
 
@@ -1606,7 +1708,7 @@ void ClerkInteraction (int clerkID, enum persontype clerkType)
 		case PASSPORT:
 			AcquireLock(filingApplicationLock);
 			AcquireLock(filingPictureLock);
-			if (customers[customerSSN].applicationFiled == false || customers[customerSSN].photoFiled == false)
+			if (customers[customerSSN].applicationFiled == false || customers[customerSSN].pictureFiled == false)
 			{
 				clerkGroups[clerkType].clerks[clerkID].customerAppReadyToCertify = false;
 				WriteOutput(Clerk_DeterminedAppAndPicNotCompleted, clerkType, people[customerSSN].type, customerSSN, clerkID);
@@ -1617,8 +1719,10 @@ void ClerkInteraction (int clerkID, enum persontype clerkType)
 				WriteOutput(Clerk_DeterminedAppAndPicCompleted, clerkType, people[customerSSN].type, customerSSN, clerkID);
 				
 				/* Certify Passport in the system */
-				jobID = CreateSystemJob(ssn, clerkID, clerkType);
-				Fork(RunSystemJob, jobID);
+				jobID = CreateSystemJob(customerSSN, clerkID, clerkType);
+				AcquireLock(paramLock);
+				threadParam = jobID;
+				Fork("CertifyPassportJob", sizeof("CertifyPassportJob"), RunSystemJob);
 			}
 			ReleaseLock(filingApplicationLock);
 			ReleaseLock(filingPictureLock);
@@ -1653,15 +1757,19 @@ void ClerkInteraction (int clerkID, enum persontype clerkType)
 	{
 		case APPLICATION:
 			/* File Application in the system */
-			jobID = CreateSystemJob(ssn, clerkID, clerkType);
-			Fork(RunSystemJob, jobID);
+			jobID = CreateSystemJob(customerSSN, clerkID, clerkType);
+			AcquireLock(paramLock);
+			threadParam = jobID;
+			Fork("ApplicationFilingJob", sizeof("ApplicationFilingJob"), RunSystemJob);
 			break; /* Application Clerk already did work */
 		case PICTURE:
 			if (clerkGroups[clerkType].clerks[clerkID].customerLikedPhoto == true)
 			{
 				/* File Photo in the system */
-				jobID = CreateSystemJob(ssn, clerkID, clerkType);
-				Fork(RunSystemJob, jobID);
+				jobID = CreateSystemJob(customerSSN, clerkID, clerkType);
+				AcquireLock(paramLock);
+				threadParam = jobID;
+				Fork("PictureFilingJob", sizeof("PictureFilingJob"), RunSystemJob);
 			}
 			clerkGroups[clerkType].clerks[clerkID].customerLikedPhoto = false; /* Done checking if Customer liked photo; "forget" so ready for next Customer. */
 			break;
@@ -1754,14 +1862,18 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 	}
 }
 
-void Clerk(int ssn)
+void Clerk()
 {
+	int ssn;
 	struct Person clerk;
 	enum clerkinteraction interaction;
 
+	ssn = threadParam;
+	ReleaseLock(paramLock);
+
 	clerk = people[ssn];
 
-	while (1)
+	while (numCustomersFinished < (numCustomers + numSenators))
 	{
 		interaction = DecideInteraction (clerk.id, clerk.type);
 
@@ -1777,6 +1889,8 @@ void Clerk(int ssn)
 				TakeBreak(clerk.id, clerk.type);
 		}
 	}
+
+	Exit(0);
 }
 
 /* ========================================================================================================================================= */
@@ -1785,7 +1899,7 @@ void Clerk(int ssn)
 /*																																			 */
 /* ========================================================================================================================================= */
 
-void CollectMoney (enum persontype clerkType)
+int CollectMoney (enum persontype clerkType)
 {
 	int moneyLock;
 	int groupMoney;
@@ -1816,7 +1930,7 @@ void TakeClerksOffBreak (enum persontype clerkType)
 	for (clerkID = 0; clerkID < numClerks; clerkID++)
 	{
 		/* If I have more than 3 people in my line, need to wake up another clerk. */
-		if (clerkGroups[clerkType].clerks[clerkID].lineCount >= 3 && clerkGroups[clerkType].clerks[clerkID].state != ONBREAK)
+		if (clerkGroups[clerkType].clerks[clerkID].lineLength >= 3 && clerkGroups[clerkType].clerks[clerkID].state != ONBREAK)
 		{
 			wakeUpClerk++;
 		}
@@ -1831,7 +1945,7 @@ void TakeClerksOffBreak (enum persontype clerkType)
 	for (clerkID = 0; clerkID < numClerks; clerkID++)
 	{
 		/* If all clerks are on break, but they have people in their line, wake up that clerk. */
-		if (clerksOnBreak == numClerks && clerkGroups[clerkType].clerks[clerkID].lineCount > 0)
+		if (clerksOnBreak == numClerks && clerkGroups[clerkType].clerks[clerkID].lineLength > 0)
 		{
 			clerkGroups[clerkType].clerks[clerkID].state = BUSY;
 
@@ -1881,7 +1995,7 @@ void Manager ()
 	WriteOutput(Manager_CountedMoneyForClerk, CASHIER, MANAGER, manager.cashierMoney, -1);
 	WriteOutput(Manager_CountedTotalMoney, MANAGER, MANAGER, manager.totalMoney, -1);
 
-	while (1)
+	do
 	{
 		previousTotal = manager.totalMoney;
 
@@ -1901,13 +2015,10 @@ void Manager ()
 			WriteOutput(Manager_CountedTotalMoney, MANAGER, MANAGER, manager.totalMoney, -1);
 		}
 
-		if (numCustomersFinished == (numCustomers + numSenators))
-		{
-			return;
-		}
-
 		Yield();
-	}
+	} while (numCustomersFinished < (numCustomers + numSenators));
+
+	Exit(0);
 }
 
 /* ========================================================================================================================================= */
@@ -1926,6 +2037,8 @@ void InitializeData ()
 	InitializeCashierData();
 	InitializeManager();
 	InitializeSystemJobs();
+
+	paramLock = CreateLock("ParamLock", sizeof("ParamLock"));
 }
 
 void ForkAgents ()
@@ -1934,15 +2047,19 @@ void ForkAgents ()
 
 	for (ssn = 0; ssn < (numCustomers + numSenators); ssn++)
 	{
-		Fork(Customer, ssn);
+		AcquireLock(paramLock);
+		threadParam = ssn;
+		Fork("CustomerThread", sizeof("CustomerThread"), Customer);
 	}
 
 	for (; ssn < (numCustomers + numSenators) + (numAppClerks + numPicClerks + numPassportClerks + numCashiers); ssn++)
 	{
-		Fork(Clerk, ssn);
+		AcquireLock(paramLock);
+		threadParam = ssn;
+		Fork("ClerkThread", sizeof("ClerkThread"), Clerk);
 	}
 
-	Fork(Manager, ssn);
+	Fork("ManagerThread", sizeof("ManagerThread"), Manager);
 }
 
 void CleanUpData ()
@@ -1950,28 +2067,28 @@ void CleanUpData ()
 	int clerkType;
 	int clerkNum;
 
-	DeleteLock(senatorIndoorLock);
-	DeleteCV(senatorIndoorCV);
+	DestroyLock(senatorIndoorLock);
+	DestroyCV(senatorIndoorCV);
 
-	DeleteLock(systemJobFindLock);
-	DeleteLock(filingApplicationLock);
-	DeleteLock(filingPictureLock);
-	DeleteLock(certifyingPassportLock);
+	DestroyLock(systemJobFindLock);
+	DestroyLock(filingApplicationLock);
+	DestroyLock(filingPictureLock);
+	DestroyLock(certifyingPassportLock);
 
 	for (clerkType = 0; clerkType < 4; clerkType++)
 	{
-		DeleteLock(clerkGroups[clerkType].lineLock);
-		DeleteLock(clerkGroups[clerkType].moneyLock);
+		DestroyLock(clerkGroups[clerkType].lineLock);
+		DestroyLock(clerkGroups[clerkType].moneyLock);
 
 		for (clerkNum = 0; clerkNum < 5; clerkNum++)
 		{
-			DeleteLock(clerkGroups[clerkType].clerkLocks[clerkNum]);
-			DeleteCV(clerkGroups[clerkType].lineCVs[clerkNum]);
-			DeleteCV(clerkGroups[clerkType].bribeLineCVs[clerkNum]);
-			DeleteCV(clerkGroups[clerkType].senatorLineCVs[clerkNum]);
-			DeleteCV(clerkGroups[clerkType].workCVs[clerkNum]);
-			DeleteCV(clerkGroups[clerkType].bribeCVs[clerkNum]);
-			DeleteCV(clerkGroups[clerkType].breakCVs[clerkNum]);
+			DestroyLock(clerkGroups[clerkType].clerkLocks[clerkNum]);
+			DestroyCV(clerkGroups[clerkType].lineCVs[clerkNum]);
+			DestroyCV(clerkGroups[clerkType].bribeLineCVs[clerkNum]);
+			DestroyCV(clerkGroups[clerkType].senatorLineCVs[clerkNum]);
+			DestroyCV(clerkGroups[clerkType].workCVs[clerkNum]);
+			DestroyCV(clerkGroups[clerkType].bribeCVs[clerkNum]);
+			DestroyCV(clerkGroups[clerkType].breakCVs[clerkNum]);
 		}
 	}
 }
@@ -1987,5 +2104,5 @@ int main ()
 	}
 
 	CleanUpData();
-	Exit();
+	Exit(0);
 }
