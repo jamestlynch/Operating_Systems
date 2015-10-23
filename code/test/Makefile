@@ -31,7 +31,7 @@ CPP = $(GCCDIR)cpp
 INCDIR =-I../userprog -I../threads
 CFLAGS = -G 0 -c $(INCDIR)
 
-all: halt matmult sort testfiles locktest conditiontest runtests datastructtest
+all: halt matmult sort testfiles locktest conditiontest runtests passportoffice
 
 start.o: start.s ../userprog/syscall.h
 	$(CPP) $(CPPFLAGS) start.s > strt.s
@@ -91,12 +91,6 @@ passportoffice.o: passportoffice.c
 passportoffice: passportoffice.o start.o
 	$(LD) $(LDFLAGS) start.o passportoffice.o -o passportoffice.coff
 	../bin/coff2noff passportoffice.coff passportoffice
-
-datastructtest.o: datastructtest.c
-	$(CC) $(CFLAGS) -c datastructtest.c
-datastructtest: datastructtest.o start.o
-	$(LD) $(LDFLAGS) start.o datastructtest.o -o datastructtest.coff
-	../bin/coff2noff datastructtest.coff datastructtest
 
 clean:
 	rm -f *.o *.coff
