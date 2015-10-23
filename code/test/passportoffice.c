@@ -488,8 +488,8 @@ void InitializeSystemJobs ()
 	}
 
 	systemJobFindLock = CreateLock("SystemJobFindLock", 17);
-	filingPictureLock = CreateLock("FilingPictureLock", 17);
 	filingApplicationLock = CreateLock("FilingApplicationLock", 21);
+	filingPictureLock = CreateLock("FilingPictureLock", 17);
 	certifyingPassportLock = CreateLock("CertifyingPassportLock", 22);
 }
 
@@ -1234,6 +1234,25 @@ void CustomerInteraction (int ssn, int clerkID, enum persontype clerkType)
 	ReleaseLock(clerkLock);
 }
 
+void Leave (int ssn)
+{
+	numCustomersFinished++;
+
+	if (people[ssn].type == SENATOR)
+	{
+		WriteOutput(Customer_LeavingPassportOffice, SENATOR, SENATOR, ssn, ssn);
+		AcquireLock(senatorIndoorLock);
+		isSenatorPresent = false;
+		Broadcast(senatorIndoorCV, senatorIndoorLock);
+		ReleaseLock(senatorIndoorLock);
+	}
+
+	else
+	{
+		WriteOutput(Customer_LeavingPassportOffice, CUSTOMER, CUSTOMER, ssn, ssn);
+	}
+}
+
 void Customer (int ssn)
 {
 	struct Person customer;
@@ -1247,7 +1266,18 @@ void Customer (int ssn)
 	/* TODO: Random syscall. */
 	applicationFirst = 1;
 
-	if (applicationFirst)
+	AcquireLock(senatorIndoorLock);
+	if (isSenatorPresent)
+	{
+		Wait(senatorIndoorCV, senatorIndoorLock);
+	}
+	else if (customer.type == SENATOR)
+	{
+		isSenatorPresent = true;
+	}
+	ReleaseLock(senatorIndoorLock);
+
+	if (applicationFirst > 50)
 	{
 		/* Go to Application Clerk */
 		clerkID = DecideClerk(ssn, APPLICATION);
@@ -1779,7 +1809,64 @@ void InitializeData ()
 	InitializeSystemJobs();
 }
 
+void ForkAgents ()
+{
+	int ssn;
+
+	for (ssn = 0; ssn < (numCustomers + numSenators); ssn++)
+	{
+		Fork(Customer, ssn);
+	}
+
+	for (; ssn < (numCustomers + numSenators) + (numAppClerks + numPicClerks + numPassportClerks + numCashiers); ssn++)
+	{
+		Fork(Clerk, ssn);
+	}
+
+	Fork(Manager, ssn);
+}
+
+void CleanUpData ()
+{
+	int clerkType;
+	int clerkNum;
+
+	DeleteLock(senatorIndoorLock);
+	DeleteCV(senatorIndoorCV);
+
+	DeleteLock(systemJobFindLock);
+	DeleteLock(filingApplicationLock);
+	DeleteLock(filingPictureLock);
+	DeleteLock(certifyingPassportLock);
+
+	for (clerkType = 0; clerkType < 4; clerkType++)
+	{
+		DeleteLock(clerkGroups[clerkType].lineLock);
+		DeleteLock(clerkGroups[clerkType].moneyLock);
+
+		for (clerkNum = 0; clerkNum < 5; clerkNum++)
+		{
+			DeleteLock(clerkGroups[clerkType].clerkLocks[clerkNum]);
+			DeleteCV(clerkGroups[clerkType].lineCVs[clerkNum]);
+			DeleteCV(clerkGroups[clerkType].bribeLineCVs[clerkNum]);
+			DeleteCV(clerkGroups[clerkType].senatorLineCVs[clerkNum]);
+			DeleteCV(clerkGroups[clerkType].workCVs[clerkNum]);
+			DeleteCV(clerkGroups[clerkType].bribeCVs[clerkNum]);
+			DeleteCV(clerkGroups[clerkType].breakCVs[clerkNum]);
+		}
+	}
+}
+
 int main () 
 {
 	InitializeData();
+	ForkAgents();
+
+	while (numCustomersFinished < (numCustomers + numSenators))
+	{
+		Yield();
+	}
+
+	CleanUpData();
+	Exit();
 }
