@@ -669,6 +669,8 @@ void Yield_Syscall()
 
 void Exit_Syscall(int status)
 {
+  currentThread->Yield();
+
   processLock->Acquire();
 
   if(processInfo.at(currentThread->processID)->numExecutingThreads > 1) 

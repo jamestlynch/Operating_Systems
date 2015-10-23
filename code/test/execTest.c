@@ -11,14 +11,10 @@
  */
 
 #include "syscall.h"
-int a[3];
-int b, c;
-
-
 
 int main()
 {
-	Exec("../test/locktest", 16);
+	Exec("../test/sort", 12);
 
     /*Halt();*/
     /* not reached */
