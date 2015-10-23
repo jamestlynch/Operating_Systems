@@ -184,6 +184,12 @@ void WriteInt_Syscall(int integer) {
   printf("%d", integer);
 }
 
+int Random(int lower, int upper){
+  srand(time(0));
+  int randomnumber = rand() % upper + lower ;
+  return randomnumber;
+}
+
 #define RED               "\x1b[31m"
 #define ANSI_COLOR_RESET  "\x1b[0m"
 void WriteError_Syscall(unsigned int vaddr, int len) {
@@ -994,6 +1000,13 @@ void ExceptionHandler(ExceptionType which)
       DEBUG('a', "Destroy Condition syscall.\n");
       rv= DestroyCV(machine->ReadRegister(4));
       break;
+
+      case SC_Random:
+      DEBUG('a', "Random syscall.\n");
+      rv= Random(machine->ReadRegister(4), machine->ReadRegister(5));
+      break;
+
+
     }
 
     // Put in the return value and increment the PC

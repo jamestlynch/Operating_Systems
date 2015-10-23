@@ -41,6 +41,8 @@
 #define SC_DestroyCV	19
 #define SC_WriteInt		20
 #define SC_WriteError	21
+#define SC_Random		22
+
 
 #define MAXFILENAME 256
 
@@ -117,6 +119,8 @@ void WriteInt(int integer);
 /* Write error to the console */
 void WriteError(char *buffer, int size);
 
+/*generates random number*/
+int Random(int lower, int upper);
 /* Read "size" bytes from the open file into "buffer".  
  * Return the number of bytes actually read -- if the open file isn't
  * long enough, or if it is an I/O device, and there aren't enough 

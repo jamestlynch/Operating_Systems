@@ -219,6 +219,14 @@ DestroyCV:
 	j	$31
 	.end DestroyCV
 
+	.globl Random
+	.ent	Random
+Random:
+	addiu $2,$0,SC_Random
+	syscall
+	j	$31
+	.end Random
+
 /* dummy function to keep gcc happy */
         .globl  __main
         .ent    __main

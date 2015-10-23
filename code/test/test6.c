@@ -3,7 +3,8 @@
 int cvindex, lockindex, test;
 
 
-void t6_t1() {
+void t6_t1() 
+{
     /*2nd to acquire lock*/
     test=AcquireLock(lockindex);
     test=Wait(lockindex, cvindex);  
@@ -11,7 +12,8 @@ void t6_t1() {
     test=ReleaseLock(lockindex);
     Exit(0);
 }
-void t6_t2() {
+void t6_t2() 
+{
     /*3rd to acquire lock*/
     test=AcquireLock(lockindex);
     test=Wait(lockindex, cvindex);
@@ -20,7 +22,8 @@ void t6_t2() {
     Exit(0);
 }
 
-void t6_t3() {
+void t6_t3() 
+{
     /*3rd to acquire lock*/
     test=AcquireLock(lockindex);
     test=Wait(lockindex, cvindex);
@@ -39,7 +42,8 @@ void t6_t4() {
     Exit(0);
 }
 
-int main(){
+int main()
+{
 	Write("Test 6 start\n", sizeof("Test 6 start\n"), 1);
 	lockindex = CreateLock("lock1", 5);
     cvindex = CreateCV("cv1", 3);

@@ -21,32 +21,70 @@ Our design idea is to create kernel lock and kernel cv structs and a process str
 
 For createCV, after validation we are going to create a new kernelcv struct and then populate the struct addrspace with curr addrspace, delete=false, and an actual associated cv. Then we will push it to the back of the vector of kernelcondition struct pointers. For wait, we are updating the process table numExecuting threads(-1) and sleeping threads (+1), then call the actual OS method to wait / run the OS code. Then after that code runs it means the thread is no longer sleeping so we need to increment the numExecutingThreads and decrement sleeping. These are accessing process table so we'll need to acquire the process table lock again when making changes. We will need to know the index cv and index lock of what we are waiting on and do validations for these as well. For signal we will wake up the thread waiting on the cv after validations and then check destroylock to see if the thread was the last thread in the sleepqueue for the cv and the cv should be deleted. Broadcast also needs to check if destroylock is true but does not need to check the wait queue since nobody will be asleep on that queue once everyone is woken up. For broadcast and signal, we are again calling the OS broadcast and signal methods in the OS after creating temporary kernelcv with the parameter index which calls the method on the lock from the lock vector at the parameter index. For DestroyCV, we pass in indexes and do valiadtion tests and then check if todelete is set to true. We are not deleting the actual struct objects for cvs or locks because that would change the indexes of everyting in the vector. If toDelete is set to true and the queue for the lock is empty then we'll delete it and if it's not set to true or the wait queue is empty then we will set it to true, and wait for the waitqueue to be empty. If conditions succeed and can be deleted, we are setting the structs to null and then removing the actual lock and condition inside to keep indeces the same.
 
+
+
 IV. Implementation:
 + Files Modified: 
-System.h
-System.cc
-Syscall.h
-exception.cc
-addrspace.cc
-start.s
-thread.cc - added passportID
-progtest- changed StartProcess to exec 1st thread
+	System.h
+	System.cc
+	Syscall.h
+	exception.cc
+	addrspace.cc
+	start.s
+	thread.cc - added passportID
+	progtest
 
-+ Files added:]
-passporttest.cc
-test1.cc
-test2.cc
-test3.cc
-test4.cc
-test5.cc
-test6.cc
++ Files added:
+	passporttest.cc
+	test1.cc
+	test2.cc
+	test3.cc
+	test4.cc
+	test5.cc
+	test6.cc
 
 + Data Structures added/modified
 
+    Machine *machine;
+    BitMap *memBitMap;
+    vector<KernelLock*> locks;
+    vector<KernelCV*> conditions;
+    vector<Process*> processInfo;
+    Lock *memLock;
+    Lock *processLock;
+    Lock *conditionsLock;
+    Lock *locksLock;
+
+        struct KernelLock
+    {
+        Lock *lock;
+        AddrSpace *space;
+        bool toDelete;      
+    };
+
+    // KernelCV extra info for cleaning up and guaranteeing process CV ownership
+    struct KernelCV
+    {
+        Condition *condition;
+        AddrSpace *space;
+        bool toDelete;
+    };  
+
+    struct Process
+    {
+    	AddrSpace *space;
+    	int numSleepingThreads;
+    	int numExecutingThreads;
+    	int processID;
+    };
 
 + Functions added and in which file.
 
-
+exception.cc
+	void Kernel_Thread(int vaddr)
+	void WriteInt_Syscall(int integer)
+	void WriteError_Syscall(unsigned int vaddr, int len)
+	int checkLockErrors(int index)
 
 
 -- Functions to test simulation:
@@ -58,54 +96,68 @@ test4();
 test5();
 test6();
 test7();
-test8();
 
 + Functions modified and in which file.
+progtest
+	void StartProcess(char *filename)
 
 syscall.h
-SpaceId Exec(char *name);
-void Fork(/*void (*func)()*/);
-void Yield();
-int CreateCV(char *buffer, int len);
-int Wait(unsigned int indexcv, unsigned int indexlock);
-int Signal(unsigned int indexcv, unsigned int indexlock);
-int Broadcast(unsigned int indexcv, unsigned int indexlock);
-int DestroyCV(unsigned int indexcv);
-int CreateLock(char *name, int size);
+	int CreateLock_Syscall(unsigned int vaddr, int len) 
+	void DeleteLock(int indexlock)
+	int ReleaseLock(int indexlock)
+	int DestroyLock(int indexlock)
+	int Wait(int indexcv, int indexlock)
+	int Broadcast(int indexcv, int indexlock)
+	int DestroyCV(int indexcv)
+	void Halt()
+	void Yield_Syscall() 
+	void Exit_Syscall(int status)
+	void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
+	void Exec_Thread()
+	void Exec_Syscall(int vaddr, int len)
+	void ExceptionHandler(ExceptionType which) 
 
 system.cc/system.h
-void Cleanup();
-void Initialize();
+	void Cleanup();
+	void Initialize();
 
 addrspace.cc/addrspace.h
-AddrSpace::AddrSpace(OpenFile *executable); -constructor
+	constructor
 
 exception.cc
-int Exec(char *name);
-void Fork(/*void (*func)()*/);
-void Yield();
-int CreateCV(char *buffer, int len);
-int Wait(unsigned int indexcv, unsigned int indexlock);
-int Signal(unsigned int indexcv, unsigned int indexlock);
-int Broadcast(unsigned int indexcv, unsigned int indexlock);
-int DestroyCV(unsigned int indexcv);
-int CreateLock(char *name, int size);
+	void WriteInt_Syscall(int integer)
+	void WriteError_Syscall(unsigned int vaddr, int len)
+	int checkLockErrors(int index)
+	int CreateLock_Syscall(unsigned int vaddr, int len) 
+	void DeleteLock(int indexlock)
+	int ReleaseLock(int indexlock)
+	int DestroyLock(int indexlock)
+	int Wait(int indexcv, int indexlock)
+	int Broadcast(int indexcv, int indexlock)
+	int DestroyCV(int indexcv)
+	void Halt()
+	void Yield_Syscall() 
+	void Exit_Syscall(int status)
+	void Kernel_Thread(int vaddr)
+	void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
+	void Exec_Thread()
+	void Exec_Syscall(int vaddr, int len)
+	void ExceptionHandler(ExceptionType which) 
 
 
 
 V. Testing:  (For each test case, you must show)
 + How to test
 
-    To test the lock and cv syscalls, go to userprog and type the following:
+To test the lock and cv syscalls, go to userprog and type the following:
 run lock and condition tests = 
-'nachos -x ../test/test1’
-'nachos -x ../test/test2'
-'nachos -x ../test/test3’
-'nachos -x ../test/test4’
-'nachos -x ../test/test5’
-'nachos -x ../test/test6’
-'nachos -x ../test/test7’
-'nachos -x ../test/test8’
+	'nachos -x ../test/test1’
+	'nachos -x ../test/test2'
+	'nachos -x ../test/test3’
+	'nachos -x ../test/test4’
+	'nachos -x ../test/test5’
+	'nachos -x ../test/test6’
+	'nachos -x ../test/test7’
 
 run passport office = 'nachos -x ../test/passporttest'
 
@@ -122,11 +174,26 @@ test3-
 test4-
 	output should say pass or fail
 test5-
-	Passed if acquired GREEN printed acquired/released numbers are in increasing order/non overlapping. This means people are properly acquiring and releasing locks.
+	Passed if acquired GREEN printed acquired/released numbers are in increasing order/non overlapping. This means people are properly acquiring and releasing locks. This tests all lock functions.
 test6-
-	Passed if FINISHED green numbers are in increasing order. This means that things were executing in the proper order and the broadcast woke every thread up.
-
+	Passed if FINISHED green numbers are in increasing order. This means that things were executing in the proper order and the broadcast woke every thread up and then they acquired and released the threads according to the order in which they were forked. This tests signal and broadcast and shows that wait works as well, since threads are waiting to be broadcasted.
+test7- 
+	This test we added console output within the code to walk through what was happening. The order of what happens should be the following: 
+		-Thread 1 forked
+		-Thread 2 forked
+		-Thread 3 forked
+		-Thread 1 acquires a lock and immediately Waits on the cv and lock. 
+		-Thread 2 acquires the lock and then tries to destroy the CV but cannot because thread 1 is waiting on it so the sleepqueue is not empty, so 
+		-^this sets toDelete to true.
+		-Thread 2 waits on the same cv and lock
+		-Thread 3 acquires the lock
+		-Thread 3 broadcasts 
+		-Thread 1 and 2 wake up, respectively
+		-ToDelete was set to true, the condition is deleted.
+		-Thread 3 releases the lock.
+		done
 
 VI. Discussion:
 
-All of our syscalls work. Along with fork exec and exit. When testing with random -rs values there may be seg faults because we didn't go back and fix the original passport office. Our tests display proper functionality for the syscalls, fork exec and exit and the simulation works when we are not using rs values.
+All of our syscalls work. Along with fork exec and exit. We did not write our tests to run with -rs values. Our tests display proper functionality for the syscalls, fork exec and exit and the simulation works.
+
