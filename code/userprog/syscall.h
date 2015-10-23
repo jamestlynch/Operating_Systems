@@ -153,7 +153,7 @@ void Yield();
  */
 
 
-int CreateCV(char *buffer, int len);
+int CreateCV(char *name, int size);
 
 int Wait(unsigned int indexcv, unsigned int indexlock);
 

@@ -266,8 +266,6 @@ void Close_Syscall(int fd) {
 //      Thread belong to same process as thread creator
 int checkLockErrors(int index)
 {
-  printf("index %d.\n", index);
-  printf("lock size: %d", locks.size());
   if (index < 0) 
   {
     printf("%s","Invalid lock table index, negative.\n");
@@ -276,14 +274,12 @@ int checkLockErrors(int index)
 
   int size = locks.size();
 
-printf("size: %d", size - 1);
 
   if (index > size - 1) 
   {
     printf("%s","Invalid lock table index, bigger than size.\n");
     return -1;
   }
-  printf("after > lock vector size %d.\n", index);
 
   KernelLock * curKernelLock = locks.at(index);
 
@@ -305,7 +301,7 @@ printf("size: %d", size - 1);
 int CreateLock_Syscall(unsigned int vaddr, int len) 
 {
   locksLock->Acquire();
-  if (len < 0) 
+  if (len <= 0) 
   { // Validate length is nonzero and positive
     printf("%s","Length for lock's identifier name must be nonzero and positive\n");
     locksLock->Release();
@@ -344,14 +340,11 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
 
   locksLock->Release();
 
-  delete[] buf;
   return lockIndex; // TODO: Return the index of the lock
 }
 
 int AcquireLock(int index)
 {
-    printf("Lock index %d at beginning of acquire lock.\n", index);
-
   if(checkLockErrors(index) == -1)
   {
     return -1;
@@ -391,7 +384,6 @@ void DeleteLock(int indexlock)
 
 int ReleaseLock(int indexlock)
 {
-  printf("Lock index %d at beginning of release lock.\n", indexlock);
   if(checkLockErrors(indexlock) == -1)
   {
     return -1;
@@ -420,8 +412,8 @@ int DestroyLock(int indexlock)
     locksLock->Release();
     return -1;
   }
-  int size= locks.size();
-  if (indexlock > size) 
+  int size = locks.size();
+  if (indexlock > size - 1) 
   {
     printf("%s","index out of bounds for destroy\n");
     locksLock->Release();
@@ -536,7 +528,6 @@ int CreateCV(unsigned int vaddr, int len)
 
   conditionsLock->Release();
 
-  delete[] buf;
   return conditionIndex;
 }
 
@@ -558,18 +549,13 @@ int Wait(int indexcv, int indexlock)
   processInfo.at(currentThread->processID)->numSleepingThreads++;
   processLock->Release();
 
-  printf("condition before");
-
   conditions.at(indexcv)->condition->Wait(locks.at(indexlock)->lock);
 
-  printf("condition after");
-
-    processLock->Acquire();
-    processInfo.at(currentThread->processID)->numExecutingThreads++;
-    processInfo.at(currentThread->processID)->numSleepingThreads--;
-    processLock->Release();
+  processLock->Acquire();
+  processInfo.at(currentThread->processID)->numExecutingThreads++;
+  processInfo.at(currentThread->processID)->numSleepingThreads--;
+  processLock->Release();
   
-
   return 0;
 }
 
@@ -637,8 +623,10 @@ int DestroyCV(int indexcv)
     conditionsLock->Release();
     return -1;
   }
-  int size= conditions.size();
-  if (indexcv > size) 
+
+  int size = conditions.size();
+
+  if (indexcv > size - 1) 
   {
     printf("%s","index out of bounds for destroy\n");
     conditionsLock->Release();
@@ -687,6 +675,11 @@ void Yield_Syscall()
 
 void Exit_Syscall(int status)
 {
+  if(status != 0)
+  {
+    printf("Arg must be 0 to exit.");
+  }
+
   currentThread->Yield();
   processLock->Acquire();
 
@@ -750,8 +743,6 @@ void Exit_Syscall(int status)
   processLock->Release();
 
   interrupt->Halt();
-  
-  
 }
 
 void Kernel_Thread(int vaddr)
@@ -926,16 +917,12 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_Read:
       DEBUG('a', "Read syscall.\n");
-      rv = Read_Syscall(machine->ReadRegister(4),
-      machine->ReadRegister(5),
-      machine->ReadRegister(6));
+      rv = Read_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
       break;
 
       case SC_Write:
       DEBUG('a', "Write syscall.\n");
-      Write_Syscall(machine->ReadRegister(4),
-      machine->ReadRegister(5),
-      machine->ReadRegister(6));
+      Write_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
       break;
 
       case SC_WriteInt:
@@ -945,8 +932,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_WriteError:
       DEBUG('a', "WriteInt syscall.\n");
-      WriteError_Syscall(machine->ReadRegister(4),
-      machine->ReadRegister(5));
+      WriteError_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
       case SC_Close:
@@ -966,8 +952,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_CreateLock:
       DEBUG('a', "Create Lock syscall.\n");
-      rv= CreateLock_Syscall(machine->ReadRegister(4),
-      machine->ReadRegister(5));
+      rv = CreateLock_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
       case SC_AcquireLock:
@@ -977,7 +962,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_ReleaseLock:
       DEBUG('a', "Release Lock syscall.\n");
-      rv= ReleaseLock(machine->ReadRegister(4));
+      rv = ReleaseLock(machine->ReadRegister(4));
       break;
 
       case SC_DestroyLock:
@@ -992,7 +977,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_Wait:
       DEBUG('a', "Wait syscall.\n");
-      rv= Wait(machine->ReadRegister(4), machine->ReadRegister(5));
+      rv = Wait(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
       case SC_Signal:
@@ -1012,10 +997,10 @@ void ExceptionHandler(ExceptionType which)
     }
 
     // Put in the return value and increment the PC
-    machine->WriteRegister(2,rv);
-    machine->WriteRegister(PrevPCReg,machine->ReadRegister(PCReg));
-    machine->WriteRegister(PCReg,machine->ReadRegister(NextPCReg));
-    machine->WriteRegister(NextPCReg,machine->ReadRegister(PCReg)+4);
+    machine->WriteRegister(2, rv);
+    machine->WriteRegister(PrevPCReg, machine->ReadRegister(PCReg));
+    machine->WriteRegister(PCReg, machine->ReadRegister(NextPCReg));
+    machine->WriteRegister(NextPCReg, machine->ReadRegister(PCReg) + 4);
     return;
   } 
   else 
