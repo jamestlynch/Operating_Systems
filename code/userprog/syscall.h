@@ -42,6 +42,9 @@
 #define SC_WriteInt		20
 #define SC_WriteError	21
 #define SC_Random		22
+#define SC_WriteOne		23
+#define SC_WriteTwo		24
+#define	SC_WriteThree	25
 
 
 #define MAXFILENAME 256
@@ -115,6 +118,9 @@ void Write(char *buffer, int size, OpenFileId id);
 
 /* Write integer to the console */
 void WriteInt(int integer);
+
+int WriteOne(unsigned int vaddr, int size, int num1);
+int WriteTwo(unsigned int vaddr, int size, int num1, int num2);
 
 /* Write error to the console */
 void WriteError(char *buffer, int size);

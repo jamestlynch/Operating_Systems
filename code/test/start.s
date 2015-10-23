@@ -227,6 +227,22 @@ Random:
 	j	$31
 	.end Random
 
+	.globl WriteOne
+	.ent	WriteOne
+WriteOne:
+	addiu $2,$0,SC_WriteOne
+	syscall
+	j	$31
+	.end WriteOne
+
+	.globl WriteTwo
+	.ent	WriteTwo
+WriteTwo:
+	addiu $2,$0,SC_WriteTwo
+	syscall
+	j	$31
+	.end WriteTwo
+
 /* dummy function to keep gcc happy */
         .globl  __main
         .ent    __main

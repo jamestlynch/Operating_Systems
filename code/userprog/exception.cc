@@ -190,6 +190,71 @@ int Random(int lower, int upper){
   return randomnumber;
 }
 
+int WriteOne(int vaddr, int len, int num1)
+{
+    if (len < 0) 
+    { // Validate length is nonzero and positive
+      printf("%s","Length for lock's identifier name must be nonzero and positive\n");
+      locksLock->Release();
+      return -1;
+    }
+
+    char * buf = new char[len + 1];
+
+    if ( !buf ) 
+    { // If error allocating memory for character buffer
+      printf("%s","Error allocating kernel buffer for creating new lock!\n");
+      locksLock->Release();
+      return -1;
+    } 
+    
+    if ( copyin(vaddr, len, buf) == -1 ) 
+    { // If failed to read memory from vaddr passed in
+      printf("%s","Bad pointer passed to create new lock\n");
+      locksLock->Release();
+      delete[] buf;
+      return -1;
+    }
+
+    buf[len] = '\0'; //Finished grabbing the identifier for the Lock, add null terminator character
+    
+    printf(buf, num1);
+    return 0;
+}
+
+int WriteTwo(unsigned int vaddr, int len, int num1, int num2)
+{
+    if (len < 0) 
+    { // Validate length is nonzero and positive
+      printf("%s","Length for lock's identifier name must be nonzero and positive\n");
+      locksLock->Release();
+      return -1;
+    }
+
+    char * buf = new char[len + 1];
+
+    if ( !buf ) 
+    { // If error allocating memory for character buffer
+      printf("%s","Error allocating kernel buffer for creating new lock!\n");
+      locksLock->Release();
+      return -1;
+    } 
+    
+    if ( copyin(vaddr, len, buf) == -1 ) 
+    { // If failed to read memory from vaddr passed in
+      printf("%s","Bad pointer passed to create new lock\n");
+      locksLock->Release();
+      delete[] buf;
+      return -1;
+    }
+
+    buf[len] = '\0'; //Finished grabbing the identifier for the Lock, add null terminator character
+    printf(buf, num1, num2);
+    return 0;
+}
+
+
+
 #define RED               "\x1b[31m"
 #define ANSI_COLOR_RESET  "\x1b[0m"
 void WriteError_Syscall(unsigned int vaddr, int len) {
@@ -1021,7 +1086,15 @@ void ExceptionHandler(ExceptionType which)
       rv= Random(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
+      case SC_WriteOne:
+      DEBUG('a', "Write one.\n");
+      rv= WriteOne(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
+      break;
 
+      case SC_WriteTwo:
+      DEBUG('a', "Write two.\n");
+      rv= WriteTwo(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6), machine->ReadRegister(7));
+      break;
     }
 
     // Put in the return value and increment the PC
