@@ -184,6 +184,77 @@ void WriteInt_Syscall(int integer) {
   printf("%d", integer);
 }
 
+int Random(int lower, int upper){
+  srand(time(0));
+  int randomnumber = rand() % upper + lower ;
+  return randomnumber;
+}
+
+int WriteOne(int vaddr, int len, int num1)
+{
+    if (len < 0) 
+    { // Validate length is nonzero and positive
+      printf("%s","Length for lock's identifier name must be nonzero and positive\n");
+      locksLock->Release();
+      return -1;
+    }
+
+    char * buf = new char[len + 1];
+
+    if ( !buf ) 
+    { // If error allocating memory for character buffer
+      printf("%s","Error allocating kernel buffer for creating new lock!\n");
+      locksLock->Release();
+      return -1;
+    } 
+    
+    if ( copyin(vaddr, len, buf) == -1 ) 
+    { // If failed to read memory from vaddr passed in
+      printf("%s","Bad pointer passed to create new lock\n");
+      locksLock->Release();
+      delete[] buf;
+      return -1;
+    }
+
+    buf[len] = '\0'; //Finished grabbing the identifier for the Lock, add null terminator character
+    
+    printf(buf, num1);
+    return 0;
+}
+
+int WriteTwo(unsigned int vaddr, int len, int num1, int num2)
+{
+    if (len < 0) 
+    { // Validate length is nonzero and positive
+      printf("%s","Length for lock's identifier name must be nonzero and positive\n");
+      locksLock->Release();
+      return -1;
+    }
+
+    char * buf = new char[len + 1];
+
+    if ( !buf ) 
+    { // If error allocating memory for character buffer
+      printf("%s","Error allocating kernel buffer for creating new lock!\n");
+      locksLock->Release();
+      return -1;
+    } 
+    
+    if ( copyin(vaddr, len, buf) == -1 ) 
+    { // If failed to read memory from vaddr passed in
+      printf("%s","Bad pointer passed to create new lock\n");
+      locksLock->Release();
+      delete[] buf;
+      return -1;
+    }
+
+    buf[len] = '\0'; //Finished grabbing the identifier for the Lock, add null terminator character
+    printf(buf, num1, num2);
+    return 0;
+}
+
+
+
 #define RED               "\x1b[31m"
 #define ANSI_COLOR_RESET  "\x1b[0m"
 void WriteError_Syscall(unsigned int vaddr, int len) {
@@ -272,7 +343,10 @@ int checkLockErrors(int index)
     return -1;
   }
 
-  if (index > locks.size() - 1) 
+  int size = locks.size();
+
+
+  if (index > size - 1) 
   {
     printf("%s","Invalid lock table index, bigger than size.\n");
     return -1;
@@ -298,7 +372,6 @@ int checkLockErrors(int index)
 int CreateLock_Syscall(unsigned int vaddr, int len) 
 {
   locksLock->Acquire();
-
   if (len <= 0) 
   { // Validate length is nonzero and positive
     printf("%s","Length for lock's identifier name must be nonzero and positive\n");
@@ -338,7 +411,6 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
 
   locksLock->Release();
 
-  delete[] buf;
   return lockIndex; // TODO: Return the index of the lock
 }
 
@@ -411,8 +483,8 @@ int DestroyLock(int indexlock)
     locksLock->Release();
     return -1;
   }
-
-  if (indexlock > locks.size()) 
+  int size = locks.size();
+  if (indexlock > size - 1) 
   {
     printf("%s","index out of bounds for destroy\n");
     locksLock->Release();
@@ -455,8 +527,9 @@ int checkCVErrors(int indexcv, int indexlock)
     printf("%s","Invalid index.\n");
     return -1;
   }
-
-  if (indexcv > conditions.size() - 1 || indexlock > locks.size() - 1) 
+  int csize= conditions.size();
+  int lsize= locks.size();
+  if (indexcv > csize - 1 || indexlock > lsize - 1) 
   {
     printf("%s","Index out of bounds.\n");
     return -1;
@@ -526,7 +599,6 @@ int CreateCV(unsigned int vaddr, int len)
 
   conditionsLock->Release();
 
-  delete[] buf;
   return conditionIndex;
 }
 
@@ -554,7 +626,7 @@ int Wait(int indexcv, int indexlock)
   processInfo.at(currentThread->processID)->numExecutingThreads++;
   processInfo.at(currentThread->processID)->numSleepingThreads--;
   processLock->Release();
-
+  
   return 0;
 }
 
@@ -577,7 +649,10 @@ int Signal(int indexcv, int indexlock)
   }
 
   KernelCV * curKernelCV = conditions.at(indexlock);
+
   curKernelCV->condition->Signal(locks.at(indexlock)->lock);
+
+
 
   if(curKernelCV->toDelete && curKernelCV->condition->waitqueue->IsEmpty())
   {
@@ -620,7 +695,9 @@ int DestroyCV(int indexcv)
     return -1;
   }
 
-  if (indexcv > conditions.size()) 
+  int size = conditions.size();
+
+  if (indexcv > size - 1) 
   {
     printf("%s","index out of bounds for destroy\n");
     conditionsLock->Release();
@@ -669,6 +746,12 @@ void Yield_Syscall()
 
 void Exit_Syscall(int status)
 {
+  if(status != 0)
+  {
+    printf("Arg must be 0 to exit.");
+  }
+
+  currentThread->Yield();
   processLock->Acquire();
 
   if(processInfo.at(currentThread->processID)->numExecutingThreads > 1) 
@@ -677,18 +760,19 @@ void Exit_Syscall(int status)
     
     processInfo.at(currentThread->processID)->numExecutingThreads--;
 
-    currentThread->Finish();
-
     currentThread->space->ReclaimStack(currentThread->stackPage);
 
     processLock->Release();
+
+    currentThread->Finish();
+
     return;
   }
   else if(processInfo.size() > 1)
   {
     printf("Thread is last in process. Cleaning up process.\n");
-
-    for (int i = 0; i < locks.size(); i++)
+    int lsize=locks.size();
+    for (int i = 0; i < lsize; i++)
     {
       if(locks.at(i))
       {
@@ -700,8 +784,8 @@ void Exit_Syscall(int status)
         }
       }
     }
-
-    for (int i = 0; i< conditions.size(); i++)
+    int csize= conditions.size();
+    for (int i = 0; i< csize; i++)
     {
       if(conditions.at(i))
       {
@@ -713,9 +797,6 @@ void Exit_Syscall(int status)
         }
       }
     }
-    
-    currentThread->Finish();
-
     currentThread->space->ReclaimPageTable();
 
     // Delete process
@@ -725,13 +806,14 @@ void Exit_Syscall(int status)
     processInfo.at(currentThread->processID) = NULL;
 
     processLock->Release();
+    currentThread->Finish();
     return;
   }
 
   printf("Thread is last in process and this is last process. Nachos halting.\n");
-  interrupt->Halt();
-  
   processLock->Release();
+
+  interrupt->Halt();
 }
 
 void Kernel_Thread(int vaddr)
@@ -906,16 +988,12 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_Read:
       DEBUG('a', "Read syscall.\n");
-      rv = Read_Syscall(machine->ReadRegister(4),
-      machine->ReadRegister(5),
-      machine->ReadRegister(6));
+      rv = Read_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
       break;
 
       case SC_Write:
       DEBUG('a', "Write syscall.\n");
-      Write_Syscall(machine->ReadRegister(4),
-      machine->ReadRegister(5),
-      machine->ReadRegister(6));
+      Write_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
       break;
 
       case SC_WriteInt:
@@ -925,8 +1003,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_WriteError:
       DEBUG('a', "WriteInt syscall.\n");
-      WriteError_Syscall(machine->ReadRegister(4),
-      machine->ReadRegister(5));
+      WriteError_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
       case SC_Close:
@@ -946,8 +1023,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_CreateLock:
       DEBUG('a', "Create Lock syscall.\n");
-      rv= CreateLock_Syscall(machine->ReadRegister(4),
-      machine->ReadRegister(5));
+      rv = CreateLock_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
       case SC_AcquireLock:
@@ -957,7 +1033,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_ReleaseLock:
       DEBUG('a', "Release Lock syscall.\n");
-      rv= ReleaseLock(machine->ReadRegister(4));
+      rv = ReleaseLock(machine->ReadRegister(4));
       break;
 
       case SC_DestroyLock:
@@ -972,7 +1048,7 @@ void ExceptionHandler(ExceptionType which)
 
       case SC_Wait:
       DEBUG('a', "Wait syscall.\n");
-      rv= Wait(machine->ReadRegister(4), machine->ReadRegister(5));
+      rv = Wait(machine->ReadRegister(4), machine->ReadRegister(5));
       break;
 
       case SC_Signal:
@@ -989,13 +1065,28 @@ void ExceptionHandler(ExceptionType which)
       DEBUG('a', "Destroy Condition syscall.\n");
       rv= DestroyCV(machine->ReadRegister(4));
       break;
+
+      case SC_Random:
+      DEBUG('a', "Random syscall.\n");
+      rv= Random(machine->ReadRegister(4), machine->ReadRegister(5));
+      break;
+
+      case SC_WriteOne:
+      DEBUG('a', "Write one.\n");
+      rv= WriteOne(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
+      break;
+
+      case SC_WriteTwo:
+      DEBUG('a', "Write two.\n");
+      rv= WriteTwo(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6), machine->ReadRegister(7));
+      break;
     }
 
     // Put in the return value and increment the PC
-    machine->WriteRegister(2,rv);
-    machine->WriteRegister(PrevPCReg,machine->ReadRegister(PCReg));
-    machine->WriteRegister(PCReg,machine->ReadRegister(NextPCReg));
-    machine->WriteRegister(NextPCReg,machine->ReadRegister(PCReg)+4);
+    machine->WriteRegister(2, rv);
+    machine->WriteRegister(PrevPCReg, machine->ReadRegister(PCReg));
+    machine->WriteRegister(PCReg, machine->ReadRegister(NextPCReg));
+    machine->WriteRegister(NextPCReg, machine->ReadRegister(PCReg) + 4);
     return;
   } 
   else 
