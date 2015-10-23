@@ -489,17 +489,372 @@ void InitializeSystemJobs ()
 	certifyingPassportLock = CreateLock("CertifyingPassportLock", 22);
 }
 
+/* ========================================================================================================================================= */
+/*																																			 */
+/*		SIMULATION OUTPUT																													 */
+/*																																			 */
+/* ========================================================================================================================================= */
 
-void InitializeData ()
+enum outputstatement { 
+	Clerk_SignalledCustomer, Clerk_ReceivedSSN, Clerk_RecordedCompletedApplication
+	Clerk_ReceivedBribe, Clerk_GoingOnBreak, Clerk_ComingOffBreak,
+	Clerk_TookPicture, Clerk_ToldByCustomerDoesNotLikePicture, Clerk_ToldByCustomerDoesLikePicture,
+	Clerk_DeterminedAppAndPicNotCompleted, Clerk_DeterminedAppAndPicCompleted, Clerk_RecordedPassport,
+	Clerk_VerifiedPassportCertified, Clerk_ReceivedPayment, Clerk_ReceivedPaymentGoBackInLine,
+	Clerk_ProvidedPassport, Clerk_RecordedCustomerGivenPassport,
+	
+	Manager_WokeUpClerk, Manager_CountedMoneyForClerk, Manager_CountedTotalMoney,
+	
+	Customer_GotInRegularLine, Customer_GotInBribeLine, Customer_GaveSSN,
+	Customer_DoesNotLikePicture, Customer_DoesLikePicture, Customer_WentTooSoon,
+	Customer_PaidForPassport, Customer_GoingOutsideForSenator, Customer_LeavingPassportOffice,
+}
+
+void WriteOutput (enum outputstatement statement, enum persontype clerkType, enum persontype customerType, int ssn, int clerkID)
 {
-	InitializeCustomerData();
-	InitializeSenatorData();
-	InitializeApplicationClerkData();
-	InitializePictureClerkData();
-	InitializePassportClerkData();
-	InitializeCashierData();
-	InitializeManager();
-	InitializeSystemJobs();
+	int money; /* Only Manager print statements need money */
+
+	money = ssn;
+
+	switch (statement)
+	{
+		case Clerk_SignalledCustomer:
+			switch(clerkType)
+			{
+				case APPLICATION:
+					WriteOne("ApplicationClerk %d has signalled a Customer to come to their counter.", clerkID);
+					break;
+				case PICTURE:
+					WriteOne("PictureClerk %d has signalled a Customer to come to their counter.", clerkID);
+					break;
+				case PASSPORT:
+					WriteOne("PassportClerk %d has signalled a Customer to come to their counter.", clerkID);
+					break;
+				case CASHIER:
+					WriteOne("Cashier %d has signalled a Customer to come to their counter.", clerkID);
+					break;
+			}
+			break;
+		case Clerk_ReceivedSSN:
+			switch(clerkType)
+			{
+				case APPLICATION:
+					WriteThree("ApplicationClerk %d has received SSN %d from Customer %d", clerkID, ssn, clerkID);
+					break;
+				case PICTURE:
+					WriteThree("PictureClerk %d has received SSN %d from Customer %d", clerkID, ssn, clerkID);
+					break;
+				case PASSPORT:
+					WriteThree("PassportClerk %d has received SSN %d from Customer %d", clerkID, ssn, clerkID);
+					break;
+				case CASHIER:
+					WriteThree("Cashier %d has received SSN %d from Customer %d", clerkID, ssn, clerkID);
+					break;
+			}
+			break;
+		case Clerk_GoingOnBreak:
+			switch(clerkType)
+			{
+				case APPLICATION:
+					WriteOne("ApplicationClerk %d is going on break", clerkID);
+					break;
+				case PICTURE:
+					WriteOne("PictureClerk %d is going on break", clerkID);
+					break;
+				case PASSPORT:
+					WriteOne("PassportClerk %d is going on break", clerkID);
+					break;
+				case CASHIER:
+					WriteOne("Cashier %d is going on break", clerkID);
+					break;
+			}
+			break;
+		case Clerk_ComingOffBreak:
+			switch(clerkType)
+			{
+				case APPLICATION:
+					WriteOne("ApplicationClerk %d is coming off break", clerkID);
+					break;
+				case PICTURE:
+					WriteOne("PictureClerk %d is coming off break", clerkID);
+					break;
+				case PASSPORT:
+					WriteOne("PassportClerk %d is coming off break", clerkID);
+					break;
+				case CASHIER:
+					WriteOne("Cashier %d is coming off break", clerkID);
+					break;
+			}
+			break;
+		case Clerk_RecordedCompletedApplication:
+			WriteTwo("ApplicationClerk %d has recorded a completed application for Customer %d", clerkID, ssn);
+			break;
+		case Clerk_ReceivedBribe:
+			WriteTwo("ApplicationClerk %d has received $500 from Customer %d", clerkID, ssn);
+			break;
+		case Clerk_TookPicture:
+			WriteTwo("PictureClerk %d has taken a picture of Customer %d", clerkID, ssn);
+			break;
+		case Clerk_ToldByCustomerDoesNotLikePicture:
+			WriteTwo("PictureClerk %d has been told that Customer %d does not like their picture", clerkID, ssn);
+			break;
+		case Clerk_ToldByCustomerDoesLikePicture:
+			WriteTwo("PictureClerk %d has been told that Customer %d does like their picture", clerkID, ssn);
+			break;
+		case Clerk_DeterminedAppAndPicNotCompleted:
+			WriteTwo("PassportClerk %d has determined that Customer %d does not have both their application and picture completed", clerkID, ssn);
+			break;
+		case Clerk_DeterminedAppAndPicCompleted:
+			WriteTwo("PassportClerk %d has determined that Customer %d has both their application and picture completed", clerkID, ssn);
+			break;
+		case Clerk_RecordedPassport:
+			WriteTwo("PassportClerk %d has recorded Customer %d passport documentation", clerkID, ssn);
+			break;
+		case Clerk_VerifiedPassportCertified:
+			WriteTwo("Cashier %d has verified that Customer %d has been certified by a PassportClerk", clerkID, ssn);
+			break;
+		case Clerk_ReceivedPayment:
+			WriteTwo("Cashier %d has received the $100 from Customer %d after certification", clerkID, ssn);
+			break;
+		case Clerk_ReceivedPaymentGoBackInLine:
+			WriteTwo("Cashier %d has received the $100 from Customer %d before certification. They are to go to the back of my line.", clerkID, ssn);
+			break;
+		case Clerk_ProvidedPassport:
+			WriteTwo("Cashier %d has provided Customer %d their completed passport", clerkID, ssn);
+			break;
+		case Clerk_RecordedCustomerGivenPassport:
+			WriteTwo("Cashier %d has recorded that Customer %d has been given their completed passport", clerkID, ssn);
+			break;
+	
+		
+		case Manager_WokeUpClerk:
+			switch(clerkType)
+			{
+				case APPLICATION:
+					Write("Manager has woken up an ApplicationClerk");
+					break;
+				case PICTURE:
+					Write("Manager has woken up an PictureClerk");
+					break;
+				case PASSPORT:
+					Write("Manager has woken up an PassportClerk");
+					break;
+				case CASHIER:
+					Write("Manager has woken up an Cashier");
+					break;
+			}
+			break;
+		case Manager_CountedMoneyForClerk:
+			switch(clerkType)
+			{
+				case APPLICATION:
+					WriteOne("Manager has counted a total of $%d for ApplicationClerks", money);
+					break;
+				case PICTURE:
+					WriteOne("Manager has counted a total of $%d for PictureClerks", money);
+					break;
+				case PASSPORT:
+					WriteOne("Manager has counted a total of $%d for PassportClerks", money);
+					break;
+				case CASHIER:
+					WriteOne("Manager has counted a total of $%d for Cashiers", money);
+					break;
+			}
+			break;
+		case Manager_CountedTotalMoney:
+			WriteOne("Manager has counted a total of $%d for the passport office", money);
+			break;
+	
+	
+		case Customer_GotInRegularLine:
+			switch(clerkType)
+			{
+				case APPLICATION:
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteTwo("Customer %d has gotten in regular line for ApplicationClerk %d.", ssn, clerkID);
+							break;
+						case SENATOR:
+							WriteTwo("Senator %d has gotten in regular line for ApplicationClerk %d.", ssn, clerkID);
+							break;
+					}
+					break;
+				case PICTURE:
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteTwo("Customer %d has gotten in regular line for PictureClerk %d.", ssn, clerkID);
+							break;
+						case SENATOR:
+							WriteTwo("Senator %d has gotten in regular line for PictureClerk %d.", ssn, clerkID);
+							break;
+					}
+					break;
+				case PASSPORT:
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteTwo("Customer %d has gotten in regular line for PassportClerk %d.", ssn, clerkID);
+							break;
+						case SENATOR:
+							WriteTwo("Senator %d has gotten in regular line for PassportClerk %d.", ssn, clerkID);
+							break;
+					}
+					break;
+				case CASHIER:
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteTwo("Customer %d has gotten in regular line for Cashier %d.", ssn, clerkID);
+							break;
+						case SENATOR:
+							WriteTwo("Senator %d has gotten in regular line for Cashier %d.", ssn, clerkID);
+							break;
+					}
+					break;
+			}
+			break;
+		case Customer_GotInBribeLine:
+			switch(clerkType)
+			{
+				case APPLICATION:
+					WriteTwo("Customer %d has gotten in bribe line for ApplicationClerk %d.", ssn, clerkID);
+					break;
+				case PICTURE:
+					WriteTwo("Customer %d has gotten in bribe line for PictureClerk %d.", ssn, clerkID);
+					break;
+				case PASSPORT:
+					WriteTwo("Customer %d has gotten in bribe line for PassportClerk %d.", ssn, clerkID);
+					break;
+				case CASHIER:
+					WriteTwo("Customer %d has gotten in bribe line for Cashier %d.", ssn, clerkID);
+					break;
+			}
+			break;
+		case Customer_GaveSSN:
+			switch(clerkType)
+			{
+				case APPLICATION:
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteThree("Customer %d has given SSN %d to ApplicationClerk %d.", ssn, ssn, clerkID);
+							break;
+						case SENATOR:
+							WriteThree("Senator %d has given SSN %d to ApplicationClerk %d.", ssn, ssn, clerkID);
+							break;
+					}
+					break;
+				case PICTURE:
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteThree("Customer %d has given SSN %d to PictureClerk %d.", ssn, ssn, clerkID);
+							break;
+						case SENATOR:
+							WriteThree("Senator %d has given SSN %d to PictureClerk %d.", ssn, ssn, clerkID);
+							break;
+					}
+					break;
+				case PASSPORT:
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteThree("Customer %d has given SSN %d to PassportClerk %d.", ssn, ssn, clerkID);
+							break;
+						case SENATOR:
+							WriteThree("Senator %d has given SSN %d to PassportClerk %d.", ssn, ssn, clerkID);
+							break;
+					}
+					break;
+				case CASHIER:
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteThree("Customer %d has given SSN %d to Cashier %d.", ssn, ssn, clerkID);
+							break;
+						case SENATOR:
+							WriteThree("Senator %d has given SSN %d to Cashier %d.", ssn, ssn, clerkID);
+							break;
+					}
+					break;
+			}
+			break;
+		case Customer_DoesNotLikePicture:
+			switch(customerType)
+			{
+				case CUSTOMER:
+					WriteTwo("Customer %d does not like their picture from PictureClerk %d.", ssn, clerkID);
+					break;
+				case SENATOR:
+					WriteTwo("Senator %d does not like their picture from PictureClerk %d.", ssn, clerkID);
+					break;
+			}
+			break;
+		case Customer_DoesLikePicture:
+			switch(customerType)
+			{
+				case CUSTOMER:
+					WriteTwo("Customer %d does like their picture from PictureClerk %d.", ssn, clerkID);
+					break;
+				case SENATOR:
+					WriteTwo("Senator %d does like their picture from PictureClerk %d.", ssn, clerkID);
+					break;
+			}
+			break;
+		case Customer_WentTooSoon:
+			switch(clerkType)
+			{
+				case PASSPORT:
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteTwo("Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line.", ssn, clerkID);
+							break;
+						case SENATOR:
+							WriteTwo("Senator %d has gone to PassportClerk %d too soon. They are going to the back of the line.", ssn, clerkID);
+							break;
+					}
+					break;
+				case CASHIER:
+					switch(customerType)
+					{
+						case CUSTOMER:
+							WriteTwo("Customer %d has gone to Cashier %d too soon. They are going to the back of the line.", ssn, clerkID);
+							break;
+						case SENATOR:
+							WriteTwo("Senator %d has gone to Cashier %d too soon. They are going to the back of the line.", ssn, clerkID);
+							break;
+					}
+					break;
+			break;
+		case Customer_PaidForPassport:
+			switch(customerType)
+			{
+				case CUSTOMER:
+					WriteTwo("Customer %d has given Cashier %d $100.", ssn, clerkID);
+					break;
+				case SENATOR:
+					WriteTwo("Senator %d has given Cashier %d $100.", ssn, clerkID);
+					break;
+			}
+			break;
+		case Customer_GoingOutsideForSenator:
+			WriteOne("Customer %d is going outside the Passport Office because their is a Senator present.", ssn);
+			break;
+		case Customer_LeavingPassportOffice:
+			switch(customerType)
+			{
+				case CUSTOMER:
+					WriteOne("Customer %d is leaving the Passport Office.", ssn);
+					break;
+				case SENATOR:
+					WriteOne("Senator %d is leaving the Passport Office.", ssn);
+					break;
+			}
+			break;
+	}
 }
 
 /* ========================================================================================================================================= */
@@ -1019,6 +1374,24 @@ void Clerk(int ssn)
 				TakeBreak(clerk.id, clerk.type);
 		}
 	}
+}
+
+/* ========================================================================================================================================= */
+/*																																			 */
+/*		PASSPORT OFFICE																														 */
+/*																																			 */
+/* ========================================================================================================================================= */
+
+void InitializeData ()
+{
+	InitializeCustomerData();
+	InitializeSenatorData();
+	InitializeApplicationClerkData();
+	InitializePictureClerkData();
+	InitializePassportClerkData();
+	InitializeCashierData();
+	InitializeManager();
+	InitializeSystemJobs();
 }
 
 int main () 
