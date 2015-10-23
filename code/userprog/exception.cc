@@ -184,13 +184,14 @@ void WriteInt_Syscall(int integer) {
   printf("%d", integer);
 }
 
-int Random(int lower, int upper){
+int Random(int lower, int upper)
+{
   srand(time(0));
-  int randomnumber = rand() % upper + lower ;
-  return randomnumber;
+  int randomNumber = rand() % upper + lower ;
+  return randomNumber;
 }
 
-int WriteOne(int vaddr, int len, int num1)
+int WriteOne(unsigned int vaddr, int len, int num1)
 {
     if (len < 0) 
     { // Validate length is nonzero and positive
@@ -252,8 +253,6 @@ int WriteTwo(unsigned int vaddr, int len, int num1, int num2)
     printf(buf, num1, num2);
     return 0;
 }
-
-
 
 #define RED               "\x1b[31m"
 #define ANSI_COLOR_RESET  "\x1b[0m"
@@ -414,14 +413,14 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
   return lockIndex; // TODO: Return the index of the lock
 }
 
-int AcquireLock(int index)
+int AcquireLock(int indexlock)
 {
-  if(checkLockErrors(index) == -1)
+  if(checkLockErrors(indexlock) == -1)
   {
     return -1;
   }
 
-  if(locks.at(index)->toDelete)
+  if(locks.at(indexlock)->toDelete)
   {
     printf("Cannot acquire lock because it's been marked for deletion."); 
     return -1;  
@@ -432,14 +431,14 @@ int AcquireLock(int index)
   processInfo.at(currentThread->processID)->numSleepingThreads++;
   processLock->Release();
 
-  locks.at(index)->lock->Acquire();
+  locks.at(indexlock)->lock->Acquire();
 
   processLock->Acquire();
   processInfo.at(currentThread->processID)->numExecutingThreads++;
   processInfo.at(currentThread->processID)->numSleepingThreads--;
   processLock->Release();
   
-  return index;
+  return indexlock;
 }
 
 void DeleteLock(int indexlock)
@@ -743,7 +742,6 @@ void Yield_Syscall()
   currentThread->Yield();
 }
 
-
 void Exit_Syscall(int status)
 {
   if(status != 0)
@@ -771,7 +769,7 @@ void Exit_Syscall(int status)
   else if(processInfo.size() > 1)
   {
     printf("Thread is last in process. Cleaning up process.\n");
-    int lsize=locks.size();
+    int lsize = locks.size();
     for (int i = 0; i < lsize; i++)
     {
       if(locks.at(i))
@@ -784,7 +782,7 @@ void Exit_Syscall(int status)
         }
       }
     }
-    int csize= conditions.size();
+    int csize = conditions.size();
     for (int i = 0; i< csize; i++)
     {
       if(conditions.at(i))

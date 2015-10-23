@@ -33,7 +33,8 @@ void t6_t3()
     Exit(0);
 }
 
-void t6_t4() {
+void t6_t4() 
+{
     /*1st to acquire lock*/
     test=AcquireLock(lockindex);
     Write("thread calls broadcast\n", sizeof("thread calls broadcast\n"), 1);
