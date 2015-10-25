@@ -11,8 +11,44 @@ typedef enum { false = 0, true = 1 } bool;
 /*																																			 */
 /* ========================================================================================================================================= */
 
+/******************************************/
+/* 	        Thread Creation Data 		  */
+/******************************************/
+
+/* Nachos fork does not allow parameters to be passed in to new threads. 	*/
+/* 	To get around this, we need the following: 								*/
+/*	-	threadParam - the value we would otherwise be passing in. (In the	*/
+/*			PPOffice this will always be an identifier for getting the full	*/
+/*			set of data about a thread (i.e., the ssn for the people array 	*/
+/*			the jobID for the jobs array)).									*/
+/*	-	paramLock - this synchronizes the threadParam so that if a thread  	*/
+/*			gets context switched while forking a new thread, it can finish */
+/*			creating the thread with the proper data when it resumes. 		*/
 int threadParam;
 int paramLock;
+
+/******************************************/
+/* 		  PPOffice Simulation Data   	  */
+/******************************************/
+
+/* We need a way of knowing whether the simulation has finished without 	*/
+/*	busy waiting. We achieve this by adding the following: 					*/
+/*	-	numCustomersFinished - keeps track of amount finished so we know 	*/
+/*		  when to Signal that the simulation can terminate.					*/
+/*	-	allCustomersFinishedCV – the condition of whether or not there are  */
+/*		  any Customers still moving through the simulation. 				*/
+/*		  numCustomersFinished == (numCustomers + numSenators) 				*/
+/*	-	numCustomersFinishedLock - synchronize updates/reads of 			*/
+/*		  numCustomersFinished.												*/
+/*	Note: It may be more *correct* to acquire the numCustomersFinishedLock 	*/
+/* 	  inside of the Clerks/Manager loops, but we do not do that. While it 	*/
+/*	  would save a "waisted" loop where the clerks are doing work they do  	*/
+/*	  not need to do, it would create deadlock whenever a Clerk gets 		*/
+/*	  context switched in the middle of checking the condition. This likely */
+/*	  occurs more often than the number of waisted loops.					*/
+int numCustomersFinished = 0;
+int allCustomersFinishedCV;
+int numCustomersFinishedLock;
 
 /******************************************/
 /* 		  	    Person Data 			  */
@@ -58,8 +94,6 @@ int InitialMoney()
 
 int numCustomers = 50;
 struct Customer customers[60]; /* Same info for customers/senators: SIZE = numCustomers + numSenators */
-
-int numCustomersFinished = 0; /* Compare this to (numCustomers + numSenators) to see when program completes. */
 
 void InitializeCustomerData ()
 {
@@ -122,9 +156,9 @@ void InitializeSenatorData ()
 		people[ssn].type = SENATOR;
 	}
 
-	senatorIndoorLock = CreateLock("SenatorIndoorLock", 17);
-	senatorIndoorCV = CreateCV("SenatorIndoorCV", 15);
-	/* TODO: Is this necessary? */
+	senatorIndoorLock = CreateLock("senatorIndoorLock", sizeof("senatorIndoorLock"));
+	senatorIndoorCV = CreateCV("senatorIndoorCV", sizeof("senatorIndoorCV"));
+	/* TODO: Is senatorOutdoorCV necessary? */
 	/*	senatorOutdoorCV = CreateCV("SenatorOutdoorCV", 16); */
 }
 
@@ -134,6 +168,7 @@ void InitializeSenatorData ()
 
 enum clerkstate { AVAILABLE, BUSY, ONBREAK };
 enum clerkinteraction { DOINTERACTION, TAKEBREAK, ACCEPTBRIBE };
+enum linetype { NORMALLINE, BRIBELINE, SENATORLINE };
 
 struct Clerk {
 	enum clerkstate state;
@@ -1106,6 +1141,96 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 /*																																			 */
 /* ========================================================================================================================================= */
 
+void CheckIfsenatorIndoor (int ssn, int clerkID, enum persontype clerkType)
+{
+	AcquireLock(senatorIndoorLock);
+	if (isSenatorPresent && people[ssn].type != SENATOR)
+	{
+		WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
+		Wait(senatorIndoorCV, senatorIndoorLock); /* Wait for Senator to finish. */
+		ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and continue. */
+		
+		if (clerkID == -1)
+		{
+			return DecideClerk(ssn, clerkType); /* Never decided which line to get in, start from the top. */
+		}
+		else
+		{
+			return DecideLine(ssn, clerkID, clerkType); /* Get back in one of same clerk's line. */
+		}
+	}
+	else
+	{
+		ReleaseLock(senatorIndoorLock); /* No Senator present or I am a Senator, continue with business. */
+	}
+}
+
+void BribeClerk (int ssn, int clerkID, enum persontype clerkType)
+{
+	int lineLock;
+	int clerkLock;
+	int bribeCV;
+	int workCV;
+
+	lineLock = clerkGroups[clerkType].lineLock;
+	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
+	workCV = clerkGroups[clerkType].workCVs[clerkID];
+	bribeCV = clerkGroups[clerkType].bribeCVs[clerkID];
+
+	/* Let clerk know you are trying to bribe her. */
+	clerkGroups[clerkType].clerks[clerkID].numCustomersBribing++;
+	Wait(bribeCV, lineLock);
+	clerkGroups[clerkType].clerks[clerkID].numCustomersBribing--;
+	ReleaseLock(lineLock);
+
+	/* Do customer side of bribe. */
+	AcquireLock(clerkLock);
+	clerkGroups[clerkType].clerks[clerkID].currentCustomer = ssn;
+	people[ssn].money -= 500; /* Pay $500 for bribe */
+	Signal(workCV, lineLock);
+	Wait(workCV, lineLock);
+	WriteOutput(Customer_GotInBribeLine, clerkType, CUSTOMER, ssn, clerkID);
+	ReleaseLock(clerkLock);
+
+	/* Reacquire lock so Customer can get in line. */
+	AcquireLock(lineLock);
+}
+
+void WaitInLine (int ssn, int clerkID, enum persontype clerkType, enum linetype lineType)
+{
+	int lineLock;
+	int lineCV;
+
+	lineLock = clerkGroups[clerkType].lineLock;
+	lineCV = clerkGroups[clerkType].lineCVs[clerkID];
+	bribeLineCV = clerkGroups[clerkType].bribeLineCVs[clerkID];
+
+	switch (lineType)
+	{
+		case NORMALLINE:
+			lineCV = clerkGroups[clerkType].lineCVs[clerkID];
+			clerkGroups[clerkType].clerks[clerkID].lineLength++;
+			WriteOutput(Customer_GotInRegularLine, clerkType, CUSTOMER, ssn, clerkID);
+			Wait(lineCV, lineLock); /* Wait in line */
+			clerkGroups[clerkType].clerks[clerkID].lineLength--;
+			break;
+		case BRIBELINE:
+			lineCV = clerkGroups[clerkType].bribeLineCVs[clerkID];
+			clerkGroups[clerkType].clerks[clerkID].bribeLineLength++;
+			WriteOutput(Customer_GotInBribeLine, clerkType, CUSTOMER, ssn, clerkID);
+			Wait(lineCV, lineLock); /* Wait in line */
+			clerkGroups[clerkType].clerks[clerkID].bribeLineLength--;
+			break;
+		case SENATORLINE:
+			lineCV = clerkGroups[clerkType].senatorLineCVs[clerkID];
+			clerkGroups[clerkType].clerks[clerkID].senatorLineLength++;
+			WriteOutput(Customer_GotInRegularLine, clerkType, SENATOR, ssn, clerkID);
+			Wait(lineCV, lineLock); /* Wait in line */
+			clerkGroups[clerkType].clerks[clerkID].senatorLineLength--;
+			break;
+	}
+}
+
 /* Customers decide which clerk has the shortest line that isn't on 	*/
 /* 	on break. After choosing which clerk, customers then decide (based 	*/
 /*	on whether they have enough money) whether to get into that clerk's */
@@ -1130,17 +1255,8 @@ int DecideClerk (int ssn, enum persontype clerkType)
 
 	lineLock = clerkGroups[clerkType].lineLock;
 
-	/*  TODO: Arrays were cast as unsigned ints, how to convert/cast back to array; or just how to access data inside array, otherwise? */
-
-	/* Check if the senator is present, and if so, "go outside" by waiting on the CV. */
-	/* 	By placing this here, we ensure line order remains consistent, conveniently. */
-	AcquireLock(senatorIndoorLock);
-	if (isSenatorPresent && people[ssn].type != SENATOR)
-	{
-		WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
-		Wait(senatorIndoorCV, senatorIndoorLock);
-	}
-	ReleaseLock(senatorIndoorLock);
+	/* If Senator is present, "go outside" instead of picking line. */
+	CheckIfsenatorIndoor(ssn, currentClerk, clerkType);	
 
 	AcquireLock(lineLock);
 	for (clerkID = 0; clerkID < numClerks; clerkID++)
@@ -1188,124 +1304,58 @@ int DecideClerk (int ssn, enum persontype clerkType)
 	return currentClerk;
 }
 
-void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
+void DecideLine (int ssn, int clerkID, enum persontype clerkType)
 {	
 	int lineLock;
-	int lineCV;
-	int bribeLineCV;
-	int senatorLineCV;
-	int clerkLock;
-	int workCV;
-	int bribeCV;
 
 	lineLock = clerkGroups[clerkType].lineLock;
-	lineCV = clerkGroups[clerkType].lineCVs[clerkID];
-	bribeLineCV = clerkGroups[clerkType].bribeLineCVs[clerkID];
-	senatorLineCV = clerkGroups[clerkType].senatorLineCVs[clerkID];
-	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
-	workCV = clerkGroups[clerkType].workCVs[clerkID];
-	bribeCV = clerkGroups[clerkType].bribeCVs[clerkID];
 
-	/* Now that customer has selected a clerk's line, figure out whether to go: */
-	/* 	- Straight to the counter */
-	/* 	- In line */
-	/*	- Bribe */
-	/*	- Senator line (if isSenator) */
+	/* Now that customer has selected a clerk's line, either go:			*/ 
+	/* 	(1)	Straight to the counter											*/
+	/* 	(2) (If SENATOR) Senator line 										*/
+	/*	(3) (If >= $600) Bribe line 										*/
+	/*	(4)	Normal line 													*/			
 
-	if (clerkGroups[clerkType].clerks[clerkID].state != AVAILABLE)
-	{ 
-		/* Clerk is unavailable; Rule out going straight to counter, so now decide which line to wait in. */
-		if (people[ssn].type == SENATOR)
-		{
-			/* TODO: Can we do direct incrementation on array value? */
-			clerkGroups[clerkType].clerks[clerkID].senatorLineLength++;
-			WriteOutput(Customer_GotInRegularLine, clerkType, SENATOR, ssn, clerkID);
-			Wait(senatorLineCV, lineLock);
-			/* TODO: See above. */
-			clerkGroups[clerkType].clerks[clerkID].senatorLineLength--;
-		}
-		else
-		{ 
-			/* Ruled out straight to counter and senator line. Bribe or no bribe? */
-			if (clerkGroups[clerkType].clerks[clerkID].state != ONBREAK && people[ssn].money >= 600 && clerkGroups[clerkType].clerks[clerkID].lineLength >= 1)
-			{ /* If customer has enough money and she's not in a line for a clerk that is on break, always bribe. */
-				/* Let clerk know you are trying to bribe her. */
-				/* TODO: See above. */
-				clerkGroups[clerkType].clerks[clerkID].numCustomersBribing++;
-				Wait(bribeCV, lineLock);
-				/* TODO: See above. */
-				clerkGroups[clerkType].clerks[clerkID].numCustomersBribing--;
-				ReleaseLock(lineLock);
-
-				/* Do customer side of bribe. */
-				AcquireLock(clerkLock);
-
-				clerkGroups[clerkType].clerks[clerkID].currentCustomer = ssn;
-				people[ssn].money -= 500; /* Pay $500 for bribe */
-				Signal(workCV, lineLock);
-				Wait(workCV, lineLock);
-				WriteOutput(Customer_GotInBribeLine, clerkType, CUSTOMER, ssn, clerkID);
-				
-				ReleaseLock(clerkLock);
-
-				/* Now get into bribe line. */
-				AcquireLock(lineLock);
-
-				/* TODO: See above. (increment operator) */
-				clerkGroups[clerkType].clerks[clerkID].bribeLineLength++;
-				Wait(bribeLineCV, lineLock);
-
-				/* Woken up. Make sure no senators have entered so that I can do my business with clerk. */
-				AcquireLock(senatorIndoorLock);
-				if (isSenatorPresent && people[ssn].type != SENATOR)
-				{
-					WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
-					Wait(senatorIndoorCV, senatorIndoorLock);
-					ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and re-decide line. */
-					return WaitInLine(ssn, clerkID, clerkType);
-				}
-				else
-				{
-					ReleaseLock(senatorIndoorLock);
-				}
-
-				/* Made it out of line. */
-				/* TODO: See above. (Decrement operator) */
-				clerkGroups[clerkType].clerks[clerkID].bribeLineLength--;
-			}
-			else
-			{ /* No other options. Get in regular line. */
-				/* TODO: See above. (Increment operator) */
-				clerkGroups[clerkType].clerks[clerkID].lineLength++;
-				WriteOutput(Customer_GotInRegularLine, clerkType, CUSTOMER, ssn, clerkID);
-				Wait(lineCV, lineLock);
-
-				/* Woken up. Make sure no senators have entered so that I can do my business with clerk. */
-				AcquireLock(senatorIndoorLock);
-				if (isSenatorPresent && people[ssn].type != SENATOR)
-				{
-					WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
-					Wait(senatorIndoorCV, senatorIndoorLock);
-					ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and re-decide line. */
-					return WaitInLine(ssn, clerkID, clerkType);
-				}
-				else
-				{
-					ReleaseLock(senatorIndoorLock);
-				}
-
-				/* Made it out of line. */
-				/* TODO: See above. (Decrement operator) */
-				clerkGroups[clerkType].clerks[clerkID].lineLength--;
-			}
-		}
+	/* If line was empty when customer joined, go straight to the counter. */
+	if (clerkGroups[clerkType].clerks[clerkID].state == AVAILABLE)
+	{
+		clerkGroups[clerkType].clerks[clerkID].state = BUSY; /* Set BUSY so no other Customer comes straight to counter. */
 	}
+
+	/* Clerk is unavailable; Which line to wait in? */
 	else
 	{ 
-		/* Line was empty when customer joined, go straight to the counter. */
-		clerkGroups[clerkType].clerks[clerkID].state = BUSY;
+		/* All Senators get in the Senator line */
+		if (people[ssn].type == SENATOR)
+		{
+			WaitInLine(ssn, clerkID, clerkType, SENATORLINE);
+		}
+
+		/* Not a Senator; Bribe or no bribe? */
+		else
+		{
+			if (clerkGroups[clerkType].clerks[clerkID].state != ONBREAK && people[ssn].money >= 600 && clerkGroups[clerkType].clerks[clerkID].lineLength >= 1)
+			{ 
+				/* If customer has enough money and she's not in a line for a clerk 	*/
+				/*	that is on break, always bribe. 									*/
+				/* 	(1)	Let clerk know you are trying to bribe, and do bribe. 			*/
+				/*	(2) Wait in the bribe line. 										*/
+				/*	(3) Check if a Senator has joined, if so need to "go outside" and 	*/
+				/*		  re-decide line. 												*/
+				BribeClerk(ssn, clerkID, clerkType);
+				WaitInLine(ssn, clerkID, clerkType, BRIBELINE);
+				CheckIfsenatorIndoor(ssn);
+			}
+			else
+			{ 
+				/* No other options. Get in regular line. */
+				WaitInLine(ssn, clerkID, clerkType, NORMALLINE);
+				CheckIfsenatorIndoor(ssn); /* 	Make sure no senators have entered since joining line. */
+			}
+		}
 	}
-	ReleaseLock(lineLock);
+
+	ReleaseLock(lineLock); /* Acquired lock in DecideClerk; Release so next Customer can decide their line. */
 
 	return;
 }
@@ -1436,7 +1486,7 @@ void GetBackInLine (int ssn, enum persontype clerkType)
 	int clerkID;
 
 	clerkID = DecideClerk(ssn, clerkType);
-	WaitInLine(ssn, clerkID, clerkType);
+	DecideLine(ssn, clerkID, clerkType);
 	CustomerInteraction(ssn, clerkID, clerkType);
 }
 
@@ -1493,35 +1543,35 @@ void Customer ()
 	{
 		/* Go to Application Clerk */
 		clerkID = DecideClerk(ssn, APPLICATION);
-		WaitInLine(ssn, clerkID, APPLICATION);
+		DecideLine(ssn, clerkID, APPLICATION);
 		CustomerInteraction(ssn, clerkID, APPLICATION);
 		
 		/* Go to Picture Clerk */
 		clerkID = DecideClerk(ssn, PICTURE);
-		WaitInLine(ssn, clerkID, PICTURE);
+		DecideLine(ssn, clerkID, PICTURE);
 		CustomerInteraction(ssn, clerkID, PICTURE);
 	}
 	else
 	{
 		/* Go to Picture Clerk */
 		clerkID = DecideClerk(ssn, PICTURE);
-		WaitInLine(ssn, clerkID, PICTURE);
+		DecideLine(ssn, clerkID, PICTURE);
 		CustomerInteraction(ssn, clerkID, PICTURE);
 		
 		/* Go to Application Clerk */
 		clerkID = DecideClerk(ssn, APPLICATION);
-		WaitInLine(ssn, clerkID, APPLICATION);
+		DecideLine(ssn, clerkID, APPLICATION);
 		CustomerInteraction(ssn, clerkID, APPLICATION);
 	}
 
 	/* Go to Passport Clerk */
 	clerkID = DecideClerk(ssn, PASSPORT);
-	WaitInLine(ssn, clerkID, PASSPORT);
+	DecideLine(ssn, clerkID, PASSPORT);
 	CustomerInteraction(ssn, clerkID, PASSPORT);
 
 	/* Go to Cashier */
 	clerkID = DecideClerk(ssn, CASHIER);
-	WaitInLine(ssn, clerkID, CASHIER);
+	DecideLine(ssn, clerkID, CASHIER);
 	CustomerInteraction(ssn, clerkID, CASHIER);
 }
 
@@ -1889,10 +1939,10 @@ void Clerk()
 				TakeBreak(clerk.id, clerk.type);
 		}
 
-		/* Select next interaction based on: */
-		/* 	(1) if there are people trying to bribe > AcceptBribe */
-		/*	(2) if there are people waiting in any of my lines > ClerkInteraction */
-		/*	(3) if there are no people waiting in any of my lines > TakeBreak */
+		/* Select next interaction based on: 										*/
+		/* 	(1) if there are people trying to bribe > AcceptBribe 					*/
+		/*	(2) if there are people waiting in any of my lines > ClerkInteraction 	*/
+		/*	(3) if there are no people waiting in any of my lines > TakeBreak 		*/
 		interaction = DecideInteraction (clerk.id, clerk.type);
 	} while (numCustomersFinished < (numCustomers + numSenators));
 
@@ -2024,6 +2074,8 @@ void Manager ()
 		Yield();
 	} while (numCustomersFinished < (numCustomers + numSenators));
 
+	/* TODO: Need to wake up sleeping threads so they can Exit themselves. */
+
 	Exit(0);
 }
 
@@ -2101,14 +2153,13 @@ void CleanUpData ()
 
 int main () 
 {
+	/* Initialize the simulation. */
 	InitializeData();
 	ForkAgents();
 
-	while (numCustomersFinished < (numCustomers + numSenators))
-	{
-		Yield();
-	}
+	while (num)
 
+	/* Clean up the simulation. */ 
 	CleanUpData();
 	Exit(0);
 }
