@@ -1873,10 +1873,10 @@ void Clerk()
 
 	clerk = people[ssn];
 
-	while (numCustomersFinished < (numCustomers + numSenators))
-	{
-		interaction = DecideInteraction (clerk.id, clerk.type);
+	interaction = DOINTERACTION; /* First interaction: Clerks should be prepared for first customer. */
 
+	do
+	{
 		switch(interaction) 
 		{
 			case ACCEPTBRIBE:
@@ -1888,7 +1888,13 @@ void Clerk()
 			case TAKEBREAK:
 				TakeBreak(clerk.id, clerk.type);
 		}
-	}
+
+		/* Select next interaction based on: */
+		/* 	(1) if there are people trying to bribe > AcceptBribe */
+		/*	(2) if there are people waiting in any of my lines > ClerkInteraction */
+		/*	(3) if there are no people waiting in any of my lines > TakeBreak */
+		interaction = DecideInteraction (clerk.id, clerk.type);
+	} while (numCustomersFinished < (numCustomers + numSenators));
 
 	Exit(0);
 }
