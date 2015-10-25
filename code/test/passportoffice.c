@@ -33,22 +33,26 @@ int paramLock;
 
 /* We need a way of knowing whether the simulation has finished without 	*/
 /*	busy waiting. We achieve this by adding the following: 					*/
-/*	-	numCustomersFinished - keeps track of amount finished so we know 	*/
-/*		  when to Signal that the simulation can terminate.					*/
-/*	-	allCustomersFinishedCV – the condition of whether or not there are  */
-/*		  any Customers still moving through the simulation. 				*/
-/*		  numCustomersFinished == (numCustomers + numSenators) 				*/
-/*	-	numCustomersFinishedLock - synchronize updates/reads of 			*/
+/*	-	numCustomersFinished - keeps track of amount finished so Clerks 	*/
+/*		  know when to Exit and Managers know when to call WakeUpAllClerks	*/
+/*	-	customersFinishedLock - synchronize updates/reads of 				*/
 /*		  numCustomersFinished.												*/
-/*	Note: It may be more *correct* to acquire the numCustomersFinishedLock 	*/
+/*	-	numClerksFinished - last Clerk needs to know when to Signal to 		*/
+/*		  Manager that all clerks are finished. 							*/
+/*	-	clerksFinishedLock - synchronize updates/reads of numClerksFinished */
+/*	-	allAgentsFinishedCV – the condition of whether or not there are  	*/
+/*		  any unterminated threads left in the simulation. 					*/
+/*	Note: It may be more *correct* to acquire the customersFinishedLock 	*/
 /* 	  inside of the Clerks/Manager loops, but we do not do that. While it 	*/
 /*	  would save a "waisted" loop where the clerks are doing work they do  	*/
 /*	  not need to do, it would create deadlock whenever a Clerk gets 		*/
 /*	  context switched in the middle of checking the condition. This likely */
 /*	  occurs more often than the number of waisted loops.					*/
 int numCustomersFinished = 0;
-int allCustomersFinishedCV;
-int numCustomersFinishedLock;
+int numClerksFinished = 0;
+int customersFinishedLock;
+int clerksFinishedLock;
+int allAgentsFinishedCV;
 
 /******************************************/
 /* 		  	    Person Data 			  */
@@ -1133,11 +1137,49 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 	}
 }
 
+/* ========================================================================================================================================= */
+/*																																			 */
+/*		PPOffice Agents 																													 */
+/*																																			 */
+/* ========================================================================================================================================= */
 
+void Leave (int ssn, enum persontype type)
+{
+	switch (type)
+	{
+		case SENATOR:
+			AcquireLock(senatorPresentLock);
+			isSenatorPresent = false;
+			Broadcast(senatorPresentCV, senatorPresentLock);
+			ReleaseLock(senatorPresentLock);
+		
+		case CUSTOMER: /* && SENATOR */
+			AcquireLock(customersFinishedLock);
+			numCustomersFinished++;
+			ReleaseLock(customersFinishedLock);
+			WriteOutput(Customer_LeavingPassportOffice, type, type, ssn, ssn);
+			break;
+		
+		case APPLICATION:
+		case PICTURE:
+		case PASSPORT:
+		case CASHIER:
+			AcquireLock(clerksFinishedLock);
+			numClerksFinished++;
+			if (numCustomersFinished == (numAppClerks + numPicClerks + numPassportClerks + numCashiers))
+			{
+				Signal(allAgentsFinishedCV, clerksFinishedLock);
+			}
+			ReleaseLock(clerksFinishedLock);
+			break;
+	}
+
+	Exit(0);
+}
 
 /* ========================================================================================================================================= */
 /*																																			 */
-/*		CUSTOMER																															 */
+/*		CUSTOMER LINE DECISIONS																												 */
 /*																																			 */
 /* ========================================================================================================================================= */
 
@@ -1252,7 +1294,6 @@ int DecideClerk (int ssn, enum persontype clerkType)
 	int clerkLineLength; /* Keeps track of either normal line count or senator line count depending on if isSenator */
 
 	numClerks = clerkGroups[clerkType].numClerks;
-
 	lineLock = clerkGroups[clerkType].lineLock;
 
 	/* If Senator is present, "go outside" instead of picking line. */
@@ -1360,6 +1401,12 @@ void DecideLine (int ssn, int clerkID, enum persontype clerkType)
 	return;
 }
 
+/* ========================================================================================================================================= */
+/*																																			 */
+/*		CUSTOMER INTERACTIONS 																												 */
+/*																																			 */
+/* ========================================================================================================================================= */
+
 void GetBackInLine (int ssn, enum persontype clerkType);
 
 void MakePhotoDecision (int ssn, int clerkID, enum persontype clerkType)
@@ -1413,7 +1460,6 @@ void PayForPassport (int ssn, int clerkID)
 
 void PunishTooSoon (int ssn, int clerkID, enum persontype clerkType)
 {
-	/* TODO: Moved the customer leaving the clerk BEFORE punishing, verify this is correct. */
 	int clerkLock;
 	int workCV;
 
@@ -1423,6 +1469,7 @@ void PunishTooSoon (int ssn, int clerkID, enum persontype clerkType)
 	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
 	workCV = clerkGroups[clerkType].workCVs[clerkID];
 
+	/* Tell clerk you are done interacting. */
 	Signal(workCV, clerkLock);
 	ReleaseLock(clerkLock);
 
@@ -1490,89 +1537,53 @@ void GetBackInLine (int ssn, enum persontype clerkType)
 	CustomerInteraction(ssn, clerkID, clerkType);
 }
 
-void Leave (int ssn)
-{
-	numCustomersFinished++;
-
-	if (people[ssn].type == SENATOR)
-	{
-		WriteOutput(Customer_LeavingPassportOffice, SENATOR, SENATOR, ssn, ssn);
-		AcquireLock(senatorPresentLock);
-		isSenatorPresent = false;
-		Broadcast(senatorPresentCV, senatorPresentLock);
-		ReleaseLock(senatorPresentLock);
-	}
-
-	else
-	{
-		WriteOutput(Customer_LeavingPassportOffice, CUSTOMER, CUSTOMER, ssn, ssn);
-	}
-
-	Exit(0);
-}
-
 void Customer ()
 {
 	int ssn;
-	struct Person customer;
-	int applicationFirst;
 	int clerkID;
+	enum persontype clerkType;
 
+	int applicationFirst;
+	enum persontype passportSequence = { APPLICATION, PICTURE, PASSPORT, CASHIER };
+
+	/* Nachos fork does not allow parameters to be passed in to new threads. 	*/
+	/* 	AcquireLock(paramLock) called before forking. 							*/
 	ssn = threadParam;
 	ReleaseLock(paramLock);
 
-	customer = people[ssn];
-
-	/* Customer (randomly) decides whether she wants to file application */
-	/* 	or take picture first. */
-	/* TODO: Random syscall. */
-	applicationFirst = 1;
-
+	/* Senator Checks. If a senator is present:									*/
+	/* 	-	Don't even enter the PPOffice (both Customers and Senators) 		*/
+	/*	-	If I am a senator, set that a senator is present. 					*/
 	AcquireLock(senatorPresentLock);
 	if (isSenatorPresent)
 	{
 		Wait(senatorPresentCV, senatorPresentLock);
 	}
-	else if (customer.type == SENATOR)
+	else if (people[ssn].type == SENATOR)
 	{
 		isSenatorPresent = true;
 	}
 	ReleaseLock(senatorPresentLock);
 
-	if (applicationFirst > 50)
+	/* Customer (randomly) decides whether she wants to file application */
+	/* 	or take picture first. */
+	/* TODO: Random syscall. */
+	applicationFirst = 1;
+	if (applicationFirst < 50)
 	{
-		/* Go to Application Clerk */
-		clerkID = DecideClerk(ssn, APPLICATION);
-		DecideLine(ssn, clerkID, APPLICATION);
-		CustomerInteraction(ssn, clerkID, APPLICATION);
-		
-		/* Go to Picture Clerk */
-		clerkID = DecideClerk(ssn, PICTURE);
-		DecideLine(ssn, clerkID, PICTURE);
-		CustomerInteraction(ssn, clerkID, PICTURE);
-	}
-	else
-	{
-		/* Go to Picture Clerk */
-		clerkID = DecideClerk(ssn, PICTURE);
-		DecideLine(ssn, clerkID, PICTURE);
-		CustomerInteraction(ssn, clerkID, PICTURE);
-		
-		/* Go to Application Clerk */
-		clerkID = DecideClerk(ssn, APPLICATION);
-		DecideLine(ssn, clerkID, APPLICATION);
-		CustomerInteraction(ssn, clerkID, APPLICATION);
+		/* Go to PictureClerk first, instead. */
+		passportSequence[0] = PICTURE;
+		passportSequence[1] = APPLICATION;
 	}
 
-	/* Go to Passport Clerk */
-	clerkID = DecideClerk(ssn, PASSPORT);
-	DecideLine(ssn, clerkID, PASSPORT);
-	CustomerInteraction(ssn, clerkID, PASSPORT);
+	for (clerkType = passportSequence[0]; clerkType <= CASHIER; clerkType++)
+	{
+		clerkID = DecideClerk(ssn, clerkType);
+		DecideLine(ssn, clerkID, clerkType);
+		CustomerInteraction(ssn, clerkID, clerkType);
+	}
 
-	/* Go to Cashier */
-	clerkID = DecideClerk(ssn, CASHIER);
-	DecideLine(ssn, clerkID, CASHIER);
-	CustomerInteraction(ssn, clerkID, CASHIER);
+	Leave();
 }
 
 /* ========================================================================================================================================= */
@@ -2041,6 +2052,20 @@ int ManageClerk (enum persontype clerkType)
 	return groupMoney;
 }
 
+void WakeUpAllClerks ()
+{
+	int lineLock;
+	enum persontype clerkType;
+	int clerkID;
+
+	for (clerkType = APPLICATION; clerkType <= CASHIER; clerkType++)
+	{
+		lineLock = clerkGroups[clerkType].lineLock;
+		AcquireLock(lineLock);
+		Broadcast(clerkGroups[clerkType].breakCVs[clerkID], lineLock);
+	}
+}
+
 void Manager ()
 {
 	int previousTotal;
@@ -2074,7 +2099,13 @@ void Manager ()
 		Yield();
 	} while (numCustomersFinished < (numCustomers + numSenators));
 
-	/* TODO: Need to wake up sleeping threads so they can Exit themselves. */
+	/* Wake all sleeping threads so they can Exit themselves. */
+	WakeUpAllClerks();
+
+	/* Once all clerks have left passport office, let simulation know it can terminate. */
+	AcquireLock(clerksFinishedLock);
+	Wait(allClerksFinishedCV, clerksFinishedLock);
+	Signal(allAgentsFinishedCV, clerksFinishedLock);
 
 	Exit(0);
 }
@@ -2096,7 +2127,11 @@ void InitializeData ()
 	InitializeManager();
 	InitializeSystemJobs();
 
+	/* PassportOffice Simulation Data */
 	paramLock = CreateLock("ParamLock", sizeof("ParamLock"));
+	customersFinishedLock = CreateLock("CustomersFinishedLock"), sizeof("CustomersFinishedLock"));
+	clerksFinishedLock = CreateLock("ClerksFinishedLock", sizeof("ClerksFinishedLock"));
+	allAgentsFinishedCV = CreateCV("AllAgentsFinishedCV", sizeof("AllAgentsFinishedCV"));
 }
 
 void ForkAgents ()
@@ -2124,6 +2159,7 @@ void CleanUpData ()
 {
 	int clerkType;
 	int clerkNum;
+	int numClerks;
 
 	DestroyLock(senatorPresentLock);
 	DestroyCV(senatorPresentCV);
@@ -2133,12 +2169,14 @@ void CleanUpData ()
 	DestroyLock(filingPictureLock);
 	DestroyLock(certifyingPassportLock);
 
-	for (clerkType = 0; clerkType < 4; clerkType++)
+	for (clerkType = APPLICATION; clerkType <= CASHIER; clerkType++)
 	{
 		DestroyLock(clerkGroups[clerkType].lineLock);
 		DestroyLock(clerkGroups[clerkType].moneyLock);
 
-		for (clerkNum = 0; clerkNum < 5; clerkNum++)
+		numClerks = clerkGroups[clerkType].numClerks;
+
+		for (clerkNum = 0; clerkNum < numClerks; clerkNum++)
 		{
 			DestroyLock(clerkGroups[clerkType].clerkLocks[clerkNum]);
 			DestroyCV(clerkGroups[clerkType].lineCVs[clerkNum]);
@@ -2157,7 +2195,10 @@ int main ()
 	InitializeData();
 	ForkAgents();
 
-	while (num)
+	/* Wait for simulation to finish. = Wait for all Clerks/Customers to finish. */
+	AcquireLock(numClerksFinished);
+	Wait(allAgentsFinishedCV, numClerksFinished);
+	Yield(); /* Safety precaution in case Manager was context switched after signalling, but before it could Exit. */
 
 	/* Clean up the simulation. */ 
 	CleanUpData();
