@@ -127,8 +127,8 @@ struct Customer senators[10];
 
 int isSenatorPresent = 0; /* Used to determine whether or not customers should wait for senators to leave PPOffice */
 
-int senatorIndoorLock; /* Synchronizes isSenatorPresent */
-int senatorIndoorCV; /* Wait on this whenever a senator is inside PPOffice */
+int senatorPresentLock; /* Synchronizes isSenatorPresent */
+int senatorPresentCV; /* Wait on this whenever a senator is inside PPOffice */
 /* TODO: Is this necessary? */
 /*	int senatorOutdoorCV; */
 
@@ -156,8 +156,8 @@ void InitializeSenatorData ()
 		people[ssn].type = SENATOR;
 	}
 
-	senatorIndoorLock = CreateLock("senatorIndoorLock", sizeof("senatorIndoorLock"));
-	senatorIndoorCV = CreateCV("senatorIndoorCV", sizeof("senatorIndoorCV"));
+	senatorPresentLock = CreateLock("SenatorPresentLock", sizeof("SenatorPresentLock"));
+	senatorPresentCV = CreateCV("SenatorPresentCV", sizeof("SenatorPresentCV"));
 	/* TODO: Is senatorOutdoorCV necessary? */
 	/*	senatorOutdoorCV = CreateCV("SenatorOutdoorCV", 16); */
 }
@@ -1141,14 +1141,14 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 /*																																			 */
 /* ========================================================================================================================================= */
 
-void CheckIfsenatorIndoor (int ssn, int clerkID, enum persontype clerkType)
+void CheckIfSenatorPresent (int ssn, int clerkID, enum persontype clerkType)
 {
-	AcquireLock(senatorIndoorLock);
+	AcquireLock(senatorPresentLock);
 	if (isSenatorPresent && people[ssn].type != SENATOR)
 	{
 		WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
-		Wait(senatorIndoorCV, senatorIndoorLock); /* Wait for Senator to finish. */
-		ReleaseLock(senatorIndoorLock); /* Lock gets reacquired inside of Wait, release it and continue. */
+		Wait(senatorPresentCV, senatorPresentLock); /* Wait for Senator to finish. */
+		ReleaseLock(senatorPresentLock); /* Lock gets reacquired inside of Wait, release it and continue. */
 		
 		if (clerkID == -1)
 		{
@@ -1161,7 +1161,7 @@ void CheckIfsenatorIndoor (int ssn, int clerkID, enum persontype clerkType)
 	}
 	else
 	{
-		ReleaseLock(senatorIndoorLock); /* No Senator present or I am a Senator, continue with business. */
+		ReleaseLock(senatorPresentLock); /* No Senator present or I am a Senator, continue with business. */
 	}
 }
 
@@ -1256,7 +1256,7 @@ int DecideClerk (int ssn, enum persontype clerkType)
 	lineLock = clerkGroups[clerkType].lineLock;
 
 	/* If Senator is present, "go outside" instead of picking line. */
-	CheckIfsenatorIndoor(ssn, currentClerk, clerkType);	
+	CheckIfSenatorPresent(ssn, currentClerk, clerkType);	
 
 	AcquireLock(lineLock);
 	for (clerkID = 0; clerkID < numClerks; clerkID++)
@@ -1344,13 +1344,13 @@ void DecideLine (int ssn, int clerkID, enum persontype clerkType)
 				/*		  re-decide line. 												*/
 				BribeClerk(ssn, clerkID, clerkType);
 				WaitInLine(ssn, clerkID, clerkType, BRIBELINE);
-				CheckIfsenatorIndoor(ssn);
+				CheckIfSenatorPresent(ssn);
 			}
 			else
 			{ 
 				/* No other options. Get in regular line. */
 				WaitInLine(ssn, clerkID, clerkType, NORMALLINE);
-				CheckIfsenatorIndoor(ssn); /* 	Make sure no senators have entered since joining line. */
+				CheckIfSenatorPresent(ssn); /* 	Make sure no senators have entered since joining line. */
 			}
 		}
 	}
@@ -1497,10 +1497,10 @@ void Leave (int ssn)
 	if (people[ssn].type == SENATOR)
 	{
 		WriteOutput(Customer_LeavingPassportOffice, SENATOR, SENATOR, ssn, ssn);
-		AcquireLock(senatorIndoorLock);
+		AcquireLock(senatorPresentLock);
 		isSenatorPresent = false;
-		Broadcast(senatorIndoorCV, senatorIndoorLock);
-		ReleaseLock(senatorIndoorLock);
+		Broadcast(senatorPresentCV, senatorPresentLock);
+		ReleaseLock(senatorPresentLock);
 	}
 
 	else
@@ -1528,16 +1528,16 @@ void Customer ()
 	/* TODO: Random syscall. */
 	applicationFirst = 1;
 
-	AcquireLock(senatorIndoorLock);
+	AcquireLock(senatorPresentLock);
 	if (isSenatorPresent)
 	{
-		Wait(senatorIndoorCV, senatorIndoorLock);
+		Wait(senatorPresentCV, senatorPresentLock);
 	}
 	else if (customer.type == SENATOR)
 	{
 		isSenatorPresent = true;
 	}
-	ReleaseLock(senatorIndoorLock);
+	ReleaseLock(senatorPresentLock);
 
 	if (applicationFirst > 50)
 	{
@@ -1853,11 +1853,11 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 
 	AcquireLock(lineLock); /* Synchronize line checks (no customers can join while scanning lines). */
 	
-	AcquireLock(senatorIndoorLock); /* Synchronize senator present check */
+	AcquireLock(senatorPresentLock); /* Synchronize senator present check */
 	if (isSenatorPresent)
 	{
 		/* If senator is present, customers need to be woken up so they can "go outside." */
-		ReleaseLock(senatorIndoorLock); /* Done checking if senator is present. (Release ASAP for other clerks) */
+		ReleaseLock(senatorPresentLock); /* Done checking if senator is present. (Release ASAP for other clerks) */
 		
 		if (clerkGroups[clerkType].clerks[clerkID].lineLength > 0)
 		{
@@ -1878,7 +1878,7 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 			return DOINTERACTION;
 		}
 	}
-	ReleaseLock(senatorIndoorLock); /* Done checking if senator is present. */
+	ReleaseLock(senatorPresentLock); /* Done checking if senator is present. */
 
 	/* Next priority: Take care of customers trying to bribe me. */
 	if (clerkGroups[clerkType].clerks[clerkID].numCustomersBribing > 0)
@@ -2125,8 +2125,8 @@ void CleanUpData ()
 	int clerkType;
 	int clerkNum;
 
-	DestroyLock(senatorIndoorLock);
-	DestroyCV(senatorIndoorCV);
+	DestroyLock(senatorPresentLock);
+	DestroyCV(senatorPresentCV);
 
 	DestroyLock(systemJobFindLock);
 	DestroyLock(filingApplicationLock);
