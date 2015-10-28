@@ -114,13 +114,13 @@ WriteInt:
 	j	$31
 	.end WriteInt
 
-	.globl WriteError
-	.ent	WriteError
-WriteError:
-	addiu $2,$0,SC_WriteError
+	.globl PrintError
+	.ent	PrintError
+PrintError:
+	addiu $2,$0,SC_PrintError
 	syscall
 	j	$31
-	.end WriteError
+	.end PrintError
 
 	.globl Close
 	.ent	Close
@@ -227,21 +227,21 @@ Random:
 	j	$31
 	.end Random
 
-	.globl WriteOne
-	.ent	WriteOne
-WriteOne:
-	addiu $2,$0,SC_WriteOne
+	.globl PrintfOne
+	.ent	PrintfOne
+PrintfOne:
+	addiu $2,$0,SC_PrintfOne
 	syscall
 	j	$31
-	.end WriteOne
+	.end PrintfOne
 
-	.globl WriteTwo
-	.ent	WriteTwo
-WriteTwo:
-	addiu $2,$0,SC_WriteTwo
+	.globl PrintfTwo
+	.ent	PrintfTwo
+PrintfTwo:
+	addiu $2,$0,SC_PrintfTwo
 	syscall
 	j	$31
-	.end WriteTwo
+	.end PrintfTwo
 
 /* dummy function to keep gcc happy */
         .globl  __main
