@@ -22,6 +22,9 @@
 #define MaxOpenFiles 256
 #define MaxChildSpaces 256
 
+#include "translate.h"
+
+
 class AddrSpace {
   public:
     AddrSpace(OpenFile *executable);	// Create an address space,
@@ -42,9 +45,22 @@ class AddrSpace {
 
  private:
     TranslationEntry *pageTable;	// Assume linear page table translation
+    TLBTranslationEntry *pageTable; 
 					// for now!
     unsigned int numPages;		// Number of pages in the virtual 
 					// address space
 };
+
+//translation entry with process owner. might need to add more stuff to this class
+class TLBTranslationEntry: public TranslationEntry{
+    enum {SWAP, EXECUTABLE, MAINMEMORY} //SOMETHING ELSE update inside of handlers
+
+};
+
+
+/*
+inside addrspace constructor set enum to executable. change it inside of 
+handle memory full to swapfile. on an ipt miss set to main memory.
+*/
 
 #endif // ADDRSPACE_H

@@ -946,6 +946,7 @@ void Join_Syscall()
 }
 
 int handleMemoryFull(){
+  //update tlbtranslation
   //selecting a page to be evicted either FIFO or Random
   //how to determine if FIFO or random??? depending on the command line call
 
@@ -983,8 +984,9 @@ int handleIPTMiss( int neededVPN ) {
         //copy page from disk to memory, if needed
 }
 void handlePageFault(unsigned int vaddr){
+   
   //TLBLock->Acquire(); WE NEED A LOCK WHEN UPDATING THE PAGE TABLE STUFF. BUT NOT SURE AROUND EXACTLY WHAT
-  tlbCounter++;
+  tlbCounter++; //MOD THIS.
   int vpn = vaddr/PageSize;
   int ppn=-1;
 
@@ -998,11 +1000,11 @@ void handlePageFault(unsigned int vaddr){
         ppn = handleIPTMiss(vpn);
     }
     
-        ipt[ppn].use = false;
+        //ipt[ppn].use = false; ???? use is when program 
 
-        if (machine->tlb[tlbCounter].valid) {
-            ipt[machine->tlb[tlbCounter].physicalPage].dirty = machine->tlb[tlbCounter].dirty;
-        }
+        // if (machine->tlb[tlbCounter].valid) {
+        //     ipt[machine->tlb[tlbCounter].physicalPage].dirty = machine->tlb[tlbCounter].dirty;
+        // }
 
     /* INCREMENT THE TLB . search the ipt for the proper 
     physical page number, then put that page number inside the tlb*/
@@ -1011,7 +1013,6 @@ void handlePageFault(unsigned int vaddr){
     machine->tlb[tlbCounter].valid= ipt[ppn].valid;
     machine->tlb[tlbCounter].use= ipt[ppn].use;
     machine->tlb[tlbCounter].dirty= ipt[ppn].dirty;
-    machine->tlb[tlbCounter].readOnly= ipt[ppn].readOnly;
     //machine->tlb[tlbCounter].space= ipt[ppn].space;  ??????
     
 
