@@ -1280,6 +1280,8 @@ void Join_Syscall() {}
 //              (2) Do (b) for bad vaddr to update IPT
 //      (2) Do NOT update program counter (now that data loaded to 
 //          mem, process can execute instruction that threw Exception)
+//
+//  "which" -- type of Exception (Syscall, PageFault, etc.)
 //----------------------------------------------------------------------
 
 void ExceptionHandler(ExceptionType which) 
