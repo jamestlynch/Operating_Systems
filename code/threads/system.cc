@@ -44,6 +44,12 @@ Timer *timer;                   // the hardware timer device, for invoking conte
     Lock *conditionsLock;
     Lock *locksLock;
 #endif
+#ifdef USE_TLB
+    IPT * ipt;
+    //array of that many IPT objects. dont use *. dont give a size. unnecessary. static size. never changes.
+    int tlbCounter;
+    Lock *TLBLock;
+#endif
 
 #ifdef NETWORK
     PostOffice *postOffice;
@@ -179,6 +185,12 @@ Initialize(int argc, char **argv)
 
     memBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes 
 
+
+#endif
+#ifdef USE_TLB
+    TLBLock= new Lock("TLBLock");
+    ipt= new IPT[NumPhysPages];
+    tlbCounter=-1;
 #endif
 
 #ifdef FILESYS

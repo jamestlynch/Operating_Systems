@@ -23,8 +23,3 @@ int main(){
     Write("Test 2 start\n", sizeof("Test 2 start\n"), 1);
     Fork("thread1", 7, t2_t1);
 }
-/***
-
-FAILS FOR ACQUIRING A LOCK THAT IS OUT OF BOUNDS I.e really high number. ADD 
-
-**/

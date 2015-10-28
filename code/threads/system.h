@@ -67,6 +67,16 @@ class Machine;
     	int numExecutingThreads;
     	int processID;
     };
+    class IPT {
+      public:
+        int virtualPage;
+        int physicalPage;
+        bool valid;
+        bool use;
+        bool dirty;
+        bool readOnly;
+        AddrSpace * space;
+};
     //has all the threads
     //destroy locks/cvs associated w the process
 
@@ -76,12 +86,27 @@ class Machine;
 	extern vector<KernelCV*> conditions;
 	extern vector<Process*> processInfo;
 
+
 	//create locks around these tables so only one program can access at a time
 	#include "synch.h"
     extern Lock *memLock;
 	extern Lock *processLock; //lock on process table
 	extern Lock *conditionsLock;	//lock on cv table
 	extern Lock *locksLock;	//lock on lock table
+    extern IPT *ipt;
+    
+    extern Lock *TLBLock;
+    extern int tlbCounter;
+    
+    
+
+#endif
+
+#ifdef USE_TLB
+
+//where to define the IPT struct??
+
+    
 
 #endif
 
@@ -89,7 +114,6 @@ class Machine;
 
 	#include "filesys.h"
 	extern FileSystem *fileSystem;
-
 #endif
 
 #ifdef FILESYS

@@ -9,7 +9,7 @@ void t7_t1() {
 	test = AcquireLock(lock); 		/*ACQUIRES LOCK*/
 	Wait(lock, cv);					/*WILL WAIT ON CV UNTIL BROADCAST IS CALLED IN T3*/
 	test = ReleaseLock(lock);
-	Write("", sizeof(), 1);
+	Write("release\n", sizeof("release\n"), 1);
 	Exit(0);
 }
 void t7_t2() {

@@ -35,7 +35,7 @@ int copyin(unsigned int vaddr, int len, char *buf)
     // Return the number of bytes so read, or -1 if an error occors.
     // Errors can generally mean a bad virtual address was passed in.
     bool result;
-    int n = 0;      // The number of bytes copied in
+    int n = 0;      // The number of byts copied in
     int *paddr = new int;
 
     while ( n >= 0 && n < len) 
@@ -945,6 +945,78 @@ void Join_Syscall()
 {
 }
 
+int handleMemoryFull(){
+  //selecting a page to be evicted either FIFO or Random
+  //how to determine if FIFO or random??? depending on the command line call
+
+  /*EVICT! part 4. find a place in swap 
+  file to copy it to, update page 
+  table for what we evict,
+  */
+  //RANDOM= call rand() function, make between 1 and 31. evict the page at the rand value.
+
+  //IF RANDOM EVICTION, USE RAND. DEFAULT IS RAND
+  //nachos -P FIFO
+  //nachos -P RAND argv[0]==rand??
+
+ 
+    //if valid, propogate dirty bit to tlb. if dirty bit, to swapfile.
+    int pageEvicted= rand() % NumPhysPages;
+  
+  //evict page to make a hole to load in the page that i need
+  //since i got an IPT miss. replace that page with the needed page
+  int ppn = pageEvicted;
+  return ppn;
+
+  //work to evict page is immaterial of the page you pick
+  //IF FIFO
+  // writing to the swap file
+}
+int handleIPTMiss( int neededVPN ) {
+        int ppn = memBitMap->Find();  //Find a physical page of memory
+        if ( ppn == -1 ) {
+            ppn = handleMemoryFull();
+        }
+
+        return ppn;
+        //read values from page table as to location of needed virtual page
+        //copy page from disk to memory, if needed
+}
+void handlePageFault(unsigned int vaddr){
+  //TLBLock->Acquire(); WE NEED A LOCK WHEN UPDATING THE PAGE TABLE STUFF. BUT NOT SURE AROUND EXACTLY WHAT
+  tlbCounter++;
+  int vpn = vaddr/PageSize;
+  int ppn=-1;
+
+  for (int i=0; i < NumPhysPages; i++) {
+      if (ipt[i].valid && ipt[i].virtualPage == vpn && ipt[i].space == currentThread->space) {
+        ppn = i;
+        break;
+      }
+  }
+    if (ppn == -1) {
+        ppn = handleIPTMiss(vpn);
+    }
+    
+        ipt[ppn].use = false;
+
+        if (machine->tlb[tlbCounter].valid) {
+            ipt[machine->tlb[tlbCounter].physicalPage].dirty = machine->tlb[tlbCounter].dirty;
+        }
+
+    /* INCREMENT THE TLB . search the ipt for the proper 
+    physical page number, then put that page number inside the tlb*/
+    machine->tlb[tlbCounter].virtualPage= ipt[ppn].virtualPage;
+    machine->tlb[tlbCounter].physicalPage= ipt[ppn].physicalPage;
+    machine->tlb[tlbCounter].valid= ipt[ppn].valid;
+    machine->tlb[tlbCounter].use= ipt[ppn].use;
+    machine->tlb[tlbCounter].dirty= ipt[ppn].dirty;
+    machine->tlb[tlbCounter].readOnly= ipt[ppn].readOnly;
+    //machine->tlb[tlbCounter].space= ipt[ppn].space;  ??????
+    
+
+    //TLBLock->Release(); ????
+}
 void ExceptionHandler(ExceptionType which) 
 {
   int type = machine->ReadRegister(2); // Which syscall?
@@ -1088,7 +1160,11 @@ void ExceptionHandler(ExceptionType which)
     machine->WriteRegister(PCReg, machine->ReadRegister(NextPCReg));
     machine->WriteRegister(NextPCReg, machine->ReadRegister(PCReg) + 4);
     return;
-  } 
+  }
+  else if ( which == PageFaultException ) {
+    handlePageFault(machine->ReadRegister(39));
+    return;
+  }
   else 
   {
     cout<<"Unexpected user mode exception - which:"<<which<<"  type:"<< type<<endl;
