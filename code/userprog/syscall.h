@@ -119,14 +119,16 @@ void Write(char *buffer, int size, OpenFileId id);
 /* Write integer to the console */
 void WriteInt(int integer);
 
-int WriteOne(unsigned int vaddr, int size, int num1);
-int WriteTwo(unsigned int vaddr, int size, int num1, int num2);
+int WriteOne(char* buffer, int size, int num1);
+
+int WriteTwo(char* buffer, int size, int num1, int num2);
 
 /* Write error to the console */
 void WriteError(char *buffer, int size);
 
 /*generates random number*/
 int Random(int lower, int upper);
+
 /* Read "size" bytes from the open file into "buffer".  
  * Return the number of bytes actually read -- if the open file isn't
  * long enough, or if it is an I/O device, and there aren't enough 
@@ -165,17 +167,21 @@ void Yield();
 
 int CreateCV(char *name, int size);
 
-int Wait(unsigned int indexcv, unsigned int indexlock);
+int Wait(int indexcv, int indexlock);
 
-int Signal(unsigned int indexcv, unsigned int indexlock);
+int Signal(int indexcv, int indexlock);
 
-int Broadcast(unsigned int indexcv, unsigned int indexlock);	
+int Broadcast(int indexcv, int indexlock);	
 
-int DestroyCV(unsigned int indexcv);
+int DestroyCV(int indexcv);
 
 int CreateLock(char *name, int size);
 
-int ReleaseLock(int index);
+int AcquireLock(int indexlock);
+
+int ReleaseLock(int indexlock);
+
+int DestroyLock(int indexlock);
 
 #endif /* IN_ASM */
 
