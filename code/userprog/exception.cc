@@ -321,14 +321,14 @@ void Close_Syscall(int fd) {
 }
 
 //----------------------------------------------------------------------
-// WriteError_Syscall
+// PrintError_Syscall
 //  Helper Method for printing red output to console while debugging.
 //----------------------------------------------------------------------
 
 #define RED               "\x1b[31m"
 #define ANSI_COLOR_RESET  "\x1b[0m"
 
-void WriteError_Syscall(unsigned int vaddr, int len)
+void PrintError_Syscall(unsigned int vaddr, int len)
 {
     printf(RED);
     Write_Syscall(vaddr, len, ConsoleOutput);
@@ -351,7 +351,7 @@ void PrintfOne_Syscall(unsigned int vaddr, int len, int num1)
     if (len < 0) 
     {
         printf("%s","Length for lock's identifier name must be nonzero and positive\n");
-        return -1;
+        return;
     }
 
     char *buf = new char[len + 1]; // Kernel buffer to copy file name into
@@ -385,13 +385,13 @@ void PrintfOne_Syscall(unsigned int vaddr, int len, int num1)
 //  "num2" -- the second integer to be output inside the string.
 //----------------------------------------------------------------------
 
-int PrintfTwo_Syscall(unsigned int vaddr, int len, int num1, int num2)
+void PrintfTwo_Syscall(unsigned int vaddr, int len, int num1, int num2)
 {
     // Validate length is nonzero and positive
     if (len < 0) 
     {
         printf("%s","Length for lock's identifier name must be nonzero and positive\n");
-        return -1;
+        return;
     }
 
     char *buf = new char[len + 1]; // Kernel buffer to copy file name into
@@ -651,7 +651,9 @@ int DestroyLock_Syscall(int indexlock)
 
     locksLock->Acquire();
 
-    if (curKernelLock->lock->sleepqueue->IsEmpty() && !curKernelLock->lock->state)
+    KernelLock * currentKernelLock = locks.at(indexlock);
+
+    if (currentKernelLock->lock->sleepqueue->IsEmpty() && !currentKernelLock->lock->state)
     {
         deletelock(indexlock);
         locksLock->Release();
@@ -660,7 +662,7 @@ int DestroyLock_Syscall(int indexlock)
 
     // Threads are waiting to Acquire; Let them use lock then Delete on last Release.
     printf("Lock %d toDelete is set to true. Cannot be deleted because sleepqueue is not empty.\n", indexlock);
-    curKernelLock->toDelete = true;
+    currentKernelLock->toDelete = true;
     locksLock->Release();
     return -1;
 }
@@ -931,16 +933,43 @@ int Broadcast_Syscall(int indexcv, int indexlock)
 
 int DestroyCV_Syscall(int indexcv)
 {
-     // Lock/CV indeces: (1) valid location, (2) defined, (3) belongs to currentThread's process
-    if (validatecvindeces(indexcv, indexlock) == -1)
+    conditionsLock->Acquire();
+
+    // Lock/CV indeces: (1) valid location, (2) defined, (3) belongs to currentThread's process
+    if (indexcv < 0) 
     {
+        printf("%s","Invalid index for destroy\n");
+        conditionsLock->Release();
         return -1;
     }
 
-    conditionsLock->Acquire();
+    int size = conditions.size();
+
+    if (indexcv > size - 1) 
+    {
+        printf("%s","index out of bounds for destroy\n");
+        conditionsLock->Release();
+        return -1;
+    }
+
+    KernelCV * currentKernelCV = conditions.at(indexcv);
+
+    if (!currentKernelCV || !currentKernelCV->condition)
+    {
+        printf("Condition struct or condition var of index %d is null and can't be destroyed.\n", indexcv);
+        conditionsLock->Release();
+        return -1;
+    }
+
+    if (currentKernelCV->space != currentThread->space) 
+    {
+        printf("Condition of index %d does not belong to the current process\n", indexcv);
+        conditionsLock->Release();
+        return -1;
+    }
 
     // No waiting threads when Destroy called, delete
-    if (curKernelCV->condition->waitqueue->IsEmpty())
+    if (currentKernelCV->condition->waitqueue->IsEmpty())
     {
         deletecondition(indexcv);
         conditionsLock->Release();
@@ -949,7 +978,7 @@ int DestroyCV_Syscall(int indexcv)
 
     // Mark for later deletion by (1) last thread to Signal or (2) any thread to Broadcast
     printf("Condition %d toDelete set to true. Cannot be deleted since waitqueue is not empty.\n", indexcv);
-    curKernelCV->toDelete = true;
+    currentKernelCV->toDelete = true;
     conditionsLock->Release();
     return -1;
 }
@@ -1111,7 +1140,7 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
     {
         printf("%s","Length for thread's identifier name must be nonzero and positive\n");
         processLock->Release();
-        return -1;
+        return;
     }
 
     char * buf = new char[len + 1];
@@ -1121,7 +1150,7 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
     {
         printf("%s","Error allocating kernel buffer for creating new thread!\n");
         processLock->Release();
-        return -1;
+        return;
     }
 
     // Translation failed; else string copied into buf (!= -1)
@@ -1130,7 +1159,7 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
         printf("%s","Bad pointer passed to create new thread\n");
         processLock->Release();
         delete[] buf;
-        return -1;
+        return;
     }
 
     buf[len] = '\0'; // Add null terminating character to thread name
@@ -1186,7 +1215,7 @@ void Exec_Syscall(int vaddr, int len)
     {
         printf("%s","Length for thread's identifier name must be nonzero and positive\n");
         processLock->Release();
-        return -1;
+        return;
     }
 
     char * buf = new char[len + 1];
@@ -1196,7 +1225,7 @@ void Exec_Syscall(int vaddr, int len)
     {
         printf("%s","Error allocating kernel buffer for creating new thread!\n");
         processLock->Release();
-        return -1;
+        return;
     }
 
     // Translation failed; else string copied into buf (!= -1)
@@ -1205,7 +1234,7 @@ void Exec_Syscall(int vaddr, int len)
         printf("%s","Bad pointer passed to create new thread\n");
         processLock->Release();
         delete[] buf;
-        return -1;
+        return;
     }
 
     buf[len] = '\0'; // Add null terminating character to thread name
@@ -1282,6 +1311,13 @@ void Join_Syscall() {}
 //          mem, process can execute instruction that threw Exception)
 //
 //  "which" -- type of Exception (Syscall, PageFault, etc.)
+//
+//  See also:   syscall.h       System Call Codes and Interfaces
+//              start.s         Assembly language assists for user 
+//                              programs to call system calls
+//              mipssum.cc      Raises SyscallExceptions while executing
+//              translate.cc    Raises PageFaultException during 
+//                              failed translations
 //----------------------------------------------------------------------
 
 void ExceptionHandler(ExceptionType which) 
@@ -1333,16 +1369,6 @@ void ExceptionHandler(ExceptionType which)
             case SC_Write:
             DEBUG('a', "Write syscall.\n");
             Write_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
-            break;
-
-            case SC_WriteInt:
-            DEBUG('a', "WriteInt syscall.\n");
-            WriteInt_Syscall(machine->ReadRegister(4));
-            break;
-
-            case SC_WriteError:
-            DEBUG('a', "WriteInt syscall.\n");
-            WriteError_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
             break;
 
             case SC_Close:
@@ -1405,19 +1431,24 @@ void ExceptionHandler(ExceptionType which)
             rv = DestroyCV_Syscall(machine->ReadRegister(4));
             break;
 
-            case SC_Random:
-            DEBUG('a', "Random syscall.\n");
-            rv = Random_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
-            break;
-
             case SC_PrintfOne:
             DEBUG('a', "Write one.\n");
-            rv = PrintfOne_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
+            PrintfOne_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
             break;
 
             case SC_PrintfTwo:
             DEBUG('a', "Write two.\n");
-            rv = PrintfTwo_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6), machine->ReadRegister(7));
+            PrintfTwo_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6), machine->ReadRegister(7));
+            break;
+
+            case SC_PrintError:
+            DEBUG('a', "WriteInt syscall.\n");
+            PrintError_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
+            break;
+
+            case SC_Random:
+            DEBUG('a', "Random syscall.\n");
+            rv = Random_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
             break;
         }
 
