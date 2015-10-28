@@ -46,9 +46,8 @@ Timer *timer;                   // the hardware timer device, for invoking conte
 #endif
 #ifdef USE_TLB
     IPT * ipt;
-    //array of that many IPT objects. dont use *. dont give a size. unnecessary. static size. never changes.
     int tlbCounter;
-    Lock *TLBLock;
+    Lock *TLBLock; //not sure where to put lock around.
 #endif
 
 #ifdef NETWORK
