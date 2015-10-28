@@ -26,6 +26,7 @@ typedef enum { false = 0, true = 1 } bool;
 /*			creating the thread with the proper data when it resumes. 		*/
 int threadParam;
 int paramLock;
+int paramCV;
 
 /******************************************/
 /* 		  PPOffice Simulation Data   	  */
@@ -58,12 +59,12 @@ int allAgentsFinishedCV;
 /* 		  	    Person Data 			  */
 /******************************************/
 
-enum persontype { APPLICATION, PICTURE, PASSPORT, CASHIER, CUSTOMER, SENATOR, MANAGER };
+typedef enum { APPLICATION, PICTURE, PASSPORT, CASHIER, CUSTOMER, SENATOR, MANAGER } persontype;
 
 struct Person {
 	int id;
 	int money;
-	enum persontype type;
+	persontype type;
 };
 
 struct Person people[81]; /* numCustomers + numSenators + numAppClerks + numPicClerks + numPassportClerks + numCashiers + numManagers */
@@ -72,7 +73,7 @@ struct Person people[81]; /* numCustomers + numSenators + numAppClerks + numPicC
 /* 		  	   Customer Data 			  */
 /******************************************/
 
-struct Customer {
+typedef struct Customer {
 	bool turnedInApplication;
 	bool acceptedPassport;
 	bool gotPassport;
@@ -80,10 +81,15 @@ struct Customer {
 	bool pictureFiled;
 	bool passportCertified;
 	bool passportRecorded;
-};
+} Customer;
 
 int moneyOptions[4] = {100, 600, 1100, 1600};
 
+int numCustomers = 50;
+Customer customers[60]; /* Same info for customers/senators: SIZE = numCustomers + numSenators */
+
+
+/* Randomly select either $100, $600, $1100, or $1600. */
 int InitialMoney()
 {
 	int moneyIndex;
@@ -95,10 +101,9 @@ int InitialMoney()
 	return moneyOptions[moneyIndex];
 }
 
-
-int numCustomers = 50;
-struct Customer customers[60]; /* Same info for customers/senators: SIZE = numCustomers + numSenators */
-
+/* Initialize data for number of customers in the simulation. Also add 	*/
+/*	to the people collection so all we need to know is their ssn to 	*/
+/*	find out more info about them (SENATOR or not, etc.) 				*/
 void InitializeCustomerData ()
 {
 	int ssn;
@@ -126,7 +131,6 @@ void InitializeCustomerData ()
 /******************************************/
 
 int numSenators = 10;
-struct Customer senators[10];
 /* Senators are stored inside of customers array. See above. */
 
 int isSenatorPresent = 0; /* Used to determine whether or not customers should wait for senators to leave PPOffice */
@@ -136,6 +140,10 @@ int senatorPresentCV; /* Wait on this whenever a senator is inside PPOffice */
 /* TODO: Is this necessary? */
 /*	int senatorOutdoorCV; */
 
+/* Initialize data for number of senators in the simulation. Add		*/
+/*	senator to people collection so all we need to know is their ssn to */
+/*	find out more info about them (SENATOR or not, etc.). Also create 	*/
+/*	the locks and CVs so any agent can check if a senator is present. 	*/
 void InitializeSenatorData ()
 {
 	int ssn;
@@ -170,12 +178,12 @@ void InitializeSenatorData ()
 /* 			    Clerk Data 				  */
 /******************************************/
 
-enum clerkstate { AVAILABLE, BUSY, ONBREAK };
-enum clerkinteraction { DOINTERACTION, TAKEBREAK, ACCEPTBRIBE };
-enum linetype { NORMALLINE, BRIBELINE, SENATORLINE };
+typedef enum { AVAILABLE, BUSY, ONBREAK } clerkstate;
+typedef enum { DOINTERACTION, TAKEBREAK, ACCEPTBRIBE } clerkinteraction;
+typedef enum { NORMALLINE, BRIBELINE, SENATORLINE } linetype;
 
-struct Clerk {
-	enum clerkstate state;
+typedef struct Clerk {
+	clerkstate state;
 	int currentCustomer;
 	int money;
 
@@ -187,15 +195,15 @@ struct Clerk {
 	bool customerLikedPhoto;
 	bool customerAppReadyToCertify;
 	bool customerAppReadyForPayment;
-};
+} Clerk;
 
 int numAppClerks = 5;
 int numPicClerks = 5;
 int numPassportClerks = 5;
 int numCashiers = 5;
 
-struct ClerkGroup {
-	struct Clerk clerks[5];
+typedef struct ClerkGroup {
+	Clerk clerks[5];
 	int numClerks;
 
 	int moneyLock;
@@ -210,11 +218,15 @@ struct ClerkGroup {
 	int workCVs[5];
 	int bribeCVs[5];
 	int breakCVs[5];
-};
+} ClerkGroup;
 
-struct ClerkGroup clerkGroups[4];
+ClerkGroup clerkGroups[4];
 
-void InitializeClerkData (int numClerks, enum persontype clerkType)
+/* Initialize data for a single type of clerk. Add to the people array	*/
+/* 	so that we can figure out all other info about clerk from ssn 		*/
+/*	(their type tells us which clerkGroup to look inside, their clerkID */
+/*	tells us which clerk they are inside that group). 					*/
+void InitializeClerkData (int numClerks, persontype clerkType)
 {
 	int clerkID;
 	int ssn;
@@ -245,9 +257,13 @@ void InitializeClerkData (int numClerks, enum persontype clerkType)
 	}
 }
 
+/* Initialize data for a group of clerks: APPLICATION. Needed to create */
+/*	a method for initializing each type of clerk group because we were  */
+/*  unable to create arrays of strings / the name creation is the bulk  */
+/*  of the work for initilizing a clerk group.							*/
 void InitializeApplicationClerkData ()
 {
-	enum persontype clerkType = APPLICATION;
+	persontype clerkType = APPLICATION;
 
 	InitializeClerkData(numAppClerks, clerkType);
 
@@ -301,9 +317,13 @@ void InitializeApplicationClerkData ()
 	clerkGroups[clerkType].breakCVs[4] = CreateCV("App:4-BreakCV", 13);
 }
 
+/* Initialize data for a group of clerks: PICTURE. Needed to create a	*/
+/*	method for initializing each type of clerk group because we were 	*/
+/*  unable to create arrays of strings / the name creation is the bulk  */
+/*  of the work for initilizing a clerk group.							*/
 void InitializePictureClerkData ()
 {
-	enum persontype clerkType = PICTURE;
+	persontype clerkType = PICTURE;
 
 	InitializeClerkData(numPicClerks, clerkType);
 
@@ -357,9 +377,13 @@ void InitializePictureClerkData ()
 	clerkGroups[clerkType].breakCVs[4] = CreateCV("Pic:4-BreakCV", 13);
 }
 
+/* Initialize data for a group of clerks: PASSPORT. Needed to create a	*/
+/*	method for initializing each type of clerk group because we were 	*/
+/*  unable to create arrays of strings / the name creation is the bulk  */
+/*  of the work for initilizing a clerk group.							*/
 void InitializePassportClerkData ()
 {
-	enum persontype clerkType = PASSPORT;
+	persontype clerkType = PASSPORT;
 
 	InitializeClerkData(numPassportClerks, clerkType);
 
@@ -413,9 +437,13 @@ void InitializePassportClerkData ()
 	clerkGroups[clerkType].breakCVs[4] = CreateCV("Pas:4-BreakCV", 13);
 }
 
+/* Initialize data for a group of clerks: CASHIER. Needed to create a	*/
+/*	method for initializing each type of clerk group because we were 	*/
+/*  unable to create arrays of strings / the name creation is the bulk  */
+/*  of the work for initilizing a clerk group.							*/
 void InitializeCashierData ()
 {
-	enum persontype clerkType = CASHIER;
+	persontype clerkType = CASHIER;
 
 	InitializeClerkData(numCashiers, clerkType);
 
@@ -473,16 +501,17 @@ void InitializeCashierData ()
 /* 			   Manager Data 			  */
 /******************************************/
 
-struct Manager {
+typedef struct Manager {
 	int appclerkMoney;
 	int picclerkMoney;
 	int passportclerkMoney;
 	int cashierMoney;
 	int totalMoney;
-};
+} Manager;
 
-struct Manager manager;
+Manager manager;
 
+/* Initizes a single Manager's data. We only need one Manager. */
 void InitializeManager ()
 {
 	int ssn;
@@ -504,20 +533,22 @@ void InitializeManager ()
 /* 			 System Job Data 			  */
 /******************************************/
 
-struct SystemJob {
+typedef struct SystemJob {
 	int ssn;
 	int clerkID;
-	enum persontype type;
-};
+	persontype type;
+} SystemJob;
 
 int numSystemJobs = 50;
-struct SystemJob jobs[50];
+SystemJob jobs[50];
 
 int systemJobFindLock; /* Used to synchronize search for available system jobs */
 int filingPictureLock;
 int filingApplicationLock;
 int certifyingPassportLock;
 
+/* Initializes a collection of SystemJobs and the Locks synchronizing 	*/
+/*	the data entries that they must update. 							*/
 void InitializeSystemJobs ()
 {
 	int jobID;
@@ -541,7 +572,7 @@ void InitializeSystemJobs ()
 /*																																			 */
 /* ========================================================================================================================================= */
 
-enum outputstatement { 
+typedef enum { 
 	Clerk_SignalledCustomer, Clerk_ReceivedSSN, Clerk_SystemJobComplete,
 	Clerk_ReceivedBribe, Clerk_GoingOnBreak, Clerk_ComingOffBreak,
 	Clerk_TookPicture, Clerk_ToldByCustomerDoesNotLikePicture, Clerk_ToldByCustomerDoesLikePicture,
@@ -554,9 +585,21 @@ enum outputstatement {
 	Customer_GotInRegularLine, Customer_GotInBribeLine, Customer_GaveSSN,
 	Customer_DoesNotLikePicture, Customer_DoesLikePicture, Customer_WentTooSoon,
 	Customer_PaidForPassport, Customer_GoingOutsideForSenator, Customer_LeavingPassportOffice,
-};
+} outputstatement;
 
-void WriteOutput (enum outputstatement statement, enum persontype clerkType, enum persontype customerType, int ssn, int clerkID)
+/* Writes the necessary system output for the PassportOffice simulation */
+/* 	to the console. Since we are unable to pass pointers around, this 	*/
+/*	method allows us to duplicate code for Clerks/Customers while still */
+/*	calling the appropriate output by passing in their persontype and 	*/
+/*	the persontype of who they are interacting with.					*/
+/* Params: 	statement – which output statement or type of output 		*/
+/*			  statement do we need to output. Maps to output string. 	*/
+/*			clerkType - the type of the clerk interacting				*/
+/*			customerType - whether SENATOR or normal CUSTOMER 			*/
+/*			ssn - (also money) the ssn of the calling agent (if needed;	*/
+/*			  may also pass in -1 if not)								*/
+/*			clerkID - the identifier of the clerk (if not needed, -1)	*/
+void WriteOutput (outputstatement statement, persontype clerkType, persontype customerType, int ssn, int clerkID)
 {
 	int money; /* Only Manager print statements need money */
 
@@ -1143,7 +1186,14 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 /*																																			 */
 /* ========================================================================================================================================= */
 
-void Leave (int ssn, enum persontype type)
+/* Leave the Passport Office. Customers and Senators update the counter */
+/*	of number of customers that have finished, which Clerks depend on   */
+/*	in order to leave the PassportOffice. When all clerks have left the */
+/*	Passport Office, the last clerk signals to the Manager so he can    */
+/*	end the simulation. 												*/
+/* Params: 	ssn - used for output 					 					*/
+/*			type - used to decide which type of agent is finishing	 	*/
+void Leave (int ssn, persontype type)
 {
 	switch (type)
 	{
@@ -1166,7 +1216,7 @@ void Leave (int ssn, enum persontype type)
 		case CASHIER:
 			AcquireLock(clerksFinishedLock);
 			numClerksFinished++;
-			if (numCustomersFinished == (numAppClerks + numPicClerks + numPassportClerks + numCashiers))
+			if (numClerksFinished == (numAppClerks + numPicClerks + numPassportClerks + numCashiers))
 			{
 				Signal(allAgentsFinishedCV, clerksFinishedLock);
 			}
@@ -1183,7 +1233,17 @@ void Leave (int ssn, enum persontype type)
 /*																																			 */
 /* ========================================================================================================================================= */
 
-void CheckIfSenatorPresent (int ssn, int clerkID, enum persontype clerkType)
+/* -------------------------------------------------------------------- */
+/* CheckIfSenatorPresent			
+/* Customers need to check if the Senator is present before starting an */
+/* 	interaction or getting in a line. If there is a clerk present, the  */
+/*	Customer needs to "go outside" by waiting. 							*/
+/* Params: 	ssn - used to check if thread is a Senator 					*/
+/*			clerkID - used to get back in the same line (-1 if haven't  */
+/*			  picked a line yet)										*/
+/*			clerkType - used to decide which clerk's line to get into 	*/
+/* -------------------------------------------------------------------- */
+void CheckIfSenatorPresent (int ssn, int clerkID, persontype clerkType)
 {
 	AcquireLock(senatorPresentLock);
 	if (isSenatorPresent && people[ssn].type != SENATOR)
@@ -1207,7 +1267,12 @@ void CheckIfSenatorPresent (int ssn, int clerkID, enum persontype clerkType)
 	}
 }
 
-void BribeClerk (int ssn, int clerkID, enum persontype clerkType)
+/* Whenever Customer has enough money, they bribe. Customer first lets  */
+/*	Clerk know she is trying to bribe, then does the interaction. 		*/
+/* Params: 	ssn - used to update Customer's money 						*/
+/*			clerkID - used to get locks and CVs for bribing 			*/
+/*			clerkType - used to get locks and CVs for bribing			*/
+void BribeClerk (int ssn, int clerkID, persontype clerkType)
 {
 	int lineLock;
 	int clerkLock;
@@ -1238,7 +1303,7 @@ void BribeClerk (int ssn, int clerkID, enum persontype clerkType)
 	AcquireLock(lineLock);
 }
 
-void WaitInLine (int ssn, int clerkID, enum persontype clerkType, enum linetype lineType)
+void WaitInLine (int ssn, int clerkID, persontype clerkType, linetype lineType)
 {
 	int lineLock;
 	int lineCV;
@@ -1281,7 +1346,7 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType, enum linetype 
 /* Params: 	customer's ssn 												*/
 /*			type of clerk line (0 = App, 1 = Pic, 2 = Pas, 3 = Csh) 	*/
 /* Return: 	clerkID for line customer picked 							*/
-int DecideClerk (int ssn, enum persontype clerkType)
+int DecideClerk (int ssn, persontype clerkType)
 {
 	int numClerks;
 	int lineLock;
@@ -1345,7 +1410,7 @@ int DecideClerk (int ssn, enum persontype clerkType)
 	return currentClerk;
 }
 
-void DecideLine (int ssn, int clerkID, enum persontype clerkType)
+void DecideLine (int ssn, int clerkID, persontype clerkType)
 {	
 	int lineLock;
 
@@ -1407,9 +1472,9 @@ void DecideLine (int ssn, int clerkID, enum persontype clerkType)
 /*																																			 */
 /* ========================================================================================================================================= */
 
-void GetBackInLine (int ssn, enum persontype clerkType);
+void GetBackInLine (int ssn, persontype clerkType);
 
-void MakePhotoDecision (int ssn, int clerkID, enum persontype clerkType)
+void MakePhotoDecision (int ssn, int clerkID, persontype clerkType)
 {
 	int clerkLock;
 	int workCV;
@@ -1458,7 +1523,7 @@ void PayForPassport (int ssn, int clerkID)
 	Wait(workCV, clerkLock);
 }
 
-void PunishTooSoon (int ssn, int clerkID, enum persontype clerkType)
+void PunishTooSoon (int ssn, int clerkID, persontype clerkType)
 {
 	int clerkLock;
 	int workCV;
@@ -1485,7 +1550,7 @@ void PunishTooSoon (int ssn, int clerkID, enum persontype clerkType)
 	GetBackInLine(ssn, clerkType);
 }
 
-void CustomerInteraction (int ssn, int clerkID, enum persontype clerkType)
+void CustomerInteraction (int ssn, int clerkID, persontype clerkType)
 {
 	int clerkLock;
 	int workCV;
@@ -1528,7 +1593,7 @@ void CustomerInteraction (int ssn, int clerkID, enum persontype clerkType)
 	ReleaseLock(clerkLock);
 }
 
-void GetBackInLine (int ssn, enum persontype clerkType)
+void GetBackInLine (int ssn, persontype clerkType)
 {
 	int clerkID;
 
@@ -1541,14 +1606,15 @@ void Customer ()
 {
 	int ssn;
 	int clerkID;
-	enum persontype clerkType;
+	persontype clerkType;
 
 	int applicationFirst;
-	enum persontype passportSequence = { APPLICATION, PICTURE, PASSPORT, CASHIER };
+	persontype passportSequence = { APPLICATION, PICTURE, PASSPORT, CASHIER };
 
 	/* Nachos fork does not allow parameters to be passed in to new threads. 	*/
-	/* 	AcquireLock(paramLock) called before forking. 							*/
+	AcquireLock(paramLock);
 	ssn = threadParam;
+	Signal(paramCV, paramLock);
 	ReleaseLock(paramLock);
 
 	/* Senator Checks. If a senator is present:									*/
@@ -1598,7 +1664,7 @@ void Customer ()
 /*	or accept another bribe after accepting this bribe. 				*/
 /* Params:	clerk's ID 													*/
 /*			type of clerk line (0 = App, 1 = Pic, 2 = Pas, 3 = Csh) 	*/
-void AcceptBribe (int clerkID, enum persontype clerkType)
+void AcceptBribe (int clerkID, persontype clerkType)
 {
 	int lineLock;
 	int moneyLock;
@@ -1629,7 +1695,7 @@ void AcceptBribe (int clerkID, enum persontype clerkType)
 	ReleaseLock(clerkLock); /* Done with clerk's work for bribe interaction. */
 }
 
-void TakeBreak (int clerkID, enum persontype clerkType) 
+void TakeBreak (int clerkID, persontype clerkType) 
 {
 	int lineLock;
 	int breakCV;
@@ -1642,7 +1708,7 @@ void TakeBreak (int clerkID, enum persontype clerkType)
 	WriteOutput(Clerk_ComingOffBreak, clerkType, clerkType, -1, clerkID);
 }
 
-int CreateSystemJob (int ssn, int clerkID, enum persontype clerkType)
+int CreateSystemJob (int ssn, int clerkID, persontype clerkType)
 {
 	int jobID;
 
@@ -1739,7 +1805,7 @@ void RunSystemJob ()
 	Exit(0);
 }
 
-void ClerkInteraction (int clerkID, enum persontype clerkType)
+void ClerkInteraction (int clerkID, persontype clerkType)
 {
 	int lineLock;
 	int clerkLock;
@@ -1848,7 +1914,7 @@ void ClerkInteraction (int clerkID, enum persontype clerkType)
 	ReleaseLock(clerkLock);
 }
 
-enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
+clerkinteraction DecideInteraction (int clerkID, persontype clerkType)
 {
 	int lineLock;
 	int lineCV;
@@ -1927,7 +1993,7 @@ void Clerk()
 {
 	int ssn;
 	struct Person clerk;
-	enum clerkinteraction interaction;
+	clerkinteraction interaction;
 
 	ssn = threadParam;
 	ReleaseLock(paramLock);
@@ -1966,7 +2032,7 @@ void Clerk()
 /*																																			 */
 /* ========================================================================================================================================= */
 
-int CollectMoney (enum persontype clerkType)
+int CollectMoney (persontype clerkType)
 {
 	int moneyLock;
 	int groupMoney;
@@ -1981,7 +2047,7 @@ int CollectMoney (enum persontype clerkType)
 	return groupMoney;
 }
 
-void TakeClerksOffBreak (enum persontype clerkType)
+void TakeClerksOffBreak (persontype clerkType)
 {
 	int clerkID;
 	int numClerks;
@@ -2033,7 +2099,7 @@ void TakeClerksOffBreak (enum persontype clerkType)
 	}
 }
 
-int ManageClerk (enum persontype clerkType)
+int ManageClerk (persontype clerkType)
 {
 	int lineLock;
 	int numClerks;
@@ -2055,7 +2121,7 @@ int ManageClerk (enum persontype clerkType)
 void WakeUpAllClerks ()
 {
 	int lineLock;
-	enum persontype clerkType;
+	persontype clerkType;
 	int clerkID;
 
 	for (clerkType = APPLICATION; clerkType <= CASHIER; clerkType++)
@@ -2143,6 +2209,8 @@ void ForkAgents ()
 		AcquireLock(paramLock);
 		threadParam = ssn;
 		Fork("CustomerThread", sizeof("CustomerThread"), Customer);
+		Wait(paramCV, paramLock);
+		ReleaseLock(paramLock);
 	}
 
 	for (; ssn < (numCustomers + numSenators) + (numAppClerks + numPicClerks + numPassportClerks + numCashiers); ssn++)
@@ -2150,6 +2218,8 @@ void ForkAgents ()
 		AcquireLock(paramLock);
 		threadParam = ssn;
 		Fork("ClerkThread", sizeof("ClerkThread"), Clerk);
+		Wait(paramCV, paramLock);
+		ReleaseLock(paramLock);
 	}
 
 	Fork("ManagerThread", sizeof("ManagerThread"), Manager);
