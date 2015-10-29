@@ -52,8 +52,13 @@ class AddrSpace {
 };
 
 //translation entry with process owner. might need to add more stuff to this class
-class TLBTranslationEntry: public TranslationEntry{
+class IPTEntry: public TranslationEntry{
+     //SOMETHING ELSE update inside of handlers
+    AddrSpace *space;
+};
+class PageTableEntry: public TranslationEntry{
     enum {SWAP, EXECUTABLE, MAINMEMORY} //SOMETHING ELSE update inside of handlers
+    int offSet;
 
 };
 
