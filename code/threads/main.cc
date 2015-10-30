@@ -117,22 +117,40 @@ main(int argc, char **argv)
 
 #endif 	//THREADS
 #ifdef USER_PROGRAM
-        if (!strcmp(*argv, "-x")) {        	// run a user program
-	    ASSERT(argc > 1);
+        // Run a user program
+        if (!strcmp(*argv, "-x")) 
+        {
+	    	ASSERT(argc > 1);
             StartProcess(*(argv + 1));
             argCount = 2;
-        } else if (!strcmp(*argv, "-c")) {      // test the console
-	    if (argc == 1)
-	        ConsoleTest(NULL, NULL);
-	    else {
-		ASSERT(argc > 2);
-	        ConsoleTest(*(argv + 1), *(argv + 2));
-	        argCount = 3;
-	    }
-	    interrupt->Halt();		// once we start the console, then 
+        }
+
+        // Test the console
+        else if (!strcmp(*argv, "-c"))
+        {
+	    	if (argc == 1)
+	        	ConsoleTest(NULL, NULL);
+	    	else
+	    	{
+				ASSERT(argc > 2);
+	        	ConsoleTest(*(argv + 1), *(argv + 2));
+	        	argCount = 3;
+	    	}
+	    	
+	    	interrupt->Halt();		// once we start the console, then 
 					// Nachos will loop forever waiting 
 					// for console input
-	}
+		}
+
+		// memoryEviction = EVICTFIFO;
+
+		// if (!strcmp(*argv, "-P"))
+		// {
+		// 	if (!strcmp(*(argv + 1), "RAND"))
+		// 	{
+		// 		memoryEviction = EVICTRAND;
+		// 	}
+		// }
 #endif // USER_PROGRAM
 #ifdef FILESYS
 	if (!strcmp(*argv, "-cp")) { 		// copy from UNIX to Nachos
