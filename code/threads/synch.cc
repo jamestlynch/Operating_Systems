@@ -24,31 +24,22 @@
 #include "copyright.h"
 #include "synch.h"
 #include "system.h"
-
-
 #include <stdio.h>
 
-#define RED     "\x1b[31m"
-#define GREEN   "\x1b[32m"
-#define YELLOW  "\x1b[33m"
-#define BLUE    "\x1b[34m"
-#define MAGENTA "\x1b[35m"
-#define CYAN    "\x1b[36m"
-#define ANSI_COLOR_RESET   "\x1b[0m"
-
-
-bool debuggingLocks = true;
-bool debuggingLockErrors = true;
-bool debuggingCVs = true;
-bool debuggingCVErrors = true;
-
+//========================================================================================================================================
+//
+// Semaphores
+//
+//  See also:   threadtest.cc   test suite for synchronization objects
+//
+//========================================================================================================================================
 
 //----------------------------------------------------------------------
 // Semaphore::Semaphore
 //  Initialize a semaphore, so that it can be used for synchronization.
 //
-//  "debugName" is an arbitrary name, useful for debugging.
-//  "initialValue" is the initial value of the semaphore.
+//  "debugName" -- an arbitrary name, useful for debugging.
+//  "initialValue" -- the initial value of the semaphore.
 //----------------------------------------------------------------------
 
 Semaphore::Semaphore(char* debugName, int initialValue)
@@ -60,8 +51,8 @@ Semaphore::Semaphore(char* debugName, int initialValue)
 
 //----------------------------------------------------------------------
 // Semaphore::Semaphore
-//  De-allocate semaphore, when no longer needed.  Assume no one
-//  is still waiting on the semaphore!
+//  De-allocate semaphore, when no longer needed. Assume no one is still 
+//  waiting on the semaphore!
 //----------------------------------------------------------------------
 
 Semaphore::~Semaphore()
@@ -75,239 +66,380 @@ Semaphore::~Semaphore()
 //  value and decrementing must be done atomically, so we
 //  need to disable interrupts before checking the value.
 //
-//  Note that Thread::Sleep assumes that interrupts are disabled
-//  when it is called.
+//  NOTE:   Thread::Sleep assumes that interrupts are disabled when it 
+//          is called.
 //----------------------------------------------------------------------
 
 void
 Semaphore::P()
 {
-    IntStatus oldLevel = interrupt->SetLevel(IntOff);   // disable interrupts
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     
-    while (value == 0) {            // semaphore not available
-    queue->Append((void *)currentThread);   // so go to sleep
-    currentThread->Sleep();
-    } 
-    value--;                    // semaphore available, 
-                        // consume its value
+    while (value == 0)
+    {
+        // Semaphore not available, so go to sleep
+        queue->Append((void *)currentThread);
+        currentThread->Sleep();
+    }
+
+    value--; // Semaphore available, consume its value
     
-    (void) interrupt->SetLevel(oldLevel);   // re-enable interrupts
+    (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 }
 
 //----------------------------------------------------------------------
 // Semaphore::V
-//  Increment semaphore value, waking up a waiter if necessary.
-//  As with P(), this operation must be atomic, so we need to disable
-//  interrupts.  Scheduler::ReadyToRun() assumes that threads
-//  are disabled when it is called.
+//  Increment semaphore value, waking up a waiter if necessary. As with 
+//  P(), this operation must be atomic so we need to disable interrupts. 
+//
+//  NOTE:   Scheduler::ReadyToRun() assumes that threads are disabled 
+//          when it is called.
 //----------------------------------------------------------------------
 
 void
 Semaphore::V()
 {
     Thread *thread;
-    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
+    // Thread was waiting on semaphore, notify scheduler that thread woke up.
     thread = (Thread *)queue->Remove();
-    if (thread != NULL)    // make thread ready, consuming the V immediately
-    scheduler->ReadyToRun(thread);
-    value++;
-    (void) interrupt->SetLevel(oldLevel);
-    //printf("[Semaphore::V] %s releasing\n", currentThread->getName());
+    if (thread != NULL)
+        scheduler->ReadyToRun(thread);
+    
+    value++; // Increment semaphore value
+
+    (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 }
 
-// Dummy functions -- so we can compile our later assignments 
-// Note -- without a correct implementation of Condition::Wait(), 
-// the test case in the network assignment won't work!
+//========================================================================================================================================
+//
+// Locks
+//  
+//  See also:   threadtest.cc   test suite for synchronization objects
+//
+//========================================================================================================================================
+
+//----------------------------------------------------------------------
+// Lock::Lock
+//  Initialize a lock, so that it can be used for mutual exclusion.
+//
+//  "debugName" -- an arbitrary name, useful for debugging.
+//----------------------------------------------------------------------
+
 Lock::Lock(char* debugName) 
 {
     name = debugName;
-   // lockOwner = NULL;
-    lockOwner=NULL;
-    //state = 0;
-    sleepqueue = new List;
-
+    state = LOCKFREE;
+    lockOwner = NULL; // Thread that most recently Acquired lock
+    sleepqueue = new List; // Waiting threads
 }
+
+//----------------------------------------------------------------------
+// Lock::~Lock
+//  De-allocate lock, when no longer needed. Assume no one is still 
+//  waiting on the lock! (DestroyLock syscall guarantees this).
+//----------------------------------------------------------------------
+
 Lock::~Lock() 
 {
      delete sleepqueue;
 }
-void Lock::Acquire()
-{
-    if (debuggingLocks) printf(YELLOW  "[Lock::Acquire] (%s) %s called acquire."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+
+//----------------------------------------------------------------------
+// Lock::Acquire
+//  Attempt to gain control over critical section. If lock already has 
+//  an owner, go to sleep and re-Acquire when thread wakes up. If lock
+//  has no owner, make thread the owner.
+//
+//  NOTE:   Thread::Sleep assumes that interrupts are disabled when it 
+//          is called.
+//----------------------------------------------------------------------
+
+void
+Lock::Acquire()
+{    
+    IntStatus old = interrupt->SetLevel(IntOff); // Disable interrupts
     
-    IntStatus old = interrupt->SetLevel(IntOff);
     if (isHeldByCurrentThread())
     {  
-        //printf("[Lock::Acquire] CurrentThread is already the lock owner. \n");    
-        //check if the thread that is trying to acquire the lock already owns it
-        (void*) interrupt->SetLevel(old); //restore interrupts
+        DEBUG('s', "%s trying to Acquire lock it already owns.\n", 
+            currentThread->getName());
+        (void*) interrupt->SetLevel(old); // Restore interrupts
         return;
     }
-    if (!lockOwner)
+
+    // Another thread owns the lock, go to sleep.
+    if (lockOwner)
     {
-        //I can have it, make state busy, make myself the lock owner
-        lockOwner=currentThread; //i am the lock owner
-        state = 1; //set the lock state to busy
-        if (debuggingLocks) printf(YELLOW  "[Lock::Acquire] (%s) %s acquired the lock."   ANSI_COLOR_RESET "\n", name, lockOwner->getName());
+        DEBUG('s', "%s already owns %s lock. %s is now on lock's queue.\n", 
+            lockOwner->getName(), name, currentThread->getName());
+        sleepqueue->Append((void *)currentThread); // Put current thread on lock’s wait queue
+        currentThread->Sleep(); // Take thread off Scheduler
+        old = interrupt->SetLevel(IntOff); // Restore interrupts
+        
+        // Woken up, try and Acquire again.
+        //  NOTE: Another thread may have Acquired since Release that woke up currentThread.
+        Acquire();
     }
+
+    // Lock is free, make currentThread the owner
     else 
     {
-        if (debuggingLocks) printf(YELLOW  "[Lock::Acquire] (%s) %s is trying to acquire a lock already owned by %s. %s is being put on lock's queue."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), lockOwner->getName(), currentThread->getName());
-        
-        sleepqueue->Append((void *)currentThread); //put current thread on lock’s wait Q
-        currentThread->Sleep();
-        old = interrupt->SetLevel(IntOff);
-        this->Acquire();
-
+        lockOwner = currentThread;
+        state = LOCKBUSY;
+        DEBUG('s', "%s Acquired %s lock.\n", lockOwner->getName(), name);
     }
-    (void*) interrupt->SetLevel(old); //end of acquire
-    //printf("lock owner is: %s\n", currentThread->getName());
-    return;
+
+    (void*) interrupt->SetLevel(old); // Restore interrupts
 }
-void Lock::Release() 
+
+//----------------------------------------------------------------------
+// Lock::Release
+//  Give up control over critical section. If lock is not the owner,
+//  print error and return (Threads cannot release locks owned by 
+//  other threads). If lock is the owner, free up lock and wake up first
+//  waiting thread (if any).
+//----------------------------------------------------------------------
+
+void
+Lock::Release() 
 {
-    if (debuggingLocks) printf(YELLOW  "[Lock::Release] (%s) %s called release."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-
-    IntStatus oldLevel = interrupt->SetLevel(IntOff); //turn off interrupts
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     
-    if(!isHeldByCurrentThread())
+    // Thread trying to Release a lock it does not own
+    if (!isHeldByCurrentThread())
     {
-        if (debuggingLocks || debuggingLockErrors) printf(RED  "[Lock::Release] (%s) ERROR: %s is trying to release a lock owned by %s. Returning."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), lockOwner->getName());
-        interrupt->SetLevel(oldLevel);
-
+        DEBUG('s', "ERROR: %s is trying to Release %s lock owned by %s.\n", 
+            currentThread->getName(), name, lockOwner->getName());
+        interrupt->SetLevel(oldLevel); // Restore interrupts
         return;
     }
-    if(isHeldByCurrentThread()) //if current thread is lockowner
+
+    // Thread allowed to Release, free up lock for another thread to Acquire
+    else
     {
-        if (debuggingLocks) printf(YELLOW  "[Lock::Release] (%s) %s released the lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-        
-        state = 0;//free the lock
-        lockOwner = NULL;//return lockOwner to NULL
-        Thread * newThread = (Thread *) sleepqueue->Remove(); //get the next thread that is asleep
-        
-        if(newThread != NULL) //if the next thread isn't null
+        DEBUG('s', "%s Released %s lock.", currentThread->getName(), name);
+        state = LOCKFREE;
+        lockOwner = NULL;
+
+        // Get next waiting thread and put on scheduler
+        Thread *waitingThread = (Thread *) sleepqueue->Remove();
+        if (waitingThread)
         {
-            scheduler->ReadyToRun(newThread); //put it in the scheduler.
+            scheduler->ReadyToRun(waitingThread);
         }
-  }
-    interrupt->SetLevel(oldLevel);
+    }
+
+    interrupt->SetLevel(oldLevel); // Restore interrupts
 }
 
-bool Lock::isHeldByCurrentThread()
+//----------------------------------------------------------------------
+// Lock::isHeldByCurrentThread
+//  Used by Release and Condition methods for verifying that the calling
+//  thread is the lockOwner.
+//
+//  Returns TRUE if thread owns lock.
+//----------------------------------------------------------------------
+
+bool
+Lock::isHeldByCurrentThread()
 {
     return currentThread == lockOwner;
 }
 
+//========================================================================================================================================
+//
+//  Condition Variables
+//
+//  See also:   threadtest.cc   test suite for synchronization objects
+//
+//========================================================================================================================================
+
+//----------------------------------------------------------------------
+// Condition::Condition
+//  Initialize a condition, so that it can be used instead of busy 
+//  waiting.
+//
+//  "debugName" -- an arbitrary name, useful for debugging.
+//----------------------------------------------------------------------
 
 Condition::Condition(char* debugName) 
 {
     name = debugName;
-    waitingLock = NULL;
+    conditionlock = NULL;
     waitqueue = new List;
 }
+
+//----------------------------------------------------------------------
+// Condition::~Condition
+//  De-allocate condition, when no longer needed. Assume no one is still 
+//  waiting on the condition! (DestroyCV syscall guarantees this).
+//----------------------------------------------------------------------
 
 Condition::~Condition() 
 { 
     delete waitqueue;
 }
 
-void Condition::Wait(Lock * conditionLock) 
+//----------------------------------------------------------------------
+// Condition::validateLock
+//  Returns true if the lock:
+//  (1) Exists
+//  (2) Belongs to the current thread
+//  (3) Lock is the same as corresponding Condition Lock
+//
+//  Side effect of setting Condition's Lock if no lock was defined.
+//
+//  "lock" -- should be lock corresponding to the Condition's crit.sect.
+//----------------------------------------------------------------------
+
+bool
+Condition::validateLock(Lock * lock)
 {
-    if (debuggingCVs) printf(BLUE  "[Condition::Wait] (%s) %s called wait."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-    IntStatus oldLevel = interrupt->SetLevel(IntOff); //disable interrupts
-    if(!conditionLock) //if condition lock is not owned by curr thread
-    { 
-        if (debuggingCVs || debuggingCVErrors) printf(RED  "[Condition::Wait] (%s) ERROR: %s passed in a invalid (null) lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-        interrupt->SetLevel(oldLevel);//restore interrupts
-        return;
-    }
-    if(!conditionLock->isHeldByCurrentThread()) //if condition lock is not owned by curr thread
-    { 
-        if (debuggingCVs || debuggingCVErrors) printf(RED  "[Condition::Wait] (%s) ERROR: %s is trying to wait on a condition using a lock it does not own (and therefore does not have access to the crit. sect.)."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-        interrupt->SetLevel(oldLevel);//restore interrupts
-        return;
-    }    
-    if (!waitingLock){
-        waitingLock=conditionLock;
-        if (debuggingCVs) printf(BLUE  "[Condition::Wait] (%s) CV's waiting lock being set to %s."  ANSI_COLOR_RESET  "\n", name, conditionLock->getName());
-    }
-    if (waitingLock != conditionLock){
-        if (debuggingCVs || debuggingCVErrors) printf(RED  "[Condition::Wait] (%s) ERROR: CV already has a corresponding lock %s, but %s is trying to use lock %s."  ANSI_COLOR_RESET  "\n",  name, waitingLock->getName(), currentThread->getName(), conditionLock->getName());
-        interrupt->SetLevel(oldLevel);//restore interrupts
-        return;
-    }
-    //waitingLock=conditionLock;
-    conditionLock->Release(); //release condition lock
-    waitqueue->Append((void*) currentThread); //add current thread to wait queue
-    currentThread->Sleep(); //put current thread to sleep
-    conditionLock->Acquire(); //acquire condition lock
-    interrupt->SetLevel(oldLevel); //enable interrupts
-} 
-void Condition::Signal(Lock * conditionLock)
-{
-    if (debuggingCVs) printf(BLUE  "[Condition::Signal] (%s) %s called signal."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-    IntStatus oldLevel = interrupt->SetLevel(IntOff);
-    if(!conditionLock) //if condition lock is not owned by curr thread
-    { 
-        if (debuggingCVs || debuggingCVErrors) printf(RED  "[Condition::Signal] (%s) ERROR: %s passed in a invalid (null) lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-        interrupt->SetLevel(oldLevel);//restore interrupts
-        return;
-    }
-    if (!conditionLock->isHeldByCurrentThread())
+    // Validate input: lock is defined
+    ASSERT(lock);
+
+    // Enforce mutual exclusion: Must own lock to critical section 
+    if (!lock->isHeldByCurrentThread())
     {
-        if (debuggingCVs || debuggingCVErrors) printf(RED  "[Condition::Signal] (%s) ERROR: %s is trying to signal a condition using a lock it does not own (and therefore does not have access to the crit. sect.)."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-        interrupt->SetLevel(oldLevel);
-        return;
+        DEBUG('s', "ERROR: %s trying to Wait on %s Condition without Acquiring CV's lock, %s.\n",
+            currentThread->getName(), name, lock->getName());
+        return false;
     }
-    if (waitingLock && waitingLock != conditionLock) {
-        if (debuggingCVs || debuggingCVErrors) printf(RED  "[Condition::Signal] (%s) ERROR: %s trying to signal a condition using the wrong lock. (%s = wrong lock, %s = proper lock)" ANSI_COLOR_RESET "\n", name, currentThread->getName(), conditionLock->getName(), waitingLock->getName());
-        interrupt->SetLevel(oldLevel);//restore interrupts
-        return;
+
+    // Condition has no lock associated with it yet, set it to the lock passed in.
+    if (!conditionlock)
+    {
+        conditionlock = lock;
+        DEBUG('s', "Set %s condition lock: %s.\n", name, conditionlock->getName());
     }
-    if (waitqueue->IsEmpty()){
-        if (debuggingCVs || debuggingCVErrors) printf(RED  "[Condition::Signal] (%s) %s signalled, but there were no waiting threads."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-        waitingLock = NULL;
-        interrupt->SetLevel(oldLevel);//restore interrupts
+
+    // Lock does not correspond to Condition's lock: Print error mesage
+    else if (conditionlock != lock)
+    {
+        DEBUG('s', "ERROR: %s trying to Wait on %s Condition with improper lock, %s. (Condition's lock is %s)\n",
+            currentThread->getName(), name, lock->getName(), conditionlock->getName());
+        return false;
+    }
+
+    return true;
+}
+
+//----------------------------------------------------------------------
+// Condition::Wait
+//  Wait until other threads update a Condition by Signal/Broadcast. 
+//  Current thread must own the lock passed in and the lock must 
+//  correspond to the same critical section as the Condition. If so, go
+//  to sleep by putting thread on the Condition's wait queue (so it can
+//  be woken back up by Signal/Broadcast).
+//
+//  "lock" -- should be lock corresponding to the Condition's crit.sect.
+//----------------------------------------------------------------------
+
+void Condition::Wait(Lock * lock) 
+{
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
+
+    // Enforce mutual exclusion: Thread must own lock
+    //  Lock must be the same as Condition's lock
+    if (!validateLock(lock))
+    {
+        interrupt->SetLevel(oldLevel); // Restore interrupts
         return;
     }
 
-    Thread *next = (Thread *)waitqueue->Remove();
-    if(next!=NULL) //while waitqueue isn't empty
-    {
-        if (debuggingCVs) printf(BLUE  "[Condition::Signal] (%s) %s signalled %s."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), next->getName());
-        scheduler->ReadyToRun(next);
-        interrupt->SetLevel(oldLevel);
-    }
-    if(waitqueue->IsEmpty())
-    {
-        waitingLock = NULL;
-    }
-} 
-void Condition::Broadcast(Lock* conditionLock)
+    // Prevent deadlock of holding lock while going to sleep and keeping other 
+    //  threads from Signaling or Waiting on the Condition.
+    lock->Release();
+
+    // Add to Wait queue so thread can be woken back up and go to sleep
+    waitqueue->Append((void*) currentThread);
+    currentThread->Sleep();
+
+    // Re-entering critical section
+    lock->Acquire();
+
+    interrupt->SetLevel(oldLevel); // Restore interrupts
+}
+
+//----------------------------------------------------------------------
+// Condition::Signal
+//  Signal a single waiting thread. Current thread must have access to 
+//  the critical section synchronized by the Condition lock. If there
+//  are no more waiting Threads, recycle the Condition.
+//
+//  "lock" -- should be lock corresponding to the Condition's crit.sect.
+//----------------------------------------------------------------------
+
+void Condition::Signal(Lock * lock)
 {
-    if (debuggingCVs) printf(BLUE  "[Condition::Broadcast] (%s) %s called broadcast."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-    IntStatus oldLevel = interrupt->SetLevel(IntOff);
-    if(!conditionLock) //if condition lock is not owned by curr thread
-    { 
-        if (debuggingCVs || debuggingCVErrors) printf(RED  "[Condition:Broadcast] (%s) ERROR: %s passed in a invalid (null) lock."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-        interrupt->SetLevel(oldLevel);//restore interrupts
-        return;
-    }
-    if(!conditionLock->isHeldByCurrentThread())
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
+
+    // Enforce mutual exclusion: Thread must own lock
+    //  Lock must be the same as Condition's lock
+    if (!validateLock(lock))
     {
-        if (debuggingCVs || debuggingCVErrors) printf(RED  "[Condition:Broadcast] (%s) ERROR: %s is trying to broadcast a condition using a lock it does not own (and therefore does not have access to the crit. sect.)."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-        interrupt->SetLevel(oldLevel); 
+        interrupt->SetLevel(oldLevel); // Restore interrupts
         return;
     }
-    if (waitingLock && waitingLock != conditionLock) {
-        if (debuggingCVs || debuggingCVErrors) printf(RED  "[Condition:Broadcast] (%s) ERROR: %s trying to broadcast a condition using the wrong lock. (%s = wrong lock, %s = proper lock)" ANSI_COLOR_RESET "\n", name, currentThread->getName(), conditionLock->getName(), waitingLock->getName());
-        interrupt->SetLevel(oldLevel);//restore interrupts
+
+    // Pointless Signal, recycle Condition
+    if (waitqueue->IsEmpty())
+    {
+        DEBUG('s', "%s Signalled %s Condition, but no threads waiting.\n",
+            currentThread->getName(), name);
+        conditionlock = NULL; // Free to be reused
+        interrupt->SetLevel(oldLevel); // Restore interrupts
         return;
     }
-    interrupt->SetLevel(oldLevel);
-    while(!waitqueue->IsEmpty()) {
-        if (debuggingCVs) printf(BLUE  "[Condition::Broadcast] (%s) %s is signalling another thread."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
-        Signal(conditionLock);
+
+    // Wake up one waiting thread
+    Thread *waitingThread = (Thread *)waitqueue->Remove();
+    if (waitingThread)
+    {
+        DEBUG('s', "%s Signalled %s Condition, waking up %s.\n",
+            currentThread->getName(), name, waitingThread->getName());
+        scheduler->ReadyToRun(waitingThread);
     }
+
+    // Recycle Condition if no threads waiting
+    if (waitqueue->IsEmpty())
+    {
+        conditionlock = NULL;
+    }
+
+    interrupt->SetLevel(oldLevel); // Restore interrupts
+}
+
+//----------------------------------------------------------------------
+// Condition::Broadcast
+//  Wake up all waiting threads. Current thread must have access to the
+//  critical section synchronized by the Condition lock.
+//
+//  "lock" -- should be lock corresponding to the Condition's crit.sect.
+//----------------------------------------------------------------------
+
+void Condition::Broadcast(Lock* lock)
+{
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
+
+    // Enforce mutual exclusion: Thread must own lock
+    //  Lock must be the same as Condition's lock
+    if (!validateLock(lock))
+    {
+        interrupt->SetLevel(oldLevel); // Restore interrupts
+        return;
+    }
+
+    // Wake up all Waiting Threads
+    while (!waitqueue->IsEmpty())
+    {
+        DEBUG('s', "%s is Broadcasting to all Waiting Threads for %d Condition.\n",
+            currentThread->getName(), name);
+        Signal(lock);
+    }
+
+    interrupt->SetLevel(oldLevel); // Restore interrupts
 }

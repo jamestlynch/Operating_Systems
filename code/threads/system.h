@@ -15,7 +15,6 @@
 #include "interrupt.h"
 #include "stats.h"
 #include "timer.h"
-#include "bitmap.h"
 #include "synch.h"
 #include <vector>
 #include <string>
@@ -36,7 +35,6 @@ extern Timer *timer;					// the hardware alarm clock
 
 class Machine;
 class AddrSpace;
-
 
 #ifdef USER_PROGRAM
 

@@ -11,7 +11,6 @@
 
 #include "copyright.h"
 #include "system.h"
-//#include "passportoffice.cc"
 #ifdef CHANGED
 #include "synch.h"
 #endif

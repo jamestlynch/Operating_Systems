@@ -111,8 +111,8 @@ main(int argc, char **argv)
         	Test4();
         if(!strcmp(*argv, "-T5"))
         	Test5();
-        if(!strcmp(*argv, "-T7"))
-        	Test7();
+        //if(!strcmp(*argv, "-T7"))
+       	//Test7();
 
 
 #endif 	//THREADS
