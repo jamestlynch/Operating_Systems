@@ -615,11 +615,11 @@ int ReleaseLock_Syscall(int indexlock)
         return -1;
     }
 
-    KernelLock * curKernelLock = locks.at(indexlock);
-    curKernelLock->lock->Release();
+    KernelLock * currentKernelLock = locks.at(indexlock);
+    currentKernelLock->lock->Release();
 
-    // If no waiting threads and marked for deletion
-    if (curKernelLock->toDelete && curKernelLock->lock->sleepqueue->IsEmpty() && !curKernelLock->lock->state)
+    // Lock is set to delete and it is free, with no waiting threads: Delete Lock.
+    if (currentKernelLock->toDelete && currentKernelLock->lock->isAbleToDelete())
     {
         locksLock->Acquire();
         deletelock(indexlock);
@@ -653,7 +653,8 @@ int DestroyLock_Syscall(int indexlock)
 
     KernelLock * currentKernelLock = locks.at(indexlock);
 
-    if (currentKernelLock->lock->sleepqueue->IsEmpty() && !currentKernelLock->lock->state)
+    // Lock is FREE with no waiting Threads
+    if (currentKernelLock->lock->isAbleToDelete())
     {
         deletelock(indexlock);
         locksLock->Release();
