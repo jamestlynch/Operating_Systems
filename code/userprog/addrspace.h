@@ -24,6 +24,8 @@
 
 #include "translate.h"
 
+class IPTEntry;
+class PageTableEntry;
 
 class AddrSpace {
   public:
@@ -45,22 +47,14 @@ class AddrSpace {
 
  private:
     TranslationEntry *pageTable;	// Assume linear page table translation
-    TLBTranslationEntry *pageTable; 
-					// for now!
+    PageTableEntry *pageT; 
+
     unsigned int numPages;		// Number of pages in the virtual 
 					// address space
 };
 
 //translation entry with process owner. might need to add more stuff to this class
-class IPTEntry: public TranslationEntry{
-     //SOMETHING ELSE update inside of handlers
-    AddrSpace *space;
-};
-class PageTableEntry: public TranslationEntry{
-    enum {SWAP, EXECUTABLE, MAINMEMORY} //SOMETHING ELSE update inside of handlers
-    int offSet;
 
-};
 
 
 /*

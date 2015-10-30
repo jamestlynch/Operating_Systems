@@ -150,6 +150,20 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     // first, set up the translation 
     memLock->Acquire();
 
+//need to implement for TLB use.
+    
+        /*pageTable = new PageTableEntry[numPages];
+        for (i = 0; i < (numPages); i++) {
+            pageTable[i].virtualPage = i;
+            pageTable[i].valid = false;
+            pageTable[i].use = false;
+            pageTable[i].dirty = false;
+
+        }*/
+
+    
+
+//pageTable is if not using TLB
     pageTable = new TranslationEntry[numPages];
     for (i = 0; i < numPages; i++) 
     {
@@ -158,7 +172,6 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     	pageTable[i].valid = TRUE;
     	pageTable[i].use = FALSE;
     	pageTable[i].dirty = FALSE;
-    	pageTable[i].readOnly = FALSE;  
 
         // if the code segment was entirely on 
 		// a separate page, we could set its 
@@ -172,11 +185,11 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
           printf("No more physical memory available.\n");
           interrupt->Halt();
         }
-
         //printf("PageSize: %d, physicalPage: %d, virtualPage: %d", PageSize, pageTable[i].physicalPage, pageTable[i].virtualPage);
 
         executable->ReadAt(&(machine->mainMemory[PageSize * pageTable[i].physicalPage]), PageSize, noffH.code.inFileAddr + (pageTable[i].virtualPage * PageSize));
     }
+    
 
     memLock->Release();
 
@@ -254,7 +267,21 @@ int AddrSpace::InitRegisters()
 //----------------------------------------------------------------------
 
 void AddrSpace::SaveState() 
-{}
+{
+    #ifdef USE_TLB
+    // Invalidate all TLB pages on context switch. disable interrupts.
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    for (int i=0; i<4; i++){
+        machine->tlb[i].valid=false;
+    }
+    //check if dirty bit was changed- if yes, update in pageTable.
+
+    (void) interrupt->SetLevel(oldLevel);
+
+#endif // USE_TLB
+
+    
+}
 
 //----------------------------------------------------------------------
 // AddrSpace::RestoreState
@@ -266,15 +293,18 @@ void AddrSpace::SaveState()
 
 void AddrSpace::RestoreState() 
 {
-    machine->pageTable = pageTable;
+    //machine->pageTable = pageTable;
     machine->pageTableSize = numPages;
 }
 
 int AddrSpace::NewPageTable()
 {
     memLock->Acquire();
+
+    #ifdef USE_TLB
     
     TranslationEntry * newPT = new TranslationEntry[numPages + (UserStackSize / PageSize)]; // add 8 pages for new stack
+    
     for(int i = 0; i < numPages; i++)
     {
         newPT[i].virtualPage    =   pageTable[i].virtualPage;
@@ -283,6 +313,15 @@ int AddrSpace::NewPageTable()
         newPT[i].use            =   pageTable[i].use;
         newPT[i].dirty          =   pageTable[i].dirty;
         newPT[i].readOnly       =   pageTable[i].readOnly;
+
+        ipt[i].virtualPage    =   pageTable[i].virtualPage;
+        ipt[i].physicalPage   =   pageTable[i].physicalPage;
+        ipt[i].valid          =   pageTable[i].valid;
+        ipt[i].use            =   pageTable[i].use;
+        ipt[i].dirty          =   pageTable[i].dirty;
+        ipt[i].readOnly       =   pageTable[i].readOnly;
+        ipt[i].space          =   this;
+
     }
 
     for(int i = numPages; i < numPages + (UserStackSize / PageSize); i++)
@@ -293,6 +332,13 @@ int AddrSpace::NewPageTable()
         newPT[i].use = FALSE;
         newPT[i].dirty = FALSE;
         newPT[i].readOnly = FALSE;  
+
+        /*ipt[i].virtualPage = i;   // for now, virtual page # = phys page #
+        ipt[i].physicalPage = memBitMap->Find();
+        ipt[i].valid = TRUE;
+        ipt[i].use = FALSE;
+        ipt[i].dirty = FALSE;
+        ipt[i].readOnly = FALSE;  */
         // if the code segment was entirely on 
         // a separate page, we could set its 
         // pages to be read-only
@@ -306,6 +352,7 @@ int AddrSpace::NewPageTable()
           interrupt->Halt();
         }
     }
+    #endif USE_TLB
 
     delete pageTable;
 

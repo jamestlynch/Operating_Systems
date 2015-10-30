@@ -370,7 +370,7 @@ int checkLockErrors(int index)
 }
 
 int CreateLock_Syscall(unsigned int vaddr, int len) 
-{
+{ //validate/load in from userprog memory as 'client'
   locksLock->Acquire();
   if (len <= 0) 
   { // Validate length is nonzero and positive
@@ -986,10 +986,9 @@ int handleIPTMiss( int neededVPN ) {
 void handlePageFault(unsigned int vaddr){
    
   //TLBLock->Acquire(); WE NEED A LOCK WHEN UPDATING THE PAGE TABLE STUFF. BUT NOT SURE AROUND EXACTLY WHAT
-  tlbCounter++; //MOD THIS.
+  tlbCounter++; 
   int vpn = vaddr/PageSize;
   int ppn=-1;
-
   for (int i=0; i < NumPhysPages; i++) {
       if (ipt[i].valid && ipt[i].virtualPage == vpn && ipt[i].space == currentThread->space) {
         ppn = i;
@@ -998,28 +997,28 @@ void handlePageFault(unsigned int vaddr){
   }
     if (ppn == -1) {
         ppn = handleIPTMiss(vpn);
-    }
-    
-        //ipt[ppn].use = false; ???? use is when program 
-
-        // if (machine->tlb[tlbCounter].valid) {
-        //     ipt[machine->tlb[tlbCounter].physicalPage].dirty = machine->tlb[tlbCounter].dirty;
-        // }
+    } 
 
     /* INCREMENT THE TLB . search the ipt for the proper 
     physical page number, then put that page number inside the tlb*/
-    machine->tlb[tlbCounter].virtualPage= ipt[ppn].virtualPage;
-    machine->tlb[tlbCounter].physicalPage= ipt[ppn].physicalPage;
-    machine->tlb[tlbCounter].valid= ipt[ppn].valid;
-    machine->tlb[tlbCounter].use= ipt[ppn].use;
-    machine->tlb[tlbCounter].dirty= ipt[ppn].dirty;
+    machine->tlb[tlbCounter%TLBSize].virtualPage= ipt[ppn].virtualPage;
+    machine->tlb[tlbCounter%TLBSize].physicalPage= ipt[ppn].physicalPage;
+    machine->tlb[tlbCounter%TLBSize].valid= true;
+    machine->tlb[tlbCounter%TLBSize].use= ipt[ppn].use;
+    machine->tlb[tlbCounter%TLBSize].dirty= ipt[ppn].dirty;
     //machine->tlb[tlbCounter].space= ipt[ppn].space;  ??????
-    
-
     //TLBLock->Release(); ????
 }
 void ExceptionHandler(ExceptionType which) 
 {
+  //IF I AM A CLIENT
+    //create message
+    //send message to server
+      //
+    //receive response
+    //parse response if valid, type=
+  //
+
   int type = machine->ReadRegister(2); // Which syscall?
   int rv = 0;   // the return value from a syscall
 
@@ -1155,6 +1154,7 @@ void ExceptionHandler(ExceptionType which)
       break;
     }
 
+    //SERVER SENDS A MESSAGE BACK TO CLIENT OF SUCCESS/FAILURE, SEND BACK RETURN VALUE.
     // Put in the return value and increment the PC
     machine->WriteRegister(2, rv);
     machine->WriteRegister(PrevPCReg, machine->ReadRegister(PCReg));

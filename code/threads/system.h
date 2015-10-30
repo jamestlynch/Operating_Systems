@@ -35,6 +35,8 @@ extern Statistics *stats;				// performance metrics
 extern Timer *timer;					// the hardware alarm clock
 
 class Machine;
+class AddrSpace;
+class BitMap;
 
 
 #ifdef USER_PROGRAM
@@ -42,7 +44,7 @@ class Machine;
 	extern Machine* machine;	// user program memory and registers
 
 	//create tables for processes, condition variables, and locks
-	#include "addrspace.h"
+	
 
 	// KernalLock extra info for cleaning up and guaranteeing process lock ownership
     struct KernelLock
@@ -67,23 +69,38 @@ class Machine;
     	int numExecutingThreads;
     	int processID;
     };
-    class IPT {
-      public:
-        int virtualPage;
-        int physicalPage;
-        bool valid;
-        bool use;
-        bool dirty;
-        bool readOnly;
-        AddrSpace * space;
-};
+    struct ServerLock{
+        int clientMachineID;
+        int mailBoxNumber;
+    };
+    struct ServerCV{
+        int clientMachineID;
+        int mailBoxNumber;
+
+    };
+    class IPTEntry: public TranslationEntry{
+        //SOMETHING ELSE update inside of handlers
+    public:
+        AddrSpace *space;
+    };
+    class PageTableEntry: public TranslationEntry{
+    public:
+        //enum {SWAP, EXECUTABLE, MAINMEMORY}; //SOMETHING ELSE update inside of handlers
+        int byteoffset;
+    };
     //has all the threads
     //destroy locks/cvs associated w the process
 
 	extern BitMap *memBitMap;
 
-	extern vector<KernelLock*> locks;
-	extern vector<KernelCV*> conditions;
+    //#ifdef NETWORK
+     /*   extern vector<ServerLock*> locks;
+        extern vector<ServerCV*> conditions;
+    #else*/
+    extern vector<KernelLock*> locks;
+    extern vector<KernelCV*> conditions;
+    //#endif NETWORK*/
+
 	extern vector<Process*> processInfo;
 
 
@@ -93,12 +110,10 @@ class Machine;
 	extern Lock *processLock; //lock on process table
 	extern Lock *conditionsLock;	//lock on cv table
 	extern Lock *locksLock;	//lock on lock table
-    extern IPT *ipt;
     
     extern Lock *TLBLock;
     extern int tlbCounter;
-    
-    
+    extern IPTEntry *ipt;
 
 #endif
 

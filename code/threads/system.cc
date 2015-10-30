@@ -8,6 +8,7 @@
 #include "copyright.h"
 #include "system.h"
 #include "machine.h"
+#include "addrspace.h"
 
 
 // This defines *all* of the global data structures used by Nachos.
@@ -45,9 +46,10 @@ Timer *timer;                   // the hardware timer device, for invoking conte
     Lock *locksLock;
 #endif
 #ifdef USE_TLB
-    IPT * ipt;
     int tlbCounter;
     Lock *TLBLock; //not sure where to put lock around.
+    IPTEntry *ipt;
+    
 #endif
 
 #ifdef NETWORK
@@ -188,7 +190,7 @@ Initialize(int argc, char **argv)
 #endif
 #ifdef USE_TLB
     TLBLock= new Lock("TLBLock");
-    ipt= new IPT[NumPhysPages];
+    ipt = new IPTEntry[NumPhysPages];
     tlbCounter=-1;
 #endif
 
