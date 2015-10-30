@@ -319,24 +319,28 @@ int AddrSpace::NewPageTable()
     return numPages;
 }
 
-/*
-- A thread calls Exit - not the last executing thread in the process
-  - Reclaim 8 pages of stock
-  - VPN, PPN, valid = false
-      - memoryBitMap->Clear(ppn);
-- Last executing thread in last process
-    - interrupt->Halt();
-- Last executing thread in a process - not last process (AddrSpace *)
-    - reclaim all unreclaimed memory
-    - Locks/CVs (match AddrSpace * w/ ProcessTable)
-*/
+//----------------------------------------------------------------------
+// AddrSpace::ReclaimStack
+//  When a thread calls Exit, there are three cases:
+//  (1) Other threads still executing in the process
+//  (2) Last executing thread in process, other Nachos threads running
+//  (3) Last executing thread in Nachos
+//  ReclaimStack handles the first case by reclaiming 8 pages of stack
+//  by (1) invalidating the stack pages (VPN, PPN: valid = false) and
+//  (2) clearing physical memory so it can be reused.
+//----------------------------------------------------------------------
 
 void AddrSpace::ReclaimStack(int stackPage)
 {
     memLock->Acquire();
+
+    // Reclaim 8 Pages of Stack
     for(int i = stackPage; i < (UserStackSize / PageSize); i++)
     {
+        // (2) Clear physical memory so it can be reused
         memBitMap->Clear(pageTable[i].physicalPage);
+        
+        // (1) Invalidate stack pages
         pageTable[i].valid = FALSE;
         pageTable[i].use = FALSE;
         pageTable[i].dirty = FALSE;
