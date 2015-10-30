@@ -24,58 +24,132 @@
 
 extern "C" { int bzero(char *, int); };
 
-Table::Table(int s) : map(s), table(0), lock(0), size(s) {
+//----------------------------------------------------------------------
+// Table::Table
+//  Initialize an array with a lock synchronizing its updates.
+//
+//  "s" -- the size of the table
+//----------------------------------------------------------------------
+
+Table::Table(int s) : map(s), table(0), lock(0), size(s)
+{
     table = new void *[size];
     lock = new Lock("TableLock");
 }
 
-Table::~Table() {
-    if (table) {
-	delete table;
-	table = 0;
+//----------------------------------------------------------------------
+// Table::Table
+//  De-allocate Table's array and lock.
+//----------------------------------------------------------------------
+
+Table::~Table()
+{
+    if (table)
+    {
+	   delete table;
+	   table = 0;
     }
-    if (lock) {
-	delete lock;
-	lock = 0;
+    if (lock)
+    {
+	   delete lock;
+	   lock = 0;
     }
 }
 
-void *Table::Get(int i) {
-    // Return the element associated with the given if, or 0 if
-    // there is none.
+//----------------------------------------------------------------------
+// Table::Get
+//  Return the element associated with the given if, or 0 if there is 
+//  none.
+//
+//  "i" -- the element's table index
+//----------------------------------------------------------------------
 
-    return (i >=0 && i < size && map.Test(i)) ? table[i] : 0;
+void *
+Table::Get(int i)
+{
+    // table index is nonnegative, within range and table's map bit set
+    return (i >= 0 && i < size && map.Test(i)) ? table[i] : 0;
 }
 
-int Table::Put(void *f) {
-    // Put the element in the table and return the slot it used.  Use a
-    // lock so 2 files don't get the same space.
-    int i;	// to find the next slot
+//----------------------------------------------------------------------
+// Table::Put
+//  Put the element in the table and return the slot it used. Use a lock
+//  so 2 files don't get the same space.
+//
+//  Returns -1 if no available Table entries, else the index for element
+//
+//  "f" -- Element to be put inside the table
+//----------------------------------------------------------------------
+
+int 
+Table::Put(void *f)
+{
+    int row;
 
     lock->Acquire();
-    i = map.Find();
+    row = map.Find();
     lock->Release();
-    if ( i != -1)
-	table[i] = f;
-    return i;
+    
+    if (row != -1)
+        table[row] = f;
+
+    return row;
 }
 
-void *Table::Remove(int i) {
-    // Remove the element associated with identifier i from the table,
-    // and return it.
+//----------------------------------------------------------------------
+// Table::Remove
+//  Remove the element associated with identifier i from the table, and
+//  return it.
+//
+//  Returns 0 if no matching element to remove, else the element.
+//
+//  "i" -- the element's table index
+//----------------------------------------------------------------------
 
-    void *f =0;
+void *
+Table::Remove(int i)
+{
+    void *f = 0;
 
-    if ( i >= 0 && i < size ) {
-	lock->Acquire();
-	if ( map.Test(i) ) {
-	    map.Clear(i);
-	    f = table[i];
-	    table[i] = 0;
-	}
-	lock->Release();
+    // Element inside of table: Remove it
+    if (Get(i) != 0)
+    {
+        lock->Acquire();
+        map.Clear(i);
+        f = table[i];
+        table[i] = 0;
+        lock->Release();
     }
+
     return f;
+}
+
+//----------------------------------------------------------------------
+// PageTableEntry::PageTableEntry
+//  Initialize an empty Page Table Entry.
+//----------------------------------------------------------------------
+
+PageTableEntry::PageTableEntry()
+{
+    virtualPage = -1;
+    physicalPage = -1;
+    offset = -1;
+    
+    readOnly = false;
+    valid = false;
+    swapped = false;
+    dirty = false;
+    use = false;
+}
+
+//----------------------------------------------------------------------
+// PageTableEntry::~PageTableEntry
+//  Deallocate Page Table Entry.
+//----------------------------------------------------------------------
+
+PageTableEntry::~PageTableEntry()
+{
+    delete this;
 }
 
 //----------------------------------------------------------------------
@@ -101,132 +175,115 @@ static void SwapHeader (NoffHeader *noffH)
 
 //----------------------------------------------------------------------
 // AddrSpace::AddrSpace
-// 	Create an address space to run a user program.
-//	Load the program from a file "executable", and set everything
-//	up so that we can start executing user instructions.
+// 	Create an address space to run a user program. While Memory is avail
+//  load the program from a file "executable" into Main Memory and 
+//  update the IPT; else, store the location in the Executable of the 
+//  virtual page in the Page Table.
 //
 //	Assumes that the object code file is in NOFF format.
 //
-//	"executable" is the file containing the object code to load into memory
+//	"executable" -- the file containing object code to load into memory
 //
-//      It's possible to fail to fully construct the address space for
-//      several reasons, including being unable to allocate memory,
-//      and being unable to read key parts of the executable.
-//      Incompletely consretucted address spaces have the member
-//      constructed set to false.
+//  NOTE:   It's possible to fail to fully construct the address space 
+//          for several reasons, including being unable to allocate 
+//          memory, and being unable to read key parts of the 
+//          executable. Incompletely consructed address spaces have the 
+//          member constructed set to false.
 //----------------------------------------------------------------------
 
 AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) 
 {
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
+
     NoffHeader noffH;
-    unsigned int i, size;
+    unsigned int vpn, ppn, size;
+    int offset;
+    bool readOnly = false, valid = false;
 
-    // Don't allocate the input or output to disk files
-    fileTable.Put(0);
-    fileTable.Put(0);
-
-    executable->ReadAt((char *)&noffH, sizeof(noffH), 0);
+    // Make sure Big Endian
+    executable->ReadAt((char *)&noffH, sizeof(noffH), 0); // Get noffHeader
     if ((noffH.noffMagic != NOFFMAGIC) && (WordToHost(noffH.noffMagic) == NOFFMAGIC))
     {
         SwapHeader(&noffH);
     }
-    	
+
+    // Must be Nachos object code file
     ASSERT(noffH.noffMagic == NOFFMAGIC);
 
+    // Get size of the PageTable: Complete pages for code, data, stack and heap
     size = noffH.code.size + noffH.initData.size + noffH.uninitData.size;
     numPages = divRoundUp(size, PageSize) + divRoundUp(UserStackSize, PageSize);
-    // we need to increase the size
-	// to leave room for the stack
     size = numPages * PageSize;
 
-    ASSERT(numPages <= NumPhysPages);		
-    // check we're not trying
-	// to run anything too big --
-	// at least until we have
-	// virtual memory
+    // Check we're not trying to run anything too big -- at least 
+    //  until we have virtual memory
+    ASSERT(numPages <= NumPhysPages);
 
     DEBUG('a', "Initializing address space, num pages %d, size %d\n", numPages, size);
     
-    // first, set up the translation 
-    memLock->Acquire();
-
-//need to implement for TLB use.
-    
-        /*pageTable = new PageTableEntry[numPages];
-        for (i = 0; i < (numPages); i++) {
-            pageTable[i].virtualPage = i;
-            pageTable[i].valid = false;
-            pageTable[i].use = false;
-            pageTable[i].dirty = false;
-
-        }*/
-
-    
-
-//pageTable is if not using TLB
+    // Store the location of each virtual page in the Page Table
+    //  Memory available: Load into memory
+    //  Memory full: Track location in executable
     pageTable = new PageTableEntry[numPages];
-    for (i = 0; i < numPages; i++) 
+    for (vpn = 0; vpn < numPages; vpn++) 
     {
-    	pageTable[i].virtualPage = i;	// for now, virtual page # = phys page #
-        pageTable[i].physicalPage = memBitMap->Find();
-    	pageTable[i].valid = TRUE;
-    	pageTable[i].use = FALSE;
-    	pageTable[i].dirty = FALSE;
-
-        // if the code segment was entirely on 
-		// a separate page, we could set its 
-		// pages to be read-only
-
-        // find page memory that nobody is using
-        // copy from executable to that page of memory
-        // how much to copy? pagesize!
-
-        /*if (pageTable[i].physicalPage == -1)
+        // Code is read-only
+        if ((vpn * PageSize) < (unsigned int)noffH.initData.inFileAddr)
         {
-          printf("No more physical memory available.\n");
-          interrupt->Halt();
-        }*/
-        //printf("PageSize: %d, physicalPage: %d, virtualPage: %d", PageSize, pageTable[i].physicalPage, pageTable[i].virtualPage);
+            readOnly = true;
+        }
 
-        //executable->ReadAt(&(machine->mainMemory[PageSize * pageTable[i].physicalPage]), PageSize, noffH.code.inFileAddr + (pageTable[i].virtualPage * PageSize));
+        memLock->Acquire();
+        // Memory is available: Load into Memory
+        if (ppn = memBitMap->Find() != -1)
+        {
+            memFIFO->Append((void *)ppn); // Maintain order of Adding to Memory for FIFO Eviction
+
+            valid = true;
+            offset = ppn * PageSize;
+
+            // Update IPT whenever adding/removing from Memory
+            ipt[ppn].virtualPage = vpn;
+            ipt[ppn].physicalPage = ppn;
+            ipt[ppn].valid = true;
+            ipt[ppn].dirty = false;
+            ipt[ppn].use = false;
+            ipt[ppn].readOnly = readOnly;
+            ipt[ppn].space = this;
+
+            // Load from Executable into Main Memory
+            executable->ReadAt(
+                &(machine->mainMemory[pageTable[vpn].offset]), // Store into mainMemory at physical page
+                PageSize, // Read 128 bytes
+                noffH.code.inFileAddr + vpn * PageSize); // From this position in executable
+        }
+        // Memory full: Store position in executable for later retrieval
+        else
+        {
+            offset = noffH.code.inFileAddr + vpn * PageSize;
+        }
+        memLock->Release();
+
+        pageTable[vpn].virtualPage = vpn;
+        pageTable[vpn].physicalPage = ppn;
+        pageTable[vpn].offset = offset;
+        pageTable[vpn].readOnly = readOnly;
+        pageTable[vpn].valid = valid;
+        pageTable[vpn].swapped = false;
+        pageTable[vpn].dirty = false;
+        pageTable[vpn].use = false;
     }
-    for (i=0; i<NumPhysPages; i++){
-        ipt[i].virtualPage    =   pageTable[i].virtualPage;
-        ipt[i].physicalPage   =   pageTable[i].physicalPage;
-        ipt[i].valid          =   pageTable[i].valid;
-        ipt[i].use            =   pageTable[i].use;
-        ipt[i].dirty          =   pageTable[i].dirty;
-        ipt[i].readOnly       =   pageTable[i].readOnly;
-        ipt[i].space          =   this;
-    }
 
-    memLock->Release();
+    // Store Open Executable so on-demand memory takes place
+    fileTable.Put(executable);
 
-
-    
-    // zero out the entire address space, to zero the unitialized data segment 
-    // and the stack segment
-    // bzero(machine->mainMemory, size);
-
-    // then, copy in the code and data segments into memory
-    /*if (noffH.code.size > 0) 
-    {
-        DEBUG('a', "Initializing code segment, at 0x%x, size %d\n", noffH.code.virtualAddr, noffH.code.size);
-        executable->ReadAt(&(machine->mainMemory[noffH.code.virtualAddr]), noffH.code.size, noffH.code.inFileAddr);
-    }
-
-    if (noffH.initData.size > 0) 
-    {
-        DEBUG('a', "Initializing data segment, at 0x%x, size %d\n", noffH.initData.virtualAddr, noffH.initData.size);
-        executable->ReadAt(&(machine->mainMemory[noffH.initData.virtualAddr]), noffH.initData.size, noffH.initData.inFileAddr);
-    }*/
+    (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 }
 
 //----------------------------------------------------------------------
 // AddrSpace::~AddrSpace
-//
-// 	Dealloate an address space.  release pages, page tables, files
-// 	and file tables
+// 	Dealloate an address space. Release pages, page tables, files and 
+//  file tables
 //----------------------------------------------------------------------
 
 AddrSpace::~AddrSpace()
@@ -238,10 +295,12 @@ AddrSpace::~AddrSpace()
 // AddrSpace::InitRegisters
 // 	Set the initial values for the user-level register set.
 //
-// 	We write these directly into the "machine" registers, so
-//	that we can immediately jump to user code.  Note that these
-//	will be saved/restored into the currentThread->userRegisters
-//	when this thread is context switched out.
+// 	We write these directly into the "machine" registers, so that we can 
+//  immediately jump to user code. Note that these will be saved/
+//  restored into the currentThread->userRegisters when this thread is 
+//  context switched out.
+//
+//  Returns the stack page.
 //----------------------------------------------------------------------
 
 int AddrSpace::InitRegisters()
@@ -249,19 +308,20 @@ int AddrSpace::InitRegisters()
     int i;
 
     for (i = 0; i < NumTotalRegs; i++)
-	   machine->WriteRegister(i, 0);
+        machine->WriteRegister(i, 0);
 
     // Initial program counter -- must be location of "Start"
     machine->WriteRegister(PCReg, 0);	
 
-    // Need to also tell MIPS where next instruction is, because
-    // of branch delay possibility
+    // Need to also tell MIPS where next instruction is, because of 
+    //  branch delay possibility
     machine->WriteRegister(NextPCReg, 4);
 
-   // Set the stack register to the end of the address space, where we
-   // allocated the stack; but subtract off a bit, to make sure we don't
-   // accidentally reference off the end!
+    // Set the stack register to the end of the address space, where we
+    //  allocated the stack; but subtract off a bit, to make sure we 
+    //  don't accidentally reference off the end!
     machine->WriteRegister(StackReg, numPages * PageSize - 16);
+
     DEBUG('a', "Initializing stack register to %x\n", numPages * PageSize - 16);
 
     return numPages - (UserStackSize / PageSize);
@@ -269,109 +329,128 @@ int AddrSpace::InitRegisters()
 
 //----------------------------------------------------------------------
 // AddrSpace::SaveState
-// 	On a context switch, save any machine state, specific
-//	to this address space, that needs saving.
-//
-//	For now, nothing!
+// 	On a context switch, save any machine state, specific to this 
+//  address space, that needs saving and invalidate the TLB entries.
 //----------------------------------------------------------------------
 
 void AddrSpace::SaveState() 
 {
-    #ifdef USE_TLB
-    // Invalidate all TLB pages on context switch. disable interrupts.
-    IntStatus oldLevel = interrupt->SetLevel(IntOff);
-    for (int i=0; i<4; i++){
-        machine->tlb[i].valid=false;
-    }
-    //check if dirty bit was changed- if yes, update in pageTable.
+    unsigned int vpn;
 
-    (void) interrupt->SetLevel(oldLevel);
-
-#endif // USE_TLB
-
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     
+    // The dirty bit tells us if memory has been written do during its time 
+    //  in main memory. If it has been, then once we discard the memory we 
+    //  must write it back to disk.
+    for (vpn = 0; vpn < numPages; vpn++)
+    {
+        if (pageTable[vpn].dirty)
+        {
+            // TODO: Propagate changes to PageTable 
+            //  Either Swap File -> Executable or Memory -> Executable
+            //  WriteToExecutable(vpn);
+        }
+    }
+
+    (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 }
 
 //----------------------------------------------------------------------
 // AddrSpace::RestoreState
-// 	On a context switch, restore the machine state so that
-//	this address space can run.
-//
-//      For now, tell the machine where to find the page table.
+// 	On a context switch, restore the machine state so that this address 
+//  space can run.
 //----------------------------------------------------------------------
 
-void AddrSpace::RestoreState() 
+void
+AddrSpace::RestoreState() 
 {
-    //machine->pageTable = pageTable;
+    unsigned int i;
+
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
+    
+    // Invalidate all TLB pages on context switch.
+    for (i = 0; i < TLBSize; i++)
+    {
+        machine->tlb[i].valid = false;
+    }
+
+    // Load this process' paging information into processor
+    // machine->pageTable = pageTable; // Can only have pageTable OR TLB; Not both.
     machine->pageTableSize = numPages;
+
+    (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 }
 
-int AddrSpace::NewPageTable()
+//----------------------------------------------------------------------
+// AddrSpace::RestoreState
+//  Adds an additional stack to the thread's AddrSpace by creating a new
+//  Page Table UserStackSize pages bigger. Will attempt to fill any 
+//  available Memory, otherwise will just store 
+//
+//  Returns the starting page for the new stack.
+//----------------------------------------------------------------------
+
+int
+AddrSpace::NewUserStack()
 {
-    memLock->Acquire();
+    unsigned int vpn, ppn;
+    int offset = -1; // Start out nowhere until demanded
+    bool readOnly = false, valid = false;
+    
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
+    // New PageTable = Old PageTable + 8 pages for new stack
+    PageTableEntry * newPT = new PageTableEntry[numPages + (UserStackSize / PageSize)];
     
-    
-    PageTableEntry * newPT = new PageTableEntry[numPages + (UserStackSize / PageSize)]; // add 8 pages for new stack
-    
-    for(int i = 0; i < numPages; i++)
+    // Copy old entries
+    memcpy(newPT, pageTable, numPages);
+
+    // Add 8 Stack Entries
+    for (vpn = numPages; vpn < numPages + (UserStackSize / PageSize); vpn++)
     {
-        newPT[i].virtualPage    =   pageTable[i].virtualPage;
-        newPT[i].physicalPage   =   pageTable[i].physicalPage;
-        newPT[i].valid          =   pageTable[i].valid;
-        newPT[i].use            =   pageTable[i].use;
-        newPT[i].dirty          =   pageTable[i].dirty;
-        newPT[i].readOnly       =   pageTable[i].readOnly;
+        memLock->Acquire();
 
-        ipt[i].virtualPage    =   pageTable[i].virtualPage;
-        ipt[i].physicalPage   =   pageTable[i].physicalPage;
-        ipt[i].valid          =   pageTable[i].valid;
-        ipt[i].use            =   pageTable[i].use;
-        ipt[i].dirty          =   pageTable[i].dirty;
-        ipt[i].readOnly       =   pageTable[i].readOnly;
-        ipt[i].space          =   this;
-
-    }
-
-    for(int i = numPages; i < numPages + (UserStackSize / PageSize); i++)
-    {
-        newPT[i].virtualPage = i;   // for now, virtual page # = phys page #
-        newPT[i].physicalPage = memBitMap->Find();
-        newPT[i].valid = TRUE;
-        newPT[i].use = FALSE;
-        newPT[i].dirty = FALSE;
-        newPT[i].readOnly = FALSE;  
-    }
-
-        /*ipt[i].virtualPage = i;   // for now, virtual page # = phys page #
-        ipt[i].physicalPage = memBitMap->Find();
-        ipt[i].valid = TRUE;
-        ipt[i].use = FALSE;
-        ipt[i].dirty = FALSE;
-        // if the code segment was entirely on 
-        // a separate page, we could set its 
-        // pages to be read-only
-
-        // find page memory that nobody is using
-        // copy from executable to that page of memory
-        // how much to copy? pagesize!
-        if (newPT[i].physicalPage == -1)
+        // Memory Available: Load into Memory
+        if (ppn = memBitMap->Find() == -1)
         {
-          printf("No more physical memory available.\n");
-          interrupt->Halt();
+            memFIFO->Append((void *)ppn); // Maintain order of Adding to Memory for FIFO Eviction
+
+            offset = ppn * PageSize;
+            valid = true;
+
+            // Update IPT whenever adding/removing from Memory
+            ipt[ppn].virtualPage = vpn;
+            ipt[ppn].physicalPage = ppn;
+            ipt[ppn].valid = true;
+            ipt[ppn].dirty = false;
+            ipt[ppn].use = false;
+            ipt[ppn].readOnly = readOnly;
+            ipt[ppn].space = this;            
         }
-    }*/
+        memLock->Release();
+
+        // If Stack Reg not in Memory, starts out nowhere until demanded
+
+        pageTable[vpn].virtualPage = vpn;
+        pageTable[vpn].physicalPage = ppn;
+        pageTable[vpn].offset = offset;
+        pageTable[vpn].readOnly = readOnly;
+        pageTable[vpn].valid = valid;
+        pageTable[vpn].swapped = false;
+        pageTable[vpn].dirty = false;
+        pageTable[vpn].use = false;
+    }
 
     delete pageTable;
 
     pageTable = newPT;
     numPages += (UserStackSize / PageSize);
 
-    RestoreState();
+    RestoreState(); // Machine needs to know about new numPages and Page Table
 
-    memLock->Release();
+    (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 
-    return numPages;
+    return numPages; // Starting page for stack (grows up)
 }
 
 //----------------------------------------------------------------------
@@ -380,45 +459,77 @@ int AddrSpace::NewPageTable()
 //  (1) Other threads still executing in the process
 //  (2) Last executing thread in process, other Nachos threads running
 //  (3) Last executing thread in Nachos
+//
 //  ReclaimStack handles the first case by reclaiming 8 pages of stack
 //  by (1) invalidating the stack pages (VPN, PPN: valid = false) and
 //  (2) clearing physical memory so it can be reused.
 //----------------------------------------------------------------------
 
-void AddrSpace::ReclaimStack(int stackPage)
+void
+AddrSpace::ReclaimStack(int stackPage)
 {
-    memLock->Acquire();
+    unsigned int vpn, ppn;
 
-    // Reclaim 8 Pages of Stack
-    for(int i = stackPage; i < (UserStackSize / PageSize); i++)
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
+
+    // (1) Invalidate stack pages    
+    for (vpn = stackPage; vpn < stackPage + (UserStackSize / PageSize); vpn++)
     {
-        // (2) Clear physical memory so it can be reused
-        memBitMap->Clear(pageTable[i].physicalPage);
-        
-        // (1) Invalidate stack pages
-        pageTable[i].valid = FALSE;
-        pageTable[i].use = FALSE;
-        pageTable[i].dirty = FALSE;
-        pageTable[i].readOnly = FALSE;  
+        pageTable[vpn].valid = false;
+        pageTable[vpn].use = false;
     }
-    memLock->Release();
-}
 
-void AddrSpace::ReclaimPageTable()
-{
+    // (2) Clear physical memory so it can be reused
     memLock->Acquire();
-    for(int i = 0; i < numPages; i++)
+    for (ppn = 0; ppn < NumPhysPages; ppn++)
     {
-        if(pageTable[i].valid)
+        if (ipt[ppn].space == this)
         {
-            memBitMap->Clear(pageTable[i].physicalPage);
-            pageTable[i].valid = FALSE;
-            pageTable[i].use = FALSE;
-            pageTable[i].dirty = FALSE;
-            pageTable[i].readOnly = FALSE;  
+            ipt[ppn].valid = false;
+
+            memBitMap->Clear(ppn);
         }
     }
     memLock->Release();
+
+    (void) interrupt->SetLevel(oldLevel); // Restore interrupts
+}
+
+//----------------------------------------------------------------------
+// AddrSpace::ReclaimPageTable
+//  When a thread calls Exit, there are three cases:
+//  (1) Other threads still executing in the process
+//  (2) Last executing thread in process, other Nachos threads running
+//  (3) Last executing thread in Nachos
+//
+//  ReclaimPageTable handles the second case by reclaiming the entire 
+//  process' Page Table by (1) invalidating entire page table and
+//  (2) clearing physical memory so it can be reused.
+//----------------------------------------------------------------------
+
+void AddrSpace::ReclaimPageTable()
+{
+    unsigned int ssn, ppn;
+
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
+
+    // (2) Clear physical memory so it can be reused
+    memLock->Acquire();
+    for (ppn = 0; ppn < NumPhysPages; ppn++)
+    {
+        if (ipt[ppn].space == this)
+        {
+            ipt[ppn].valid = false;
+
+            memBitMap->Clear(ppn);
+        }
+    }
+    memLock->Release();
+
+    (void) interrupt->SetLevel(oldLevel); // Restore interrupts
+
+    // (1) Invalidate entire Page Table
+    delete pageTable;
 }
 
 

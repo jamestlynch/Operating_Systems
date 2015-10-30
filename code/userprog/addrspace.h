@@ -16,41 +16,43 @@
 #include "copyright.h"
 #include "filesys.h"
 #include "table.h"
+#include "translate.h"
 
-#define UserStackSize		1024 	// increase this as necessary!
-
+#define UserStackSize 1024 // increase this as necessary!
 #define MaxOpenFiles 256
 #define MaxChildSpaces 256
 
-#include "translate.h"
-
-class IPTEntry;
-class PageTableEntry;
+class PageTableEntry : public TranslationEntry
+{
+    public:
+        PageTableEntry(); // Initialize a Page Table Entry
+        ~PageTableEntry(); // De-allocate Page Table Entry
+        bool swapped; // In swap file? If !swapped && !valid, then load from executable
+        int offset; // The last bits of virtual address for access within Page
+};
 
 class AddrSpace {
-  public:
-    AddrSpace(OpenFile *executable);	// Create an address space,
-					// initializing it with the program
-					// stored in the file "executable"
-    ~AddrSpace();			// De-allocate an address space
+    public:
+        AddrSpace(OpenFile *executable);	// Create an address space,
+        				// initializing it with the program
+        				// stored in the file "executable"
+        ~AddrSpace();			// De-allocate an address space
 
-    int InitRegisters();		// Initialize user-level CPU registers,
-					// before jumping to user code
+        int InitRegisters();		// Initialize user-level CPU registers,
+        				// before jumping to user code
 
-    void SaveState();			// Save/restore address space-specific
-    void RestoreState();		// info on a context switch
-    Table fileTable;			// Table of openfiles
+        void SaveState();			// Save/restore address space-specific
+        void RestoreState();		// info on a context switch
+        Table fileTable;			// Table of openfiles
 
-    int NewPageTable();
-    void ReclaimStack(int stackPage);
-    void ReclaimPageTable();
+        int NewUserStack();
+        void ReclaimStack(int stackPage);
+        void ReclaimPageTable();
 
-// private:
-    TranslationEntry *pageT;	// Assume linear page table translation
-    PageTableEntry *pageTable;
+        PageTableEntry *pageTable;
 
-    unsigned int numPages;		// Number of pages in the virtual 
-					// address space
+        unsigned int numPages;		// Number of pages in the virtual 
+        				// address space
 };
 
 //translation entry with process owner. might need to add more stuff to this class
