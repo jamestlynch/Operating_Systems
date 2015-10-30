@@ -188,7 +188,8 @@ Initialize(int argc, char **argv)
 
 #endif
 #ifdef USE_TLB
-    memFIFO = new SynchList(NumPhysPages); // keeps track of order Pages are added to Memory (for FIFO eviction)
+    //evictionstrategy memoryEviction; // which memory eviction strategy we passed in
+    memFIFO = new SynchList(); // keeps track of order Pages are added to Memory (for FIFO eviction)
     ipt = new IPTEntry[NumPhysPages]; // stores metadata about Memory Page's Process owner and corresponding vpn
 
     tlbCounter = -1;
@@ -229,7 +230,9 @@ Cleanup()
 
     delete memBitMap;
 
-    for(int i = 0; i < locks.size(); i++)
+    unsigned int i;
+
+    for(i = 0; i < locks.size(); i++)
     {
         if(locks[i])
         {
@@ -237,7 +240,7 @@ Cleanup()
         }
     }
 
-    for(int i = 0; i < conditions.size(); i++)
+    for(i = 0; i < conditions.size(); i++)
     {
         if(conditions[i])
         {
@@ -245,7 +248,7 @@ Cleanup()
         }
     }
 
-    for(int i = 0; i < processInfo.size(); i++)
+    for(i = 0; i < processInfo.size(); i++)
     {
         if(processInfo[i])
         {

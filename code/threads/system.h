@@ -16,6 +16,7 @@
 #include "stats.h"
 #include "timer.h"
 #include "synch.h"
+#include "synchlist.h"
 #include <vector>
 #include <string>
 using namespace std;
@@ -36,14 +37,22 @@ extern Timer *timer;					// the hardware alarm clock
 class Machine;
 class AddrSpace;
 
+class IPTEntry : public TranslationEntry
+{
+    public:
+        AddrSpace * space; // Process memory belongs to
+};
+
 #ifdef USER_PROGRAM
 
-	extern Machine* machine;	// user program memory and registers
+    // Machine exectures user programs
+	extern Machine *machine;
 
-	//create tables for processes, condition variables, and locks
-	
+	// Syscall Synchronization Objects also need to know (1) their program
+    //  and whether set toDelete so clean up can occur when last Threads is 
+    //  done waiting.
+    // Store all Kernel Locks and CVs inside of tables indexed by their IDs.
 
-	// KernalLock extra info for cleaning up and guaranteeing process lock ownership
     struct KernelLock
     {
         Lock *lock;
@@ -51,13 +60,21 @@ class AddrSpace;
         bool toDelete;
     };
 
-    // KernelCV extra info for cleaning up and guaranteeing process CV ownership
     struct KernelCV
     {
         Condition *condition;
         AddrSpace *space;
         bool toDelete;
-    };  
+    };
+
+    extern vector<KernelLock*> locks;
+    extern vector<KernelCV*> conditions;
+
+    extern Lock *locksLock; // Synchronize lock table
+    extern Lock *conditionsLock; // Synchronize CV table
+
+    // To properly clean up User Programs on Exit, store information about
+    //  all running processes inside a table.
 
     struct Process
     {
@@ -66,60 +83,28 @@ class AddrSpace;
     	int numExecutingThreads;
     	int processID;
     };
-    struct ServerLock{
-        int clientMachineID;
-        int mailBoxNumber;
-    };
-    struct ServerCV{
-        int clientMachineID;
-        int mailBoxNumber;
 
-    };
-    class IPTEntry: public TranslationEntry{
-        //SOMETHING ELSE update inside of handlers
-    public:
-        AddrSpace *space;
-    };
-    class PageTableEntry: public TranslationEntry{
-    public:
-        //enum {SWAP, EXECUTABLE, MAINMEMORY}; //SOMETHING ELSE update inside of handlers
-        int byteoffset;
-        
-    };
-    //has all the threads
-    //destroy locks/cvs associated w the process
+    extern vector<Process*> processInfo;
+    extern Lock *processLock; // Synchronize Process table
+
+    // Memory Management
+    //  Keep track of available Memory (memBitMap), Memory Page ownership
+    //  (ipt), order of Memory updates for FIFO deletion (memFIFO), and 
+    //  synchronize all updates to Main Memory since it's a shared resource
 
 	extern BitMap *memBitMap;
-    extern SynchList *memFIFO;
-
-    //#ifdef NETWORK
-     /*   extern vector<ServerLock*> locks;
-        extern vector<ServerCV*> conditions;
-    #else*/
-    extern vector<KernelLock*> locks;
-    extern vector<KernelCV*> conditions;
-    //#endif NETWORK*/
-
-	extern vector<Process*> processInfo;
-
-
-	//create locks around these tables so only one program can access at a time
-	#include "synch.h"
     extern Lock *memLock;
-	extern Lock *processLock; //lock on process table
-	extern Lock *conditionsLock;	//lock on cv table
-	extern Lock *locksLock;	//lock on lock table
-    
-    extern int tlbCounter;
-    extern IPTEntry *ipt;
 
 #endif
 
 #ifdef USE_TLB
 
-//where to define the IPT struct??
+    //extern typedef enum evictionstrategy { EVICTRAND, EVICTFIFO } evictionstrategy;
 
-    
+    //extern evictionstrategy memoryEviction;
+    extern SynchList *memFIFO;
+    extern int tlbCounter;
+    extern IPTEntry *ipt;
 
 #endif
 
