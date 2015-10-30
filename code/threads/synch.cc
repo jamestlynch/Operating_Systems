@@ -249,6 +249,19 @@ Lock::isHeldByCurrentThread()
     return currentThread == lockOwner;
 }
 
+//----------------------------------------------------------------------
+// Lock::isAbleToDelete
+//  Used to determine if lock is not owned and without waiting threads.
+//
+//  Returns TRUE if okay to delete.
+//----------------------------------------------------------------------
+
+bool
+Lock::isAbleToDelete()
+{
+    return state == LOCKFREE && sleepqueue->IsEmpty();
+}
+
 //========================================================================================================================================
 //
 //  Condition Variables

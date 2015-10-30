@@ -85,6 +85,7 @@ class Lock {
         void setName(char * inName) { name = inName; }
         lockstate getState() { return state; }
         bool isHeldByCurrentThread(); // True if the current thread holds the lock
+        bool isAbleToDelete(); // True if no threads hold the lock and no threads waiting
         
         List *sleepqueue; // List of waiting threads
     private:
