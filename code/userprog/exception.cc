@@ -29,6 +29,20 @@
 
 using namespace std;
 
+//========================================================================================================================================
+//
+// System Calls
+//  System calls are how user programs request services from the OS.
+//  Below are Syscalls for:
+//  (1) File System
+//  (2) Thread Execution
+//  (3) Synchronization Objects
+//
+//  See also:   syscall.h   the syscall declarations
+//              start.s     the assembly assists for user programs
+//
+//========================================================================================================================================
+
 //----------------------------------------------------------------------
 // copyin
 //  Copy len bytes from the current thread's virtual address vaddr into
@@ -176,7 +190,7 @@ int Open_Syscall(unsigned int vaddr, int len) {
     // File successfully opened
     if (f)
     {
-        // Add file to process' fileTable
+        // File Table full: delete file; else: Put in open File Table
         if ((id = currentThread->space->fileTable.Put(f)) == -1)
             delete f;
         return id; // Program may reference file again
@@ -422,7 +436,7 @@ void PrintfTwo_Syscall(unsigned int vaddr, int len, int num1, int num2)
 int Random_Syscall(int lower, int upper)
 {
     srand(time(0));
-    int randomNumber = rand() % upper + lower ;
+    int randomNumber = rand() % upper + lower;
     return randomNumber;
 }
 
@@ -454,17 +468,17 @@ int validatelockindex(int index)
         return -1;
     }
 
-    KernelLock * curKernelLock = locks.at(index);
+    KernelLock * currentKernelLock = locks.at(index);
 
     // (2) Defined lock
-    if (!curKernelLock)
+    if (!currentKernelLock)
     {
         printf("Lock %d is NULL.\n", index);
         return -1;
     }
 
     // (3) Belongs to currentThread's process
-    if (curKernelLock->space != currentThread->space)
+    if (currentKernelLock->space != currentThread->space)
     {
         printf("Lock %d does not belong to the current process.\n", index);
         return -1;
@@ -587,10 +601,10 @@ int AcquireLock_Syscall(int indexlock)
 
 void deletelock(int indexlock)
 {
-    KernelLock * curKernelLock = locks.at(indexlock);
+    KernelLock * currentKernelLock = locks.at(indexlock);
 
-    delete curKernelLock->lock;
-    delete curKernelLock;
+    delete currentKernelLock->lock;
+    delete currentKernelLock;
     locks.at(indexlock) = NULL;
 
     printf("Lock %d was successfully deleted.\n", indexlock);
@@ -688,8 +702,8 @@ int validatecvindeces(int indexcv, int indexlock)
         return -1;
     }
 
-    int csize= conditions.size();
-    int lsize= locks.size();
+    int csize = conditions.size();
+    int lsize = locks.size();
 
     // (1) index to valid location
     if (indexcv > csize - 1 || indexlock > lsize - 1)
@@ -698,25 +712,25 @@ int validatecvindeces(int indexcv, int indexlock)
         return -1;
     }
 
-    KernelCV * curKernelCV = conditions.at(indexcv);
-    KernelLock * curKernelLock = locks.at(indexlock);
+    KernelCV * currentKernelCV = conditions.at(indexcv);
+    KernelLock * currentKernelLock = locks.at(indexlock);
 
     // (2) index to defined lock and cv
-    if (!curKernelCV  || !curKernelLock)
+    if (!currentKernelCV  || !currentKernelLock)
     {
         printf("Condition %d is set to NULL or Lock %d is set to NULL.\n", indexcv, indexlock);
         return -1;
     }
 
     // (3) lock belongs to process
-    if (curKernelLock->space != currentThread->space)
+    if (currentKernelLock->space != currentThread->space)
     {
         printf("Lock %d does not belong to the current process.\n", indexlock);
         return -1;
     }
 
     // (3) cv belongs to process
-    if (curKernelCV->space != currentThread->space)
+    if (currentKernelCV->space != currentThread->space)
     {
         printf("Condition %d does not belong to the current process.\n", indexcv);
         return -1;
@@ -1108,7 +1122,7 @@ void runforkedthread(int vaddr)
     // New PageTable = Old PageTable + 8 pages for new stack
     // Stack starts at bottom of PageTable; Must be 16 bytes above bottom 
     //  of page to avoid overwriting code space of next process 
-    int stackPage = currentThread->space->NewPageTable();
+    int stackPage = currentThread->space->NewUserStack();
     int stackAddr = (stackPage * PageSize) - 16;
 
     // Thread keeps track of stack's virtual address so it can translate
@@ -1282,88 +1296,233 @@ void Exec_Syscall(int vaddr, int len)
 
 void Join_Syscall() {}
 
-int handleMemoryFull(){
-  //update tlbtranslation
-  //selecting a page to be evicted either FIFO or Random
-  //how to determine if FIFO or random??? depending on the command line call
 
-  /*EVICT! part 4. find a place in swap 
-  file to copy it to, update page 
-  table for what we evict,
-  */
-  //RANDOM= call rand() function, make between 1 and 31. evict the page at the rand value.
+//========================================================================================================================================
+//
+// Memory Management Unit (MMU)
+//  Responsible for all address translation. It does this by: (Real OSes
+//  only do steps 0-2 since Memory is usually sufficiently big).
+//
+//  (0) Receive and Validate virtual address from CPU.
+//
+//  (1) (translate.cc) Look inside of the Translation Lookaside Buffer 
+//      (a) If vaddr found and valid, use physical address.
+//
+//  (2) (PageFault_Handler) If not in TLB, look in Inverted Page Table 
+//      (IPT) to see if vaddr in Main Memory.
+//      (a) If vaddr found and belongs to process, replace a TLB entry.
+//
+//  (3) (IPTMiss_Handler) If not in Main Memory, load into memory.
+//      (a) Get vaddr from translation Page Tables
+//      (b) Find an unused page of memory
+//      (c) Load vpn to physical memory and Update IPT
+//      (d) Finish PageFault_Handler.
+//
+//  (4) (MemoryFull_Handler) If Main Memory is full, replace a Memory Page.
+//      (a) If dirty evicted page, Write to swapfile and Update Page Table.
+//      (b) Finish IPTMiss_Handler.
+//
+//========================================================================================================================================
 
-  //IF RANDOM EVICTION, USE RAND. DEFAULT IS RAND
-  //nachos -P FIFO
-  //nachos -P RAND argv[0]==rand??
+//----------------------------------------------------------------------
+// GetPageToEvict
+//  Based on the eviction flag passed into Nachos, either select a 
+//  random Page of Memory to evict or the next Page in FIFO order.
+//
+//  Returns physical page number of Page to evict.
+//----------------------------------------------------------------------
 
- 
-    //if valid, propogate dirty bit to tlb. if dirty bit, to swapfile.
-    int pageEvicted= rand() % NumPhysPages;
-  
-  //evict page to make a hole to load in the page that i need
-  //since i got an IPT miss. replace that page with the needed page
-  int ppn = pageEvicted;
-  return ppn;
+unsigned int GetPageToEvict()
+{
+    int ppn;
 
-  //work to evict page is immaterial of the page you pick
-  //IF FIFO
-  // writing to the swap file
+    // switch (memoryEviction)
+    // {
+    //     case EVICTRAND:
+    //         // TODO: Do we need to check use bit before evicting?
+    //         srand(time(0));
+    //         ppn = rand() % NumPhysPages;
+    //         break;
+    //     case EVICTFIFO:
+    //         ppn = (unsigned int)memFIFO->Remove();
+    //         break;
+    // }
+
+    // return ppn;
+    return 0;
 }
-int handleIPTMiss( int neededVPN ) {
-        int ppn = memBitMap->Find();  //Find a physical page of memory
-        printf("PPN Inside IPT miss: %d\n", ppn );
-        if ( ppn == -1 ) {
-            ppn = handleMemoryFull();
-        }
 
-        return ppn;
-        //read values from page table as to location of needed virtual page
-        //copy page from disk to memory, if needed
-}
-void handlePageFault(unsigned int vaddr){
-   
-  //TLBLock->Acquire(); WE NEED A LOCK WHEN UPDATING THE PAGE TABLE STUFF. BUT NOT SURE AROUND EXACTLY WHAT
-  tlbCounter++; 
-  int vpn = vaddr/PageSize;
-  int ppn=-1;
-  /*for (int i=0; i < NumPhysPages; i++) {
-        if (currentThread->space->pageTable[i].valid && currentThread->space->pageTable[i].virtualPage==vpn){
-          ppn=i;
-          break;
-        }
-  }*/
+//----------------------------------------------------------------------
+// MemoryFull_Handler
+//  When Memory is full, need to evict a Page.
+//  (1) Get Page to Evict
+//      (a) Random Eviction     nachos -evictRAND
+//      (b) FIFO Eviction       nachos -evictFIFO
+//  (2) (If EvictedPage is Dirty) Place in Swapfile and Update PageTable
+//  (3) Finish IPTMiss_Handler and PageFault_Handler to update IPT/TLB.
+//----------------------------------------------------------------------
 
-  for (int i=0; i < NumPhysPages; i++) {
-      if (ipt[i].valid && ipt[i].virtualPage == vpn && ipt[i].space == currentThread->space) {
-        ppn = i;
-        break;
-      }
-  }
-    if (ppn == -1) {
-        ppn = handleIPTMiss(vpn);
+unsigned int MemoryFull_Handler()
+{
+    unsigned int i, ppn;
+
+    // (1) Get Page to evict.
+    //  Call eviction strategy based on flag passed into Nachos.
+    ppn = GetPageToEvict();
+
+    // (2) Dirty Page: Place evicted page in swapfile, update PageTable
+    for (i = 0; i < TLBSize; i++)
+    {
+        // Memory has been written to during its time in main memory,
+        //  Now that we're discarding the memory we must write it back
+        //  to disk.
+        if (machine->tlb[i].physicalPage == ppn && machine->tlb[i].valid && machine->tlb[i].dirty)
+        {
+            // TODO: Write to swapfile
+            //  int physAddr = WriteToSwapFile(ppn);
+            //  int swapPage = physAddr / PageSize;
+            //  int offset = physAddr % PageSize;
+            //  int vpn = tlb[ppn].virtualPage;
+            
+            //  currentThread->space->pageTable[vpn].dirty = true;
+            //  currentThread->space->pageTable[vpn].swapped = true;
+            //  currentThread->space->pageTable[vpn].physicalPage = swapPage;
+            //  currentThread->space->pageTable[vpn].offset = offset;
+        }
     }
-    /*
-    INCREMENT THE TLB . search the ipt for the proper 
-    physical page number, then put that page number inside the tlb*/
-    /*machine->tlb[tlbCounter%TLBSize].valid= true;
-    machine->tlb[tlbCounter%TLBSize].virtualPage= currentThread->space->pageTable[ppn].virtualPage; //ipt[ppn].virtualPage;
-    machine->tlb[tlbCounter%TLBSize].physicalPage= currentThread->space->pageTable[ppn].physicalPage; //ipt[ppn].physicalPage;
-    machine->tlb[tlbCounter%TLBSize].use= currentThread->space->pageTable[ppn].use;//ipt[ppn].use;
-    machine->tlb[tlbCounter%TLBSize].dirty= currentThread->space->pageTable[ppn].dirty;//ipt[ppn].dirty;*/
-    //machine->tlb[tlbCounter].space= ipt[ppn].space;
-    //TLBLock->Release(); ????
 
-    machine->tlb[tlbCounter%TLBSize].valid= true;
-    machine->tlb[tlbCounter%TLBSize].virtualPage= ipt[ppn].virtualPage;
-    machine->tlb[tlbCounter%TLBSize].physicalPage= ipt[ppn].physicalPage;
-    machine->tlb[tlbCounter%TLBSize].use= ipt[ppn].use;
-    machine->tlb[tlbCounter%TLBSize].dirty= ipt[ppn].dirty;
-   
-
-
-
+    return ppn;
 }
+
+//----------------------------------------------------------------------
+// IPTMiss_Handler
+//  When the translation is not inside of Main Memory, we need to put it
+//  there and update the TLB. This handles updating Main Memory by:
+//  (1) Finding a free page of Memory
+//  (2) (If Memory is Full) Evicting a page to make room in Memory
+//  (3) Looking up in where the virtual page is located in PageTable
+//  (4) Moving entry from Swapfile or Executable to Main Memory
+//  (5) Updating PageTable Entry's location
+//
+//  "vpn" -- the virtual page to be put in Main Memory
+//----------------------------------------------------------------------
+
+int IPTMiss_Handler(int vpn)
+{
+    // (1) Find free page of mainMem
+    int ppn = memBitMap->Find();
+    memFIFO->Append((void *)ppn); // Maintain order of Adding to Memory for FIFO Eviction
+    
+    // (2) Memory full; Evict (Random or FIFO) a page
+    if (ppn == -1) {
+        ppn = MemoryFull_Handler();
+    }
+
+    // (3) Look up where Page located
+    // (4) Move entry from Swapfile or Executable to Main Memory
+    if (currentThread->space->pageTable[vpn].swapped)
+    {
+        ;
+        // TODO: 
+        //  LoadFromSwapfile(ppn);
+    }
+    else
+    {
+        ;
+        // TODO: 
+        //  LoadFromExecutable(ppn);
+    }
+
+    // (5) Update PageTable
+    //  TODO: Is this assumption correct: When we move to main memory, 
+    //      Page is no longer swapped?
+    currentThread->space->pageTable[vpn].swapped = false;
+
+    return ppn;
+}
+
+//----------------------------------------------------------------------
+// PageFault_Handler
+//  Caused when trying to find the physical page number for a vaddr not 
+//  inside of the TLB during translation. Need to populate the TLB with 
+//  address translation by finding where it is located in physical
+//  memory and evicting a TLB entry, in FIFO order (using tlbCounter).
+//  We do this by:
+//  (1) Getting the Virtual Page from the vaddr
+//  (2) Finding the entry in Main Memory
+//  (3) (If not in memory) Handle Core Map/IPT Miss
+//  (4) Propagate changes to Page Table
+//  (5) Evicting a TLB entry
+//  (6) Updating TLB entry with the translation for the vaddr
+//
+//  "vaddr" -- the bad vaddr that caused the TLB miss
+//
+//  See also:   translate.cc    Raises PageFaultException during 
+//                              failed translations
+//----------------------------------------------------------------------
+
+void PageFault_Handler(unsigned int vaddr)
+{
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
+
+    // (1) Get Virtual Page from bad vaddr
+    int vpn = vaddr / PageSize;
+    
+    // (2) Find entry in Main Memory
+    int ppn = -1;
+    for (int i = 0; i < NumPhysPages; i++)
+    {
+        // Memory entry is valid, belongs to same Process and is for the same Virtual Page
+        if (ipt[i].virtualPage == vpn && ipt[i].valid && ipt[i].space == currentThread->space)
+        {
+            ppn = i;
+            break;
+        }
+    }
+
+    // (3) Handle not in Main Memory
+    if (ppn == -1)
+    {
+        ppn = IPTMiss_Handler(vpn);
+    }
+
+    // (4) Evict TLB Entry in FIFO order
+    tlbCounter++;
+    int evictEntry = tlbCounter % TLBSize;
+
+    // (5) Propagate changes to Page Table
+    if (machine->tlb[evictEntry].dirty)
+    {
+        ipt[ppn].dirty = true;
+
+        // TODO: What are we doing here?
+        //  currentThread->space->pageTable[vpn].dirty = true;
+    }
+
+    // (6) Update TLB with translation for vpn -> ppn
+    int newEntry = evictEntry;
+
+    machine->tlb[newEntry].virtualPage = vpn;
+    machine->tlb[newEntry].physicalPage = ppn;
+    machine->tlb[newEntry].valid = true; // Belongs to process
+    machine->tlb[newEntry].use = ipt[ppn].use; // TODO: What is use used for?
+    machine->tlb[newEntry].dirty = ipt[ppn].dirty; // TODO: What is dirty used for?
+
+    (void) interrupt->SetLevel(oldLevel); // Restore interrupts
+}
+
+//========================================================================================================================================
+//
+// Exception Handler
+//
+//  See also:   syscall.h       System Call Codes and Interfaces
+//              start.s         Assembly language assists for user 
+//                              programs to call system calls
+//              mipssum.cc      Raises SyscallExceptions while executing
+//              translate.cc    Raises PageFaultException during 
+//                              failed translations
+//
+//========================================================================================================================================
 
 //----------------------------------------------------------------------
 // ExceptionHandler
@@ -1395,13 +1554,6 @@ void handlePageFault(unsigned int vaddr){
 //          mem, process can execute instruction that threw Exception)
 //
 //  "which" -- type of Exception (Syscall, PageFault, etc.)
-//
-//  See also:   syscall.h       System Call Codes and Interfaces
-//              start.s         Assembly language assists for user 
-//                              programs to call system calls
-//              mipssum.cc      Raises SyscallExceptions while executing
-//              translate.cc    Raises PageFaultException during 
-//                              failed translations
 //----------------------------------------------------------------------
 
 void ExceptionHandler(ExceptionType which) 
@@ -1543,8 +1695,11 @@ void ExceptionHandler(ExceptionType which)
         machine->WriteRegister(NextPCReg, machine->ReadRegister(PCReg) + 4);
         return;
     }
-    else if ( which == PageFaultException ) {
-        handlePageFault(machine->ReadRegister(39));
+    else if (which == PageFaultException)
+    {
+        // Bad vaddr in Register 39 by convention
+        // TODO: Validate vaddr from CPU
+        PageFault_Handler(machine->ReadRegister(39));
         return;
     }
     else 
@@ -1553,4 +1708,3 @@ void ExceptionHandler(ExceptionType which)
         interrupt->Halt();
     }
 }
->>>>>>> master
