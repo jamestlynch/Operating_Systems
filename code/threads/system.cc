@@ -32,22 +32,27 @@ Timer *timer;                   // the hardware timer device, for invoking conte
 
 // USER_PROGRAM requires either FILESYS or FILESYS_STUB
 #ifdef USER_PROGRAM
+    
     Machine *machine;
 
     BitMap *memBitMap;
+    Lock *memLock;
     
     vector<KernelLock*> locks;
     vector<KernelCV*> conditions;
     vector<Process*> processInfo;
 
-    Lock *memLock;
     Lock *processLock;
     Lock *conditionsLock;
     Lock *locksLock;
+
 #endif
 #ifdef USE_TLB
+    
     int tlbCounter;
-    Lock *TLBLock; //not sure where to put lock around.
+
+    SynchList *memFIFO;
+
     IPTEntry *ipt;
     
 #endif
@@ -173,24 +178,20 @@ Initialize(int argc, char **argv)
 #ifdef USER_PROGRAM
     machine = new Machine(debugUserProg);	// this must come first
 
-    // Create tables for tracking processes, condition variables, and locks
-    // TODO: Define Table *processT;
+    // Manage Main Memory
+    memLock = new Lock("MemBitMapLock"); // synchronizes updates to Memory
+    memBitMap = new BitMap(NumPhysPages); // keeps track of available Memory Pages
 
-    // Synchronize these tables with locks so only one program can access at a time
-    // TODO: Do we really need locks since OS is the only "program" updating/reading from these tables?
-    // TODO: Define Lock *processLock;
-    memLock = new Lock("MemBitMapLock");
     conditionsLock = new Lock("KernelCVLock");
     locksLock = new Lock("KernelLocksLock");
     processLock = new Lock("ProcessLock");
-    memBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes 
-    ipt = new IPTEntry[NumPhysPages];
-    TLBLock= new Lock("TLBLock");
-    tlbCounter=-1;
 
 #endif
 #ifdef USE_TLB
-    
+    memFIFO = new SynchList(NumPhysPages); // keeps track of order Pages are added to Memory (for FIFO eviction)
+    ipt = new IPTEntry[NumPhysPages]; // stores metadata about Memory Page's Process owner and corresponding vpn
+
+    tlbCounter = -1;
 #endif
 
 #ifdef FILESYS

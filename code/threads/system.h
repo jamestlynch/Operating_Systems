@@ -90,6 +90,7 @@ class AddrSpace;
     //destroy locks/cvs associated w the process
 
 	extern BitMap *memBitMap;
+    extern SynchList *memFIFO;
 
     //#ifdef NETWORK
      /*   extern vector<ServerLock*> locks;
@@ -109,7 +110,6 @@ class AddrSpace;
 	extern Lock *conditionsLock;	//lock on cv table
 	extern Lock *locksLock;	//lock on lock table
     
-    extern Lock *TLBLock;
     extern int tlbCounter;
     extern IPTEntry *ipt;
 
