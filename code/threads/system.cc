@@ -183,15 +183,14 @@ Initialize(int argc, char **argv)
     conditionsLock = new Lock("KernelCVLock");
     locksLock = new Lock("KernelLocksLock");
     processLock = new Lock("ProcessLock");
-
     memBitMap = new BitMap(NumPhysPages); //num phys pages goes in machine.h according to class notes 
-
+    ipt = new IPTEntry[NumPhysPages];
+    TLBLock= new Lock("TLBLock");
+    tlbCounter=-1;
 
 #endif
 #ifdef USE_TLB
-    TLBLock= new Lock("TLBLock");
-    ipt = new IPTEntry[NumPhysPages];
-    tlbCounter=-1;
+    
 #endif
 
 #ifdef FILESYS

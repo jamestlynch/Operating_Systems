@@ -50,7 +50,7 @@ class AddrSpace;
     {
         Lock *lock;
         AddrSpace *space;
-        bool toDelete;      
+        bool toDelete;
     };
 
     // KernelCV extra info for cleaning up and guaranteeing process CV ownership
@@ -86,6 +86,7 @@ class AddrSpace;
     public:
         //enum {SWAP, EXECUTABLE, MAINMEMORY}; //SOMETHING ELSE update inside of handlers
         int byteoffset;
+        
     };
     //has all the threads
     //destroy locks/cvs associated w the process

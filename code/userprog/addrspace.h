@@ -46,8 +46,8 @@ class AddrSpace {
     void ReclaimPageTable();
 
 // private:
-    TranslationEntry *pageTable;	// Assume linear page table translation
-    PageTableEntry *pageT;
+    TranslationEntry *pageT;	// Assume linear page table translation
+    PageTableEntry *pageTable;
 
     unsigned int numPages;		// Number of pages in the virtual 
 					// address space

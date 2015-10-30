@@ -978,6 +978,7 @@ int handleMemoryFull(){
 }
 int handleIPTMiss( int neededVPN ) {
         int ppn = memBitMap->Find();  //Find a physical page of memory
+        printf("PPN Inside IPT miss: %d\n", ppn );
         if ( ppn == -1 ) {
             ppn = handleMemoryFull();
         }
@@ -992,32 +993,42 @@ void handlePageFault(unsigned int vaddr){
   tlbCounter++; 
   int vpn = vaddr/PageSize;
   int ppn=-1;
-  for (int i=0; i < NumPhysPages; i++) {
+  /*for (int i=0; i < NumPhysPages; i++) {
         if (currentThread->space->pageTable[i].valid && currentThread->space->pageTable[i].virtualPage==vpn){
           ppn=i;
           break;
         }
-  }
+  }*/
 
-  /*for (int i=0; i < NumPhysPages; i++) {
+  for (int i=0; i < NumPhysPages; i++) {
       if (ipt[i].valid && ipt[i].virtualPage == vpn && ipt[i].space == currentThread->space) {
         ppn = i;
         break;
       }
-  }*/
+  }
     if (ppn == -1) {
         ppn = handleIPTMiss(vpn);
-    } 
+    }
     /*
     INCREMENT THE TLB . search the ipt for the proper 
     physical page number, then put that page number inside the tlb*/
-    machine->tlb[tlbCounter%TLBSize].valid= true;
+    /*machine->tlb[tlbCounter%TLBSize].valid= true;
     machine->tlb[tlbCounter%TLBSize].virtualPage= currentThread->space->pageTable[ppn].virtualPage; //ipt[ppn].virtualPage;
     machine->tlb[tlbCounter%TLBSize].physicalPage= currentThread->space->pageTable[ppn].physicalPage; //ipt[ppn].physicalPage;
     machine->tlb[tlbCounter%TLBSize].use= currentThread->space->pageTable[ppn].use;//ipt[ppn].use;
-    machine->tlb[tlbCounter%TLBSize].dirty= currentThread->space->pageTable[ppn].dirty;//ipt[ppn].dirty;
+    machine->tlb[tlbCounter%TLBSize].dirty= currentThread->space->pageTable[ppn].dirty;//ipt[ppn].dirty;*/
     //machine->tlb[tlbCounter].space= ipt[ppn].space;
     //TLBLock->Release(); ????
+
+    machine->tlb[tlbCounter%TLBSize].valid= true;
+    machine->tlb[tlbCounter%TLBSize].virtualPage= ipt[ppn].virtualPage;
+    machine->tlb[tlbCounter%TLBSize].physicalPage= ipt[ppn].physicalPage;
+    machine->tlb[tlbCounter%TLBSize].use= ipt[ppn].use;
+    machine->tlb[tlbCounter%TLBSize].dirty= ipt[ppn].dirty;
+   
+
+
+
 }
 void ExceptionHandler(ExceptionType which) 
 {
