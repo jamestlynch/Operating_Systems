@@ -36,7 +36,6 @@ extern Timer *timer;					// the hardware alarm clock
 
 class Machine;
 class AddrSpace;
-class BitMap;
 
 
 #ifdef USER_PROGRAM

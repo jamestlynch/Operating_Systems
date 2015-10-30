@@ -301,7 +301,7 @@ int AddrSpace::NewPageTable()
 {
     memLock->Acquire();
 
-    #ifdef USE_TLB
+    
     
     TranslationEntry * newPT = new TranslationEntry[numPages + (UserStackSize / PageSize)]; // add 8 pages for new stack
     
@@ -314,13 +314,13 @@ int AddrSpace::NewPageTable()
         newPT[i].dirty          =   pageTable[i].dirty;
         newPT[i].readOnly       =   pageTable[i].readOnly;
 
-        ipt[i].virtualPage    =   pageTable[i].virtualPage;
+        /*ipt[i].virtualPage    =   pageTable[i].virtualPage;
         ipt[i].physicalPage   =   pageTable[i].physicalPage;
         ipt[i].valid          =   pageTable[i].valid;
         ipt[i].use            =   pageTable[i].use;
         ipt[i].dirty          =   pageTable[i].dirty;
         ipt[i].readOnly       =   pageTable[i].readOnly;
-        ipt[i].space          =   this;
+        ipt[i].space          =   this;*/
 
     }
 
@@ -352,7 +352,6 @@ int AddrSpace::NewPageTable()
           interrupt->Halt();
         }
     }
-    #endif USE_TLB
 
     delete pageTable;
 

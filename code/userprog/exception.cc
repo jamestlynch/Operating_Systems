@@ -40,6 +40,7 @@ int copyin(unsigned int vaddr, int len, char *buf)
 
     while ( n >= 0 && n < len) 
     {
+      printf("Vaddr: %d, paddr: %d", vaddr, paddr); 
       result = machine->ReadMem( vaddr, 1, paddr );
       while(!result) // FALL 09 CHANGES
       {
@@ -872,6 +873,8 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
   t->Fork((VoidFunctionPtr)Kernel_Thread, vFuncAddr);
 
   processLock->Release();
+
+
 }
 
 void Exec_Thread()
@@ -990,23 +993,30 @@ void handlePageFault(unsigned int vaddr){
   int vpn = vaddr/PageSize;
   int ppn=-1;
   for (int i=0; i < NumPhysPages; i++) {
+        if (currentThread->space->pageTable[i].valid && currentThread->space->pageTable[i].virtualPage==vpn){
+          ppn=i;
+          break;
+        }
+  }
+
+  /*for (int i=0; i < NumPhysPages; i++) {
       if (ipt[i].valid && ipt[i].virtualPage == vpn && ipt[i].space == currentThread->space) {
         ppn = i;
         break;
       }
-  }
+  }*/
     if (ppn == -1) {
         ppn = handleIPTMiss(vpn);
     } 
-
-    /* INCREMENT THE TLB . search the ipt for the proper 
+    /*
+    INCREMENT THE TLB . search the ipt for the proper 
     physical page number, then put that page number inside the tlb*/
-    machine->tlb[tlbCounter%TLBSize].virtualPage= ipt[ppn].virtualPage;
-    machine->tlb[tlbCounter%TLBSize].physicalPage= ipt[ppn].physicalPage;
     machine->tlb[tlbCounter%TLBSize].valid= true;
-    machine->tlb[tlbCounter%TLBSize].use= ipt[ppn].use;
-    machine->tlb[tlbCounter%TLBSize].dirty= ipt[ppn].dirty;
-    //machine->tlb[tlbCounter].space= ipt[ppn].space;  ??????
+    machine->tlb[tlbCounter%TLBSize].virtualPage= currentThread->space->pageTable[ppn].virtualPage; //ipt[ppn].virtualPage;
+    machine->tlb[tlbCounter%TLBSize].physicalPage= currentThread->space->pageTable[ppn].physicalPage; //ipt[ppn].physicalPage;
+    machine->tlb[tlbCounter%TLBSize].use= currentThread->space->pageTable[ppn].use;//ipt[ppn].use;
+    machine->tlb[tlbCounter%TLBSize].dirty= currentThread->space->pageTable[ppn].dirty;//ipt[ppn].dirty;
+    //machine->tlb[tlbCounter].space= ipt[ppn].space;
     //TLBLock->Release(); ????
 }
 void ExceptionHandler(ExceptionType which) 

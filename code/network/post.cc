@@ -318,6 +318,10 @@ PostOffice::Receive(int box, PacketHeader *pktHdr,
     boxes[box].Get(pktHdr, mailHdr, data);
     ASSERT(mailHdr->length <= MaxMailSize);
 }
+//we decide the mailbox to listen to
+//server listens on one mailbox because each client nachos is running 1 single user thread, 
+//all mailheader to and from are zero since its single threads
+//when step 4 passport office wont run, something to test memory management so use the 7220 thing there but not part 1
 
 //----------------------------------------------------------------------
 // PostOffice::IncomingPacket

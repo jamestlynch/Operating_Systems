@@ -56,8 +56,8 @@ int InitialMoney()
 }
 
 
-int numCustomers = 50;
-struct Customer customers[60]; /* Same info for customers/senators: SIZE = numCustomers + numSenators */
+int numCustomers = 1;
+struct Customer customers[5]; /* Same info for customers/senators: SIZE = numCustomers + numSenators */
 
 int numCustomersFinished = 0; /* Compare this to (numCustomers + numSenators) to see when program completes. */
 
@@ -87,8 +87,8 @@ void InitializeCustomerData ()
 /* 		  	    Senator Data 			  */
 /******************************************/
 
-int numSenators = 10;
-struct Customer senators[10];
+int numSenators = 0;
+struct Customer senators[0];
 /* Senators are stored inside of customers array. See above. */
 
 int isSenatorPresent = 0; /* Used to determine whether or not customers should wait for senators to leave PPOffice */
@@ -150,10 +150,10 @@ struct Clerk {
 	bool customerAppReadyForPayment;
 };
 
-int numAppClerks = 5;
-int numPicClerks = 5;
-int numPassportClerks = 5;
-int numCashiers = 5;
+int numAppClerks = 1;
+int numPicClerks = 1;
+int numPassportClerks = 1;
+int numCashiers = 1;
 
 struct ClerkGroup {
 	struct Clerk clerks[5];
@@ -322,6 +322,8 @@ void InitializePassportClerkData ()
 {
 	enum persontype clerkType = PASSPORT;
 
+	if (numPassportClerks!=0){
+
 	InitializeClerkData(numPassportClerks, clerkType);
 
 	clerkGroups[clerkType].numClerks = numPassportClerks;
@@ -372,11 +374,13 @@ void InitializePassportClerkData ()
 	clerkGroups[clerkType].breakCVs[2] = CreateCV("Pas:2-BreakCV", 13);
 	clerkGroups[clerkType].breakCVs[3] = CreateCV("Pas:3-BreakCV", 13);
 	clerkGroups[clerkType].breakCVs[4] = CreateCV("Pas:4-BreakCV", 13);
+	}
 }
 
 void InitializeCashierData ()
 {
 	enum persontype clerkType = CASHIER;
+	if (numPassportClerks!=0){
 
 	InitializeClerkData(numCashiers, clerkType);
 
@@ -428,6 +432,7 @@ void InitializeCashierData ()
 	clerkGroups[clerkType].breakCVs[2] = CreateCV("Csh:2-BreakCV", 13);
 	clerkGroups[clerkType].breakCVs[3] = CreateCV("Csh:3-BreakCV", 13);
 	clerkGroups[clerkType].breakCVs[4] = CreateCV("Csh:4-BreakCV", 13);
+}
 }
 
 /******************************************/
@@ -1463,13 +1468,17 @@ void Leave (int ssn)
 
 void Customer ()
 {
+
 	int ssn;
 	struct Person customer;
 	int applicationFirst;
 	int clerkID;
 
+	/*AcquireLock(paramLock);*/
+
 	ssn = threadParam;
 	ReleaseLock(paramLock);
+	WriteOne("ssn inside customer: %d", sizeof("ssn inside customer: %d"), ssn);
 
 	customer = people[ssn];
 
@@ -1864,9 +1873,11 @@ enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
 
 void Clerk()
 {
+
 	int ssn;
 	struct Person clerk;
 	enum clerkinteraction interaction;
+	AcquireLock(paramLock);
 
 	ssn = threadParam;
 	ReleaseLock(paramLock);
@@ -2029,8 +2040,13 @@ void Manager ()
 
 void InitializeData ()
 {
+	WriteOne("Num Customers: %d \n", sizeof("Num Customers: %d \n"), numCustomers);
+	WriteOne("Num App Clerks: %d \n", sizeof("Num App Clerks: %d \n"), numAppClerks);
+	WriteOne("Num Pic Clerks: %d \n", sizeof("Num Pic Clerks: %d \n"), numPicClerks);
+	WriteOne("Num Passport Clerks: %d \n", sizeof("Num Passport Clerks: %d \n"), numPassportClerks);
+
 	InitializeCustomerData();
-	InitializeSenatorData();
+	/*InitializeSenatorData();*/
 	InitializeApplicationClerkData();
 	InitializePictureClerkData();
 	InitializePassportClerkData();
@@ -2039,6 +2055,7 @@ void InitializeData ()
 	InitializeSystemJobs();
 
 	paramLock = CreateLock("ParamLock", sizeof("ParamLock"));
+
 }
 
 void ForkAgents ()
@@ -2048,18 +2065,19 @@ void ForkAgents ()
 	for (ssn = 0; ssn < (numCustomers + numSenators); ssn++)
 	{
 		AcquireLock(paramLock);
+		WriteOne("ssn: %d", sizeof("ssn: %d"), ssn);
 		threadParam = ssn;
 		Fork("CustomerThread", sizeof("CustomerThread"), Customer);
 	}
 
-	for (; ssn < (numCustomers + numSenators) + (numAppClerks + numPicClerks + numPassportClerks + numCashiers); ssn++)
+	for (ssn = numCustomers + numSenators; ssn < (numCustomers + numSenators) + (numAppClerks + numPicClerks + numPassportClerks + numCashiers); ssn++)
 	{
-		AcquireLock(paramLock);
+		WriteOne("ssn: %d", sizeof("ssn: %d"), ssn);
+		/*AcquireLock(paramLock);*/
 		threadParam = ssn;
 		Fork("ClerkThread", sizeof("ClerkThread"), Clerk);
 	}
-
-	Fork("ManagerThread", sizeof("ManagerThread"), Manager);
+	/*Fork("ManagerThread", sizeof("ManagerThread"), Manager);*/
 }
 
 void CleanUpData ()
