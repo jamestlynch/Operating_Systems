@@ -24,31 +24,22 @@
 #include "copyright.h"
 #include "synch.h"
 #include "system.h"
-
-
 #include <stdio.h>
 
-#define RED     "\x1b[31m"
-#define GREEN   "\x1b[32m"
-#define YELLOW  "\x1b[33m"
-#define BLUE    "\x1b[34m"
-#define MAGENTA "\x1b[35m"
-#define CYAN    "\x1b[36m"
-#define ANSI_COLOR_RESET   "\x1b[0m"
-
-
-bool debuggingLocks = true;
-bool debuggingLockErrors = true;
-bool debuggingCVs = true;
-bool debuggingCVErrors = true;
-
+//========================================================================================================================================
+//
+// Semaphores
+//
+//  See also:   threadtest.cc   test suite for synchronization objects
+//
+//========================================================================================================================================
 
 //----------------------------------------------------------------------
 // Semaphore::Semaphore
 //  Initialize a semaphore, so that it can be used for synchronization.
 //
-//  "debugName" is an arbitrary name, useful for debugging.
-//  "initialValue" is the initial value of the semaphore.
+//  "debugName" -- an arbitrary name, useful for debugging.
+//  "initialValue" -- the initial value of the semaphore.
 //----------------------------------------------------------------------
 
 Semaphore::Semaphore(char* debugName, int initialValue)
@@ -60,8 +51,8 @@ Semaphore::Semaphore(char* debugName, int initialValue)
 
 //----------------------------------------------------------------------
 // Semaphore::Semaphore
-//  De-allocate semaphore, when no longer needed.  Assume no one
-//  is still waiting on the semaphore!
+//  De-allocate semaphore, when no longer needed. Assume no one is still 
+//  waiting on the semaphore!
 //----------------------------------------------------------------------
 
 Semaphore::~Semaphore()
@@ -75,96 +66,131 @@ Semaphore::~Semaphore()
 //  value and decrementing must be done atomically, so we
 //  need to disable interrupts before checking the value.
 //
-//  Note that Thread::Sleep assumes that interrupts are disabled
-//  when it is called.
+//  NOTE:   Thread::Sleep assumes that interrupts are disabled when it 
+//          is called.
 //----------------------------------------------------------------------
 
-void
-Semaphore::P()
+void Semaphore::P()
 {
-    IntStatus oldLevel = interrupt->SetLevel(IntOff);   // disable interrupts
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     
-    while (value == 0) {            // semaphore not available
-    queue->Append((void *)currentThread);   // so go to sleep
-    currentThread->Sleep();
-    } 
-    value--;                    // semaphore available, 
-                        // consume its value
+    while (value == 0)
+    {
+        // Semaphore not available, so go to sleep
+        queue->Append((void *)currentThread);
+        currentThread->Sleep();
+    }
+
+    value--; // Semaphore available, consume its value
     
-    (void) interrupt->SetLevel(oldLevel);   // re-enable interrupts
+    (void) interrupt->SetLevel(oldLevel); // Re-enable interrupts
 }
 
 //----------------------------------------------------------------------
 // Semaphore::V
-//  Increment semaphore value, waking up a waiter if necessary.
-//  As with P(), this operation must be atomic, so we need to disable
-//  interrupts.  Scheduler::ReadyToRun() assumes that threads
-//  are disabled when it is called.
+//  Increment semaphore value, waking up a waiter if necessary. As with 
+//  P(), this operation must be atomic so we need to disable interrupts. 
+//
+//  NOTE:   Scheduler::ReadyToRun() assumes that threads are disabled 
+//          when it is called.
 //----------------------------------------------------------------------
 
-void
-Semaphore::V()
+void Semaphore::V()
 {
     Thread *thread;
-    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
+    // Thread was waiting on semaphore, notify scheduler that thread woke up.
     thread = (Thread *)queue->Remove();
-    if (thread != NULL)    // make thread ready, consuming the V immediately
-    scheduler->ReadyToRun(thread);
-    value++;
-    (void) interrupt->SetLevel(oldLevel);
-    //printf("[Semaphore::V] %s releasing\n", currentThread->getName());
+    if (thread != NULL)
+        scheduler->ReadyToRun(thread);
+    
+    value++; // Increment semaphore value
+
+    (void) interrupt->SetLevel(oldLevel); // Re-enable interrupts
 }
 
-// Dummy functions -- so we can compile our later assignments 
-// Note -- without a correct implementation of Condition::Wait(), 
-// the test case in the network assignment won't work!
+//========================================================================================================================================
+//
+// Locks
+//  
+//  See also:   threadtest.cc   test suite for synchronization objects
+//
+//========================================================================================================================================
+
+//----------------------------------------------------------------------
+// Lock::Lock
+//  Initialize a lock, so that it can be used for mutual exclusion.
+//
+//  "debugName" -- an arbitrary name, useful for debugging.
+//----------------------------------------------------------------------
+
 Lock::Lock(char* debugName) 
 {
     name = debugName;
-   // lockOwner = NULL;
-    lockOwner=NULL;
-    //state = 0;
-    sleepqueue = new List;
-
+    state = FREE;
+    lockOwner = NULL; // Thread that most recently Acquired lock
+    sleepqueue = new List; // Waiting threads
 }
+
+//----------------------------------------------------------------------
+// Lock::~Lock
+//  De-allocate lock, when no longer needed. Assume no one is still 
+//  waiting on the lock! (DestroyLock syscall guarantees this).
+//----------------------------------------------------------------------
+
 Lock::~Lock() 
 {
      delete sleepqueue;
 }
+
+//----------------------------------------------------------------------
+// Lock::Acquire
+//  TODO: Description
+//
+//  NOTE:   Thread::Sleep assumes that interrupts are disabled when it 
+//          is called.
+//----------------------------------------------------------------------
+
 void Lock::Acquire()
-{
-    if (debuggingLocks) printf(YELLOW  "[Lock::Acquire] (%s) %s called acquire."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
+{    
+    IntStatus old = interrupt->SetLevel(IntOff); // Disable interrupts
     
-    IntStatus old = interrupt->SetLevel(IntOff);
     if (isHeldByCurrentThread())
     {  
-        //printf("[Lock::Acquire] CurrentThread is already the lock owner. \n");    
-        //check if the thread that is trying to acquire the lock already owns it
-        (void*) interrupt->SetLevel(old); //restore interrupts
+        DEBUG('l', "%s trying to Acquire lock it already owns.\n", currentThread->getName());
+        (void*) interrupt->SetLevel(old); // Re-enable interrupts
         return;
     }
-    if (!lockOwner)
+
+    // Another thread owns the lock, go to sleep.
+    if (lockOwner)
     {
-        //I can have it, make state busy, make myself the lock owner
-        lockOwner=currentThread; //i am the lock owner
-        state = 1; //set the lock state to busy
-        if (debuggingLocks) printf(YELLOW  "[Lock::Acquire] (%s) %s acquired the lock."   ANSI_COLOR_RESET "\n", name, lockOwner->getName());
+        DEBUG('l', "%s already owns %s lock. %s is now on lock's queue.\n", 
+            lockOwner->getName(), name, currentThread->getName());
+        sleepqueue->Append((void *)currentThread); // Put current thread on lock’s wait queue
+        currentThread->Sleep(); // Take thread off Scheduler
+        old = interrupt->SetLevel(IntOff); // Re-enable interrupts
+        
+        // Woken up, try and Acquire again.
+        //  NOTE: Another thread may have Acquired since Release that woke up currentThread.
+        this->Acquire();
     }
+
+    // Lock is free, make currentThread the owner
     else 
     {
-        if (debuggingLocks) printf(YELLOW  "[Lock::Acquire] (%s) %s is trying to acquire a lock already owned by %s. %s is being put on lock's queue."  ANSI_COLOR_RESET  "\n", name, currentThread->getName(), lockOwner->getName(), currentThread->getName());
-        
-        sleepqueue->Append((void *)currentThread); //put current thread on lock’s wait Q
-        currentThread->Sleep();
-        old = interrupt->SetLevel(IntOff);
-        this->Acquire();
+        lockOwner = currentThread;
+        state = BUSY;
+        DEBUG('l', "%s Acquired %s lock.\n", lockOwner->getName(), name);
 
     }
-    (void*) interrupt->SetLevel(old); //end of acquire
-    //printf("lock owner is: %s\n", currentThread->getName());
-    return;
+
+    (void*) interrupt->SetLevel(old); // Re-enable interrupts
 }
+
+
 void Lock::Release() 
 {
     if (debuggingLocks) printf(YELLOW  "[Lock::Release] (%s) %s called release."  ANSI_COLOR_RESET  "\n", name, currentThread->getName());
@@ -199,6 +225,11 @@ bool Lock::isHeldByCurrentThread()
     return currentThread == lockOwner;
 }
 
+//========================================================================================================================================
+//
+//  Condition Variables
+//
+//========================================================================================================================================
 
 Condition::Condition(char* debugName) 
 {
