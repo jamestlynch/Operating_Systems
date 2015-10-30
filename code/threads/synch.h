@@ -70,7 +70,7 @@ class Semaphore {
 //======================================================================
 
 
-typedef enum lockstate { FREE, BUSY } lockstate;
+typedef enum lockstate { LOCKFREE, LOCKBUSY } lockstate;
 
 class Lock {
     public:
@@ -95,7 +95,7 @@ class Lock {
 
 //======================================================================
 // Condition
-//  The following class defines a "condition variable".  A condition
+//  The following class defines a "condition variable". A condition
 //  variable does not have a value, but threads may be queued, waiting
 //  on the variable.  These are only operations on a condition variable: 
 //
@@ -144,8 +144,11 @@ class Condition {
         List *waitqueue; // Waiting threads
     
     private:
+        bool validateLock(Lock *condtionLock); // Ensure mutual exclusion: Thread must own corresponding Lock
+
         char* name; // Useful for debugging
-        Lock * waitingLock; // Associated lock
+        Lock * conditionlock; // Associated lock
+
 };
 
 
