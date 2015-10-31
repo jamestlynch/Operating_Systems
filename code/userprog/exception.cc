@@ -1026,7 +1026,7 @@ void Exit_Syscall(int status)
     // Status 0 = Success
     if (status != 0)
     {
-        printf("Arg must be 0 to exit.");
+        printf("Exit: Arg must be 0, %d instead.\n", status);
     }
 
     currentThread->Yield(); // Stop executing thread
@@ -1370,6 +1370,8 @@ unsigned int MemoryFull_Handler()
     //  Call eviction strategy based on flag passed into Nachos.
     ppn = GetPageToEvict();
 
+#ifdef USE_TLB
+
     // (2) Dirty Page: Place evicted page in swapfile, update PageTable
     for (i = 0; i < TLBSize; i++)
     {
@@ -1391,7 +1393,108 @@ unsigned int MemoryFull_Handler()
         }
     }
 
+#else
+
+    // (2) Dirty Page: Place evicted page in swapfile, update PageTable
+    for (i = 0; i < NumPhysPages; i++)
+    {
+        // Memory has been written to during its time in main memory,
+        //  Now that we're discarding the memory we must write it back
+        //  to disk.
+        if (machine->tlb[i].physicalPage == ppn && machine->tlb[i].valid && machine->tlb[i].dirty)
+        {
+            // TODO: Write to swapfile
+            //  int physAddr = WriteToSwapFile(ppn);
+            //  int swapPage = physAddr / PageSize;
+            //  int offset = physAddr % PageSize;
+            //  int vpn = tlb[ppn].virtualPage;
+            
+            //  currentThread->space->pageTable[vpn].dirty = true;
+            //  currentThread->space->pageTable[vpn].swapped = true;
+            //  currentThread->space->pageTable[vpn].physicalPage = swapPage;
+            //  currentThread->space->pageTable[vpn].offset = offset;
+        }
+    }
+
+#endif
+
     return ppn;
+}
+
+//----------------------------------------------------------------------
+// LoadIntoMemory
+//  Store needed page in Main Memory. We do this by:
+//  (1) Figuring out the location of the Memory Page (Swap File or Exec)
+//  (2) Loading from the file to Main Memory
+//  (3) Updating the Page Table to reflect the location change
+//
+//  "vpn" -- to be converted to the starting page within the file
+//  "ppn" -- the physical page in memory to load into
+//----------------------------------------------------------------------
+
+void LoadIntoMemory(unsigned int vpn, unsigned int ppn)
+{
+    DEBUG('p', "Loading into Memory\n");
+
+    // TODO: Load from Swap File
+    if (currentThread->space->pageTable[vpn].swapped)
+    {
+        // (1) Get System Swap File
+        OpenFile * executable = (OpenFile *)currentThread->space->fileTable.Get(0);
+
+        // (2) Load from Swap File into Main Memory
+        executable->ReadAt(
+            &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
+            PageSize, // Read 128 bytes
+            currentThread->space->pageTable[vpn].offset); // From this position in executable
+
+        // Clear Swap File entry
+
+        // (3) Update the Page Table
+        // TODO:    Is this assumption correct: When we move to main memory, 
+        //          Page is no longer swapped?
+        currentThread->space->pageTable[vpn].physicalPage = ppn;
+        currentThread->space->pageTable[vpn].offset = ppn * PageSize;
+        currentThread->space->pageTable[vpn].valid = true;
+        currentThread->space->pageTable[vpn].swapped = false;
+    }
+    // Offset should be -1 only when neither in Executable nor Swap (offset = vaddr in file)
+    //  This is the case for unused Stack Pages
+    else if (currentThread->space->pageTable[vpn].offset == -1)
+    {
+        DEBUG('p', "Loading unused Stack Page to Memory\n");
+
+        // (2) Initialize data in memory
+        machine->mainMemory[ppn * PageSize] = 0;
+
+        // (3) Update the Page Table
+        currentThread->space->pageTable[vpn].physicalPage = ppn;
+        currentThread->space->pageTable[vpn].offset = ppn * PageSize;
+        currentThread->space->pageTable[vpn].valid = true;
+        currentThread->space->pageTable[vpn].swapped = false;
+    }
+    else
+    {        
+        // (1) Get thread's executable
+        OpenFile * executable = (OpenFile *)currentThread->space->fileTable.Get(0);
+
+        DEBUG('p', "Loading from Executable, Executable Length = %d\n", executable->Length());
+
+        // (2) Load from Executable into Main Memory
+        executable->ReadAt(
+            &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
+            PageSize, // Read 128 bytes
+            currentThread->space->pageTable[vpn].offset); // From this position in executable
+
+        // (3) Update the Page Table
+        currentThread->space->pageTable[vpn].physicalPage = ppn;
+        currentThread->space->pageTable[vpn].offset = ppn * PageSize;
+        currentThread->space->pageTable[vpn].valid = true;
+        currentThread->space->pageTable[vpn].swapped = false;
+
+        DEBUG('p', "LoadFromExecutable: Load vaddr %d into Main Memory at %d Page:\n \tdata\t%d\n \tvpn\t%d\n \tppn\t%d\n",
+                    (vpn * PageSize), ppn, machine->mainMemory[ppn * PageSize], vpn, ppn);
+    }
 }
 
 //----------------------------------------------------------------------
@@ -1407,36 +1510,24 @@ unsigned int MemoryFull_Handler()
 //  "vpn" -- the virtual page to be put in Main Memory
 //----------------------------------------------------------------------
 
-int IPTMiss_Handler(int vpn)
+int IPTMiss_Handler(unsigned int vpn)
 {
     // (1) Find free page of mainMem
     int ppn = memBitMap->Find();
     memFIFO->Append((void *)ppn); // Maintain order of Adding to Memory for FIFO Eviction
     
+    DEBUG('p', "FIFO Append works.\n");
+
     // (2) Memory full; Evict (Random or FIFO) a page
     if (ppn == -1) {
+        DEBUG('p', "Memory full.\n");
         ppn = MemoryFull_Handler();
     }
 
     // (3) Look up where Page located
     // (4) Move entry from Swapfile or Executable to Main Memory
-    if (currentThread->space->pageTable[vpn].swapped)
-    {
-        ;
-        // TODO: 
-        //  LoadFromSwapfile(ppn);
-    }
-    else
-    {
-        ;
-        // TODO: 
-        //  LoadFromExecutable(ppn);
-    }
-
     // (5) Update PageTable
-    //  TODO: Is this assumption correct: When we move to main memory, 
-    //      Page is no longer swapped?
-    currentThread->space->pageTable[vpn].swapped = false;
+    LoadIntoMemory(vpn, ppn);
 
     return ppn;
 }
@@ -1466,7 +1557,7 @@ void PageFault_Handler(unsigned int vaddr)
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
     // (1) Get Virtual Page from bad vaddr
-    int vpn = vaddr / PageSize;
+    unsigned int vpn = vaddr / PageSize;
     
     // (2) Find entry in Main Memory
     int ppn = -1;
@@ -1483,6 +1574,7 @@ void PageFault_Handler(unsigned int vaddr)
     // (3) Handle not in Main Memory
     if (ppn == -1)
     {
+        DEBUG('p', "Page not in Main Memory, IPT Miss.\n");
         ppn = IPTMiss_Handler(vpn);
     }
 
@@ -1501,6 +1593,11 @@ void PageFault_Handler(unsigned int vaddr)
 
     // (6) Update TLB with translation for vpn -> ppn
     int newEntry = evictEntry;
+
+
+    DEBUG('p', "PageFault: Updating TLB[ %d ]:\n \tvaddr\t%d\n \tvpn\t%d\n \tppn\t%d\n",
+        newEntry, vaddr, vpn, ppn);
+
 
     machine->tlb[newEntry].virtualPage = vpn;
     machine->tlb[newEntry].physicalPage = ppn;
@@ -1699,7 +1796,7 @@ void ExceptionHandler(ExceptionType which)
     {
         // Bad vaddr in Register 39 by convention
         // TODO: Validate vaddr from CPU
-        PageFault_Handler(machine->ReadRegister(39));
+        PageFault_Handler(machine->ReadRegister(BadVAddrReg));
         return;
     }
     else 
