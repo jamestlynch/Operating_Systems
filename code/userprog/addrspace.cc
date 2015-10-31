@@ -67,6 +67,9 @@ Table::~Table()
 void *
 Table::Get(int i)
 {
+    OpenFile *executable = (OpenFile *)table[i];
+    DEBUG('p', "Getting executable %d from File Table, Executable Length = %d\n", executable->Length());
+
     // table index is nonnegative, within range and table's map bit set
     return (i >= 0 && i < size && map.Test(i)) ? table[i] : 0;
 }
@@ -215,10 +218,6 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
     numPages = divRoundUp(size, PageSize) + divRoundUp(UserStackSize, PageSize);
     size = numPages * PageSize;
 
-    // Check we're not trying to run anything too big -- at least 
-    //  until we have virtual memory
-    ASSERT(numPages <= NumPhysPages);
-
     DEBUG('a', "Initializing address space, num pages %d, size %d\n", numPages, size);
     
     // Store the location of each virtual page in the Page Table
@@ -234,8 +233,13 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
         }
 
         memLock->Acquire();
+
+        // Find available Memory, if any.
+        // TODO: Change back to memBitMap->Find(), Causing IPT Miss to load from Executable without Mem being full.
+        ppn = -1; // memBitMap->Find();
+
         // Memory is available: Load into Memory
-        if (ppn = memBitMap->Find() != -1)
+        if (ppn != -1)
         {
             memFIFO->Append((void *)ppn); // Maintain order of Adding to Memory for FIFO Eviction
 
@@ -253,14 +257,20 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
 
             // Load from Executable into Main Memory
             executable->ReadAt(
-                &(machine->mainMemory[pageTable[vpn].offset]), // Store into mainMemory at physical page
+                &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
                 PageSize, // Read 128 bytes
                 noffH.code.inFileAddr + vpn * PageSize); // From this position in executable
+
+            DEBUG('p', "AddrSpace PageTable: Load Executable into Main Memory:\n \tdata\t%d\n \tvpn\t\t%d\n \tppn\t\t%d\n",
+                machine->mainMemory[ppn * PageSize], vpn, ppn);
         }
         // Memory full: Store position in executable for later retrieval
         else
         {
             offset = noffH.code.inFileAddr + vpn * PageSize;
+
+            DEBUG('p', "AddrSpace PageTable: Memory Full, Page beginning at vaddr %d will need to be loaded from executable:\n \tvaddr\t%d\n \tvpn\t\t%d\n \tppn\t\t%d\n",
+                offset, offset, vpn, ppn);
         }
         memLock->Release();
 
@@ -276,6 +286,9 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
 
     // Store Open Executable so on-demand memory takes place
     fileTable.Put(executable);
+
+    OpenFile *exec = (OpenFile *)fileTable.Get(0);
+    DEBUG('p', "AddrSpace: Executable Length = %d\n", exec->Length());
 
     (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 }
@@ -364,19 +377,35 @@ void AddrSpace::SaveState()
 void
 AddrSpace::RestoreState() 
 {
-    unsigned int i;
+    unsigned int i, ppn;
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     
+#ifdef USE_TLB
+
     // Invalidate all TLB pages on context switch.
     for (i = 0; i < TLBSize; i++)
     {
         machine->tlb[i].valid = false;
     }
 
+#else
+
+    // Invalidate all Pages in Main Memory not belonging to my Process
+    for (ppn = 0; ppn < NumPhysPages; ppn++)
+    {
+        if (ipt[ppn].space == this)
+        {
+            ipt[ppn].valid = false;
+        }
+    }
+
     // Load this process' paging information into processor
-    // machine->pageTable = pageTable; // Can only have pageTable OR TLB; Not both.
+    //  Can only have pageTable OR TLB; Not both.
+    machine->pageTable = pageTable;
     machine->pageTableSize = numPages;
+
+#endif // USE_TLB
 
     (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 }
@@ -411,7 +440,7 @@ AddrSpace::NewUserStack()
         memLock->Acquire();
 
         // Memory Available: Load into Memory
-        if (ppn = memBitMap->Find() == -1)
+        if (ppn = memBitMap->Find() != -1)
         {
             memFIFO->Append((void *)ppn); // Maintain order of Adding to Memory for FIFO Eviction
 
@@ -425,7 +454,10 @@ AddrSpace::NewUserStack()
             ipt[ppn].dirty = false;
             ipt[ppn].use = false;
             ipt[ppn].readOnly = readOnly;
-            ipt[ppn].space = this;            
+            ipt[ppn].space = this;
+
+            DEBUG('p', "AddrSpace PageTable (NewUserStack): Load Stack Pages into Main Memory:\n \tvpn\t\t%d\n \tppn\t\t%d\n",
+                vpn, ppn);
         }
         memLock->Release();
 
@@ -507,7 +539,8 @@ AddrSpace::ReclaimStack(int stackPage)
 //  (2) clearing physical memory so it can be reused.
 //----------------------------------------------------------------------
 
-void AddrSpace::ReclaimPageTable()
+void 
+AddrSpace::ReclaimPageTable()
 {
     unsigned int ssn, ppn;
 
