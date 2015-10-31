@@ -37,12 +37,6 @@ extern Timer *timer;					// the hardware alarm clock
 class Machine;
 class AddrSpace;
 
-class IPTEntry : public TranslationEntry
-{
-    public:
-        AddrSpace * space; // Process memory belongs to
-};
-
 #ifdef USER_PROGRAM
 
     // Machine exectures user programs
@@ -95,16 +89,30 @@ class IPTEntry : public TranslationEntry
 	extern BitMap *memBitMap;
     extern Lock *memLock;
 
+    // IPTs store Pages from various user programs; We need a way of telling
+    //  the process that the memory belongs to.
+
+    class IPTEntry : public TranslationEntry
+    {
+        public:
+            AddrSpace * space; // Process memory belongs to
+    };
+
+    extern IPTEntry *ipt;
+
+    // Memory Eviction Strategy
+    //  Get from -P flag when running Nachos, memFIFO stores the order PPNs
+    //  allocated for FIFO eviction.
+
+    // typedef enum evictionstrategy { EVICTRAND, EVICTFIFO } evictionstrategy;
+    // evictionstrategy memoryEviction;
+    extern SynchList *memFIFO;
+
 #endif
 
 #ifdef USE_TLB
 
-    //extern typedef enum evictionstrategy { EVICTRAND, EVICTFIFO } evictionstrategy;
-
-    //extern evictionstrategy memoryEviction;
-    extern SynchList *memFIFO;
     extern int tlbCounter;
-    extern IPTEntry *ipt;
 
 #endif
 

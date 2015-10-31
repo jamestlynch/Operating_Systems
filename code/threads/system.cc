@@ -8,7 +8,6 @@
 #include "copyright.h"
 #include "system.h"
 #include "machine.h"
-#include "addrspace.h"
 
 
 // This defines *all* of the global data structures used by Nachos.
@@ -32,9 +31,13 @@ Timer *timer;                   // the hardware timer device, for invoking conte
 
 // USER_PROGRAM requires either FILESYS or FILESYS_STUB
 #ifdef USER_PROGRAM
+
+    #include "addrspace.h"
     
     Machine *machine;
 
+    IPTEntry *ipt;
+    SynchList *memFIFO;
     BitMap *memBitMap;
     Lock *memLock;
     
@@ -50,10 +53,6 @@ Timer *timer;                   // the hardware timer device, for invoking conte
 #ifdef USE_TLB
     
     int tlbCounter;
-
-    SynchList *memFIFO;
-
-    IPTEntry *ipt;
     
 #endif
 
