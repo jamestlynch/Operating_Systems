@@ -220,7 +220,7 @@ Lock::Release()
     // Thread allowed to Release, free up lock for another thread to Acquire
     else
     {
-        DEBUG('s', "%s Released %s lock.", currentThread->getName(), name);
+        DEBUG('s', "%s Released %s lock.\n", currentThread->getName(), name);
         state = LOCKFREE;
         lockOwner = NULL;
 
@@ -326,7 +326,8 @@ Condition::validateLock(Lock * lock)
     if (!conditionlock)
     {
         conditionlock = lock;
-        DEBUG('s', "Set %s condition lock: %s.\n", name, conditionlock->getName());
+        DEBUG('s', "%s Updated CV Lock for %s condition lock: Set to %s.\n", 
+            currentThread->getName(), name, conditionlock->getName());
     }
 
     // Lock does not correspond to Condition's lock: Print error mesage
