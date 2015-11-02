@@ -1440,13 +1440,15 @@ void LoadIntoMemory(unsigned int vpn, unsigned int ppn)
     if (currentThread->space->pageTable[vpn].swapped)
     {
         // (1) Get System Swap File
-        OpenFile * executable = (OpenFile *)currentThread->space->fileTable.Get(0);
+        // OpenFile * executable = (OpenFile *)currentThread->space->fileTable.Get(0);
 
         // (2) Load from Swap File into Main Memory
-        executable->ReadAt(
-            &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
-            PageSize, // Read 128 bytes
-            currentThread->space->pageTable[vpn].offset); // From this position in executable
+        // executable->ReadAt(
+        //     &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
+        //     PageSize, // Read 128 bytes
+        //     currentThread->space->pageTable[vpn].offset); // From this position in executable
+
+        currentThread->space->LoadIntoMemory(vpn, ppn);
 
         // Clear Swap File entry
 
@@ -1475,16 +1477,20 @@ void LoadIntoMemory(unsigned int vpn, unsigned int ppn)
     }
     else
     {        
+        DEBUG('p', "LoadIntoMemory: CurrentThread = %s\n", currentThread->getName());
+
+        OpenFile *executable = currentThread->space->executable;
+
         // (1) Get thread's executable
-        OpenFile * executable = (OpenFile *)currentThread->space->fileTable.Get(0);
+        //OpenFile * executable = (OpenFile *)currentThread->space->fileTable.Get(0);
 
         DEBUG('p', "Loading from Executable, Executable Length = %d\n", executable->Length());
 
         // (2) Load from Executable into Main Memory
-        executable->ReadAt(
-            &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
-            PageSize, // Read 128 bytes
-            currentThread->space->pageTable[vpn].offset); // From this position in executable
+        // executable->ReadAt(
+        //     &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
+        //     PageSize, // Read 128 bytes
+        //     currentThread->space->pageTable[vpn].offset); // From this position in executable
 
         // (3) Update the Page Table
         currentThread->space->pageTable[vpn].physicalPage = ppn;

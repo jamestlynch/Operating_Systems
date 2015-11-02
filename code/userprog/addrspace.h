@@ -44,7 +44,8 @@ class AddrSpace {
         void SaveState();			// Save/restore address space-specific
         void RestoreState();		// info on a context switch
         Table fileTable;			// Table of openfiles
-        OpenFile *executableFile;
+        OpenFile *executable;
+        void LoadIntoMemory(unsigned int vpn, unsigned int ppn);
 
         int NewUserStack();
         void ReclaimStack(int stackPage);

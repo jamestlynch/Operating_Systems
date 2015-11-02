@@ -67,9 +67,6 @@ Table::~Table()
 void *
 Table::Get(int i)
 {
-    OpenFile *executable = (OpenFile *)table[i];
-    DEBUG('p', "Getting executable %d from File Table, Executable Length = %d\n", executable->Length());
-
     // table index is nonnegative, within range and table's map bit set
     return (i >= 0 && i < size && map.Test(i)) ? table[i] : 0;
 }
@@ -194,8 +191,10 @@ static void SwapHeader (NoffHeader *noffH)
 //          member constructed set to false.
 //----------------------------------------------------------------------
 
-AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles) 
+AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles) 
 {
+    executable = executableFile;
+
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
     NoffHeader noffH;
@@ -284,11 +283,15 @@ AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles)
         pageTable[vpn].use = false;
     }
 
-    // Store Open Executable so on-demand memory takes place
+    // Store Open Executable so on-demand memory can take place
     fileTable.Put(executable);
 
+    DEBUG('p', "AddrSpace: CurrentThread = %s\n", currentThread->getName());
+
+    int execLength = executable->Length();
+
     OpenFile *exec = (OpenFile *)fileTable.Get(0);
-    DEBUG('p', "AddrSpace: Executable Length = %d\n", exec->Length());
+    DEBUG('p', "AddrSpace: Executable Length = %d, fileTable[0]->Length() = %d\n", execLength, exec->Length());
 
     (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 }
@@ -304,6 +307,17 @@ AddrSpace::~AddrSpace()
     delete pageTable;
 }
 
+
+void
+AddrSpace::LoadIntoMemory(unsigned int vpn, unsigned int ppn)
+{
+    executable->ReadAt(
+        &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
+        PageSize, // Read 128 bytes
+        currentThread->space->pageTable[vpn].offset); // From this position in executable
+}
+
+
 //----------------------------------------------------------------------
 // AddrSpace::InitRegisters
 // 	Set the initial values for the user-level register set.
@@ -316,7 +330,8 @@ AddrSpace::~AddrSpace()
 //  Returns the stack page.
 //----------------------------------------------------------------------
 
-int AddrSpace::InitRegisters()
+int
+AddrSpace::InitRegisters()
 {
     int i;
 
@@ -381,6 +396,15 @@ AddrSpace::RestoreState()
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     
+    // Invalidate all Pages in Main Memory not belonging to my Process
+    for (ppn = 0; ppn < NumPhysPages; ppn++)
+    {
+        if (ipt[ppn].space == this)
+        {
+            ipt[ppn].valid = false;
+        }
+    }
+    
 #ifdef USE_TLB
 
     // Invalidate all TLB pages on context switch.
@@ -390,15 +414,6 @@ AddrSpace::RestoreState()
     }
 
 #else
-
-    // Invalidate all Pages in Main Memory not belonging to my Process
-    for (ppn = 0; ppn < NumPhysPages; ppn++)
-    {
-        if (ipt[ppn].space == this)
-        {
-            ipt[ppn].valid = false;
-        }
-    }
 
     // Load this process' paging information into processor
     //  Can only have pageTable OR TLB; Not both.
