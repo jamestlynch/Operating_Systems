@@ -193,7 +193,7 @@ static void SwapHeader (NoffHeader *noffH)
 
 AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles) 
 {
-    executable = executableFile;
+    executable = executableFile; //openfile pointer
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
@@ -270,6 +270,7 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
 
             DEBUG('p', "AddrSpace PageTable: Memory Full, Page beginning at vaddr %d will need to be loaded from executable:\n \tvaddr\t%d\n \tvpn\t\t%d\n \tppn\t\t%d\n",
                 offset, offset, vpn, ppn);
+            interrupt->Halt();
         }
         memLock->Release();
 
@@ -285,6 +286,8 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
 
     // Store Open Executable so on-demand memory can take place
     fileTable.Put(executable);
+
+    //add openfile pointer to address space class
 
     DEBUG('p', "AddrSpace: CurrentThread = %s\n", currentThread->getName());
 

@@ -1282,7 +1282,7 @@ void Exec_Syscall(int vaddr, int len)
     t->space = space;
 
     // Close executable; Completely loaded into AS
-    delete executable;
+    //delete executable;
 
     // Let machine know how to run thread when scheduler switches process in
     t->Fork((VoidFunctionPtr)runnewprocess, 0);
@@ -1481,9 +1481,16 @@ void LoadIntoMemory(unsigned int vpn, unsigned int ppn)
 
         OpenFile *executable = currentThread->space->executable;
 
-        // (1) Get thread's executable
-        //OpenFile * executable = (OpenFile *)currentThread->space->fileTable.Get(0);
+        executable->ReadAt(
+             &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
+             PageSize, // Read 128 bytes
+             currentThread->space->pageTable[vpn].offset); // From this position in executable
 
+        /*char *temp= currentThread->space->executable;
+        OpenFile *executable= fileSystem->Open(temp);*/
+
+        // (1) Get thread's executable
+        
         DEBUG('p', "Loading from Executable, Executable Length = %d\n", executable->Length());
 
         // (2) Load from Executable into Main Memory
@@ -1569,9 +1576,15 @@ void PageFault_Handler(unsigned int vaddr)
     int ppn = -1;
     for (int i = 0; i < NumPhysPages; i++)
     {
+        //PRINT VALUES OUT HERE, NOT FINDING IT WHEN IT SHOULD.
+        printf("ipt virtual page: %d\n", ipt[i].virtualPage);
+        printf("vpn: %d\n", vpn);
+        printf("ipt valid: %d\n", ipt[i].valid);
+
         // Memory entry is valid, belongs to same Process and is for the same Virtual Page
         if (ipt[i].virtualPage == vpn && ipt[i].valid && ipt[i].space == currentThread->space)
         {
+
             ppn = i;
             break;
         }
