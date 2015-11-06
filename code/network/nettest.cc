@@ -22,6 +22,7 @@
 #include "network.h"
 #include "post.h"
 #include "interrupt.h"
+#include <sstream>
 
 // Test out message delivery, by doing the following:
 //	1. send a message to the machine with ID "farAddr", at mail box #0
@@ -29,6 +30,69 @@
 //	3. send an acknowledgment for the other machine's message
 //	4. wait for an acknowledgement from the other machine to our 
 //	    original message
+
+void Server(){
+
+     while (true){
+
+        postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
+        PacketHeader outPktHdr, inPktHdr;
+        MailHeader outMailHdr, inMailHdr;
+        char *data = "Server received message!";
+        char *ack = "Got it!";
+        char buffer[MaxMailSize];
+
+        stringstream ss;
+        ss<<buffer;
+          //wait to receive a message
+          //parse the msg
+        //
+            switch (type) 
+            {
+                case Et;//exit
+
+                break;
+
+                case Ex: //exec
+
+                break;
+
+                case Fk: //fork
+                break;
+
+                case Yd: //yield
+                break;
+
+                case CL: //createlock
+                break;
+
+                case AL: //acquirelock
+                break;
+
+                case RL: //releaselock
+                break;
+
+                case DL: //destroylock
+                break;
+
+                case CC: //createcv
+                break;
+
+                case WC://wait on cv
+                break;
+
+                case SC://signal cv
+                break;
+
+                case BC://broadcast
+                break;
+
+                case DC://destroy
+                break;
+
+          //process the msg
+          //send a reply (maybe)
+}}
 
 void
 MailTest(int farAddr)
@@ -38,6 +102,8 @@ MailTest(int farAddr)
     char *data = "Hello there!";
     char *ack = "Got it!";
     char buffer[MaxMailSize];
+
+    //creating 
 
     // construct packet, mail header for original message
     // To: destination machine, mailbox 0

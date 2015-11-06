@@ -501,6 +501,28 @@ int validatelockindex(int index)
 
 int CreateLock_Syscall(unsigned int vaddr, int len) 
 {
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char *data = "CL ";//2 bits for client machine 
+    //#/server each, 2 bits for postoficec #
+    // thread # for client and server, and instruction
+    //for 2 bits
+    char *ack = "Received CL.";
+    char buffer[MaxMailSize];
+
+    outPktHdr.to = 0;   
+    outMailHdr.to = 0;
+    outMailHdr.from = 1;
+    outMailHdr.length = strlen(data) + 1;
+
+    // Send the first message
+    bool success = postOffice->Send(outPktHdr, outMailHdr, data); 
+
+    if ( !success ) {
+      printf("The postOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+      interrupt->Halt();
+    }
+
     locksLock->Acquire(); // Interupts enabled, need to synchronize
 
     // Validate length is nonzero and positive
@@ -560,6 +582,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
 
 int AcquireLock_Syscall(int indexlock)
 {
+
     // Lock index: (1) valid location, (2) defined, (3) belongs to currentThread's process
     if (validatelockindex(indexlock) == -1)
     {
@@ -948,7 +971,6 @@ int Broadcast_Syscall(int indexcv, int indexlock)
 
 int DestroyCV_Syscall(int indexcv)
 {
-    conditionsLock->Acquire();
 
     // Lock/CV indeces: (1) valid location, (2) defined, (3) belongs to currentThread's process
     if (indexcv < 0) 
@@ -1004,6 +1026,20 @@ int DestroyCV_Syscall(int indexcv)
 //  control to another thread, which the scheduler with switch if any
 //  ready.
 //----------------------------------------------------------------------
+void CreateMV(){
+
+}
+
+void DestroyMV(){
+
+} 
+void GetMV(){
+
+}
+
+void SetMV(){
+
+}
 
 void Yield_Syscall() 
 {
@@ -1148,8 +1184,6 @@ void runforkedthread(int vaddr)
 
 void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 {
-    processLock->Acquire();
-
     // Validate length is nonzero and positive
     if (len <= 0)
     {
