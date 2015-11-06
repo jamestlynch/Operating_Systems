@@ -24,9 +24,9 @@ typedef enum { false = 0, true = 1 } bool;
 /*	-	paramLock - this synchronizes the threadParam so that if a thread  	*/
 /*			gets context switched while forking a new thread, it can finish */
 /*			creating the thread with the proper data when it resumes. 		*/
-int threadParam;
+int threadParam = 0;
 int paramLock;
-int paramCV;
+int agentInitializedCV;
 
 /******************************************/
 /* 		  PPOffice Simulation Data   	  */
@@ -53,6 +53,7 @@ int numCustomersFinished = 0;
 int numClerksFinished = 0;
 int customersFinishedLock;
 int clerksFinishedLock;
+int allClerksFinishedCV;
 int allAgentsFinishedCV;
 
 /******************************************/
@@ -1218,7 +1219,7 @@ void Leave (int ssn, persontype type)
 			numClerksFinished++;
 			if (numClerksFinished == (numAppClerks + numPicClerks + numPassportClerks + numCashiers))
 			{
-				Signal(allAgentsFinishedCV, clerksFinishedLock);
+				Signal(allClerksFinishedCV, clerksFinishedLock);
 			}
 			ReleaseLock(clerksFinishedLock);
 			break;
@@ -1243,27 +1244,20 @@ void Leave (int ssn, persontype type)
 /*			  picked a line yet)										*/
 /*			clerkType - used to decide which clerk's line to get into 	*/
 /* -------------------------------------------------------------------- */
-void CheckIfSenatorPresent (int ssn, int clerkID, persontype clerkType)
+bool CheckIfSenatorPresent (int ssn, int clerkID, persontype clerkType)
 {
 	AcquireLock(senatorPresentLock);
 	if (isSenatorPresent && people[ssn].type != SENATOR)
 	{
 		WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
 		Wait(senatorPresentCV, senatorPresentLock); /* Wait for Senator to finish. */
-		ReleaseLock(senatorPresentLock); /* Lock gets reacquired inside of Wait, release it and continue. */
-		
-		if (clerkID == -1)
-		{
-			return DecideClerk(ssn, clerkType); /* Never decided which line to get in, start from the top. */
-		}
-		else
-		{
-			return DecideLine(ssn, clerkID, clerkType); /* Get back in one of same clerk's line. */
-		}
+		ReleaseLock(senatorPresentLock); /* Lock gets reacquired inside of Wait, release it and continue. */	
+		return true;
 	}
 	else
 	{
 		ReleaseLock(senatorPresentLock); /* No Senator present or I am a Senator, continue with business. */
+		return false;
 	}
 }
 
@@ -1307,6 +1301,7 @@ void WaitInLine (int ssn, int clerkID, persontype clerkType, linetype lineType)
 {
 	int lineLock;
 	int lineCV;
+	int bribeLineCV;
 
 	lineLock = clerkGroups[clerkType].lineLock;
 	lineCV = clerkGroups[clerkType].lineCVs[clerkID];
@@ -1362,7 +1357,7 @@ int DecideClerk (int ssn, persontype clerkType)
 	lineLock = clerkGroups[clerkType].lineLock;
 
 	/* If Senator is present, "go outside" instead of picking line. */
-	CheckIfSenatorPresent(ssn, currentClerk, clerkType);	
+	CheckIfSenatorPresent(ssn, currentClerk, clerkType);
 
 	AcquireLock(lineLock);
 	for (clerkID = 0; clerkID < numClerks; clerkID++)
@@ -1450,13 +1445,27 @@ void DecideLine (int ssn, int clerkID, persontype clerkType)
 				/*		  re-decide line. 												*/
 				BribeClerk(ssn, clerkID, clerkType);
 				WaitInLine(ssn, clerkID, clerkType, BRIBELINE);
-				CheckIfSenatorPresent(ssn);
+
+				/* 	Make sure no senators have entered since joining line. */
+				if (CheckIfSenatorPresent(ssn, clerkID, clerkType))
+				{
+					/* If Senator is present, "go outside" and get back in line when 	*/
+					/*	allowed back in. 												*/
+					DecideLine(ssn, clerkID, clerkType);
+				}
 			}
 			else
 			{ 
 				/* No other options. Get in regular line. */
 				WaitInLine(ssn, clerkID, clerkType, NORMALLINE);
-				CheckIfSenatorPresent(ssn); /* 	Make sure no senators have entered since joining line. */
+
+				/* 	Make sure no senators have entered since joining line. */
+				if (CheckIfSenatorPresent(ssn, clerkID, clerkType))
+				{
+					/* If Senator is present, "go outside" and get back in line when 	*/
+					/*	allowed back in. 												*/
+					DecideLine(ssn, clerkID, clerkType);
+				}
 			}
 		}
 	}
@@ -1602,19 +1611,19 @@ void GetBackInLine (int ssn, persontype clerkType)
 	CustomerInteraction(ssn, clerkID, clerkType);
 }
 
-void Customer ()
+void RunCustomer ()
 {
 	int ssn;
 	int clerkID;
 	persontype clerkType;
 
 	int applicationFirst;
-	persontype passportSequence = { APPLICATION, PICTURE, PASSPORT, CASHIER };
+	persontype passportSequence[4] = { APPLICATION, PICTURE, PASSPORT, CASHIER };
 
 	/* Nachos fork does not allow parameters to be passed in to new threads. 	*/
 	AcquireLock(paramLock);
 	ssn = threadParam;
-	Signal(paramCV, paramLock);
+	Signal(agentInitializedCV, paramLock);
 	ReleaseLock(paramLock);
 
 	/* Senator Checks. If a senator is present:									*/
@@ -1649,7 +1658,7 @@ void Customer ()
 		CustomerInteraction(ssn, clerkID, clerkType);
 	}
 
-	Leave();
+	Leave(ssn, CUSTOMER);
 }
 
 /* ========================================================================================================================================= */
@@ -1989,13 +1998,15 @@ clerkinteraction DecideInteraction (int clerkID, persontype clerkType)
 	}
 }
 
-void Clerk()
+void RunClerk()
 {
 	int ssn;
 	struct Person clerk;
 	clerkinteraction interaction;
 
+	AcquireLock(paramLock);
 	ssn = threadParam;
+	Signal(agentInitializedCV, paramLock);
 	ReleaseLock(paramLock);
 
 	clerk = people[ssn];
@@ -2004,6 +2015,7 @@ void Clerk()
 
 	do
 	{
+		/*
 		switch(interaction) 
 		{
 			case ACCEPTBRIBE:
@@ -2015,12 +2027,15 @@ void Clerk()
 			case TAKEBREAK:
 				TakeBreak(clerk.id, clerk.type);
 		}
+		*/
 
 		/* Select next interaction based on: 										*/
 		/* 	(1) if there are people trying to bribe > AcceptBribe 					*/
 		/*	(2) if there are people waiting in any of my lines > ClerkInteraction 	*/
 		/*	(3) if there are no people waiting in any of my lines > TakeBreak 		*/
+		/*
 		interaction = DecideInteraction (clerk.id, clerk.type);
+		*/
 	} while (numCustomersFinished < (numCustomers + numSenators));
 
 	Exit(0);
@@ -2132,7 +2147,7 @@ void WakeUpAllClerks ()
 	}
 }
 
-void Manager ()
+void RunManager ()
 {
 	int previousTotal;
 
@@ -2195,8 +2210,11 @@ void InitializeData ()
 
 	/* PassportOffice Simulation Data */
 	paramLock = CreateLock("ParamLock", sizeof("ParamLock"));
-	customersFinishedLock = CreateLock("CustomersFinishedLock"), sizeof("CustomersFinishedLock"));
+	agentInitializedCV = CreateCV("AgentInitializedCV", sizeof("AgentInitializedCV"));
+
+	customersFinishedLock = CreateLock("CustomersFinishedLock", sizeof("CustomersFinishedLock"));
 	clerksFinishedLock = CreateLock("ClerksFinishedLock", sizeof("ClerksFinishedLock"));
+	allClerksFinishedCV = CreateCV("allClerksFinishedCV", sizeof("allClerksFinishedCV"));
 	allAgentsFinishedCV = CreateCV("AllAgentsFinishedCV", sizeof("AllAgentsFinishedCV"));
 }
 
@@ -2204,25 +2222,26 @@ void ForkAgents ()
 {
 	int ssn;
 
+	AcquireLock(paramLock);
+
+	for (ssn = (numCustomers + numSenators); ssn < (numCustomers + numSenators) + (numAppClerks + numPicClerks + numPassportClerks + numCashiers); ssn++)
+	{
+		WriteOne("Initializing Clerk with SSN %d\n", sizeof("Initializing Customer %d\n"), ssn);
+		threadParam = ssn;
+		Fork("ClerkThread", sizeof("ClerkThread"), RunClerk);
+		Wait(agentInitializedCV, paramLock);
+	}
+
 	for (ssn = 0; ssn < (numCustomers + numSenators); ssn++)
 	{
-		AcquireLock(paramLock);
 		threadParam = ssn;
-		Fork("CustomerThread", sizeof("CustomerThread"), Customer);
-		Wait(paramCV, paramLock);
-		ReleaseLock(paramLock);
+		Fork("CustomerThread", sizeof("CustomerThread"), RunCustomer);
+		Wait(agentInitializedCV, paramLock);
 	}
 
-	for (; ssn < (numCustomers + numSenators) + (numAppClerks + numPicClerks + numPassportClerks + numCashiers); ssn++)
-	{
-		AcquireLock(paramLock);
-		threadParam = ssn;
-		Fork("ClerkThread", sizeof("ClerkThread"), Clerk);
-		Wait(paramCV, paramLock);
-		ReleaseLock(paramLock);
-	}
+	Fork("ManagerThread", sizeof("ManagerThread"), RunManager);
 
-	Fork("ManagerThread", sizeof("ManagerThread"), Manager);
+	ReleaseLock(paramLock);
 }
 
 void CleanUpData ()
