@@ -1126,7 +1126,7 @@ void runforkedthread(int vaddr)
     int stackAddr = (stackPage * PageSize) - 16;
 
     // Thread keeps track of stack's virtual address so it can translate
-    //  address and loads in stack on context switch.
+    // address and loads in stack on context switch.
     currentThread->stackPage = stackPage - (UserStackSize / PageSize);
 
     machine->WriteRegister(StackReg, stackAddr);
@@ -1526,12 +1526,13 @@ void LoadIntoMemory(unsigned int vpn, unsigned int ppn)
 int IPTMiss_Handler(unsigned int vpn)
 {
     // (1) Find free page of mainMem
+    // TODO: memLock->Acquire();
     int ppn = memBitMap->Find();
     memFIFO->Append((void *)ppn); // Maintain order of Adding to Memory for FIFO Eviction
     
     DEBUG('p', "FIFO Append works.\n");
 
-    // (2) Memory full; Evict (Random or FIFO) a page
+    // (2) Memory full: Evict (Random or FIFO) a page
     if (ppn == -1) {
         DEBUG('p', "Memory full.\n");
         ppn = MemoryFull_Handler();
@@ -1541,6 +1542,7 @@ int IPTMiss_Handler(unsigned int vpn)
     // (4) Move entry from Swapfile or Executable to Main Memory
     // (5) Update PageTable
     LoadIntoMemory(vpn, ppn);
+
 
     return ppn;
 }
