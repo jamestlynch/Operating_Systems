@@ -40,13 +40,11 @@
 void Server(int farAddr){
     
     stringstream ss;
-    List clientList;
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
     char *data= new char;
     char buffer[MaxMailSize];
     stringstream ss;
-    List clientList;
 
     while (true){
         printf("Server is started. waiting for message.\n");
@@ -65,26 +63,29 @@ void Server(int farAddr){
 
         int syscall;
         ss >> syscall;
-        //
+
+        char *name;
+        int indexcv, indexlock;
+
+
+        //----------------------------------------------------------------------
+        // SERVER stuff
+        // get information passed from the client above. read it in and
+        // determine what syscall is being requested. then parse the rest
+        // of the request depending on the data it needs
+        // PARAMETERS:
+        // CREATE LOCK AND CREATE CV NEED: name
+        // DESTROY LOCK AND DESTORY CV NEED: index
+        // ACQUIRE / RELEASE NEED: indexlock
+        // WAIT / SIGNAL / BROADCAST NEED: indexcv and indexlock
+        // 
+        //----------------------------------------------------------------------
        switch (ss) 
             {
-                /*case Et;//exit
-                    postOffice->Send();
-
-                break;
-
-                case Ex: //exec
-
-                break;
-
-                case Fk: //fork
-                break;
-
-                case Yd: //yield
-                break;*/
 
                 case 'CL': //createlock. what information do we need? the name.
                     printf("Server received Create Lock request from client.\n");
+                    ss >> name;
                 break;
                 /*
                 case AL: //acquirelock
