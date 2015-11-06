@@ -128,7 +128,7 @@ int copyout(unsigned int vaddr, int len, char *buf) {
 //----------------------------------------------------------------------
 
 bool SendtoServer(PacketHeader pktHdr, MailHeader mailHdr, char *data){
-
+  return true;
 }
         // Send a message to a mailbox on a remote 
         // machine.  The fromBox in the MailHeader is 
@@ -535,7 +535,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
       printf("The postOffice send failed. You must not have the other Nachos running. Terminating Nachos.\n");
       interrupt->Halt();
     }
-
+/*
     locksLock->Acquire(); // Interupts enabled, need to synchronize
 
     // Validate length is nonzero and positive
@@ -576,8 +576,8 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     int indexLock = locks.size() - 1;
 
     locksLock->Release();
-
-    return indexLock; // Processes can Acquire/Release
+*/
+    return 0; // Processes can Acquire/Release
 }
 
 //----------------------------------------------------------------------

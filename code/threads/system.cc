@@ -19,6 +19,7 @@ Scheduler *scheduler;			// the ready list
 Interrupt *interrupt;           // interrupt status
 Statistics *stats;              // performance metrics
 Timer *timer;                   // the hardware timer device, for invoking context switches
+int tlbCounter;
 
 
 #ifdef FILESYS_NEEDED
@@ -52,7 +53,7 @@ Timer *timer;                   // the hardware timer device, for invoking conte
 #endif
 #ifdef USE_TLB
     
-    int tlbCounter;
+    
     
 #endif
 

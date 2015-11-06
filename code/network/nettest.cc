@@ -24,6 +24,12 @@
 #include "interrupt.h"
 #include <sstream>
 
+#define CL         0
+#define SC_Exit         1
+#define SC_Exec         2
+#define SC_Join         3
+#define SC_Create       4
+
 // Test out message delivery, by doing the following:
 //	1. send a message to the machine with ID "farAddr", at mail box #0
 //	2. wait for the other machine's message to arrive (in our mailbox #0)
@@ -31,28 +37,38 @@
 //	4. wait for an acknowledgement from the other machine to our 
 //	    original message
 
-void Server(){
+void Server(int farAddr){
+    
+    stringstream ss;
+    List clientList;
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char *data= new char;
+    char buffer[MaxMailSize];
+    stringstream ss;
+    List clientList;
 
-     while (true){
-
+    while (true){
+        printf("Server is started. waiting for message.\n");
         postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
         printf("Got \"%s\" from %d, box %d\n",buffer,inPktHdr.from,inMailHdr.from);
         fflush(stdout);
 
-        PacketHeader outPktHdr, inPktHdr;
-        MailHeader outMailHdr, inMailHdr;
-        char *data = "Server received message!";
-        char *ack = "Got it!";
-        char buffer[MaxMailSize];
+        outPktHdr.to = inPktHdr.from;     
+        outMailHdr.to = 0;
+        outMailHdr.from = 0;
+        outMailHdr.length = strlen(data) + 1;
+        ss.clear();
+        
+        ss<<(char*)buffer; //put buffer object passed into receive, into the stringstream.
+        ss.str(buffer); //get the string content
 
-        stringstream ss;
-        ss<<buffer;
-          //wait to receive a message
-          //parse the msg
+        int syscall;
+        ss >> syscall;
         //
-            switch (type) 
+       switch (ss) 
             {
-                case Et;//exit
+                /*case Et;//exit
                     postOffice->Send();
 
                 break;
@@ -65,11 +81,12 @@ void Server(){
                 break;
 
                 case Yd: //yield
-                break;
+                break;*/
 
-                case CL: //createlock
+                case 'CL': //createlock. what information do we need? the name.
+                    printf("Server received Create Lock request from client.\n");
                 break;
-
+                /*
                 case AL: //acquirelock
                 break;
 
@@ -92,11 +109,11 @@ void Server(){
                 break;
 
                 case DC://destroy
-                break;
+                break;*/
 
           //process the msg
           //send a reply (maybe)
-}}
+}}}
 
 void
 MailTest(int farAddr)

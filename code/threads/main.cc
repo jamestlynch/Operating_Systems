@@ -59,7 +59,10 @@
 extern void ThreadTest(void), Copy(char *unixFile, char *nachosFile);
 extern void Print(char *file), PerformanceTest(void);
 extern void StartProcess(char *file), ConsoleTest(char *in, char *out);
+extern void Server(int farAddr);
 extern void MailTest(int networkID);
+
+
 #ifdef THREADS
 extern void Part2(void), TestSuite(void), Test2(void), Test1(void), Test3(void), Test4(void), Test5(void), Test7(void);
 #endif //THREADS
