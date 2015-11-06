@@ -66,6 +66,22 @@ Exec:
 	j	$31
 	.end Exec
 
+	.globl Fork
+	.ent	Fork
+Fork:
+	addiu $2,$0,SC_Fork
+	syscall
+	j	$31
+	.end Fork
+
+	.globl Yield
+	.ent	Yield
+Yield:
+	addiu $2,$0,SC_Yield
+	syscall
+	j	$31
+	.end Yield
+
 	.globl Join
 	.ent	Join
 Join:
@@ -106,22 +122,6 @@ Write:
 	j	$31
 	.end Write
 
-	.globl WriteInt
-	.ent	WriteInt
-WriteInt:
-	addiu $2,$0,SC_WriteInt
-	syscall
-	j	$31
-	.end WriteInt
-
-	.globl WriteError
-	.ent	WriteError
-WriteError:
-	addiu $2,$0,SC_WriteError
-	syscall
-	j	$31
-	.end WriteError
-
 	.globl Close
 	.ent	Close
 Close:
@@ -129,54 +129,6 @@ Close:
 	syscall
 	j	$31
 	.end Close
-
-	.globl Fork
-	.ent	Fork
-Fork:
-	addiu $2,$0,SC_Fork
-	syscall
-	j	$31
-	.end Fork
-
-	.globl Yield
-	.ent	Yield
-Yield:
-	addiu $2,$0,SC_Yield
-	syscall
-	j	$31
-	.end Yield
-
-	.globl CreateCV
-	.ent	CreateCV
-CreateCV:
-	addiu $2,$0,SC_CreateCV
-	syscall
-	j	$31
-	.end CreateCV
-
-	.globl Wait
-	.ent	Wait
-Wait:
-	addiu $2,$0,SC_Wait
-	syscall
-	j	$31
-	.end Wait
-
-	.globl Signal
-	.ent	Signal
-Signal:
-	addiu $2,$0,SC_Signal
-	syscall
-	j	$31
-	.end Signal
-
-	.globl Broadcast
-	.ent	Broadcast
-Broadcast:
-	addiu $2,$0,SC_Broadcast
-	syscall
-	j	$31
-	.end Broadcast
 
 	.globl CreateLock
 	.ent	CreateLock
@@ -210,6 +162,37 @@ DestroyLock:
 	j	$31
 	.end DestroyLock
 
+	.globl CreateCV
+	.ent	CreateCV
+CreateCV:
+	addiu $2,$0,SC_CreateCV
+	syscall
+	j	$31
+	.end CreateCV
+
+	.globl Wait
+	.ent	Wait
+Wait:
+	addiu $2,$0,SC_Wait
+	syscall
+	j	$31
+	.end Wait
+
+	.globl Signal
+	.ent	Signal
+Signal:
+	addiu $2,$0,SC_Signal
+	syscall
+	j	$31
+	.end Signal
+
+	.globl Broadcast
+	.ent	Broadcast
+Broadcast:
+	addiu $2,$0,SC_Broadcast
+	syscall
+	j	$31
+	.end Broadcast
 
 	.globl DestroyCV
 	.ent	DestroyCV
@@ -219,6 +202,30 @@ DestroyCV:
 	j	$31
 	.end DestroyCV
 
+	.globl PrintfOne
+	.ent	PrintfOne
+PrintfOne:
+	addiu $2,$0,SC_PrintfOne
+	syscall
+	j	$31
+	.end PrintfOne
+
+	.globl PrintfTwo
+	.ent	PrintfTwo
+PrintfTwo:
+	addiu $2,$0,SC_PrintfTwo
+	syscall
+	j	$31
+	.end PrintfTwo
+
+	.globl PrintError
+	.ent	PrintError
+PrintError:
+	addiu $2,$0,SC_PrintError
+	syscall
+	j	$31
+	.end PrintError
+
 	.globl Random
 	.ent	Random
 Random:
@@ -226,22 +233,6 @@ Random:
 	syscall
 	j	$31
 	.end Random
-
-	.globl WriteOne
-	.ent	WriteOne
-WriteOne:
-	addiu $2,$0,SC_WriteOne
-	syscall
-	j	$31
-	.end WriteOne
-
-	.globl WriteTwo
-	.ent	WriteTwo
-WriteTwo:
-	addiu $2,$0,SC_WriteTwo
-	syscall
-	j	$31
-	.end WriteTwo
 
 /* dummy function to keep gcc happy */
         .globl  __main

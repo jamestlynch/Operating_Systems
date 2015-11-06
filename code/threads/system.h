@@ -15,7 +15,6 @@
 #include "interrupt.h"
 #include "stats.h"
 #include "timer.h"
-#include "bitmap.h"
 #include "synch.h"
 #include <vector>
 #include <string>
@@ -35,7 +34,7 @@ extern Statistics *stats;				// performance metrics
 extern Timer *timer;					// the hardware alarm clock
 
 class Machine;
-
+class BitMap;
 
 #ifdef USER_PROGRAM
 
