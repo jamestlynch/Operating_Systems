@@ -512,6 +512,7 @@ int validatelockindex(int index)
 
 int CreateLock_Syscall(unsigned int vaddr, int len) 
 {
+  #ifdef NETWORK
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
     char *data = "CL ";
@@ -520,7 +521,6 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     //#/server each, 2 bits for postoficec #
     // thread # for client and server, and instruction
     //for 2 bits
-    char *ack = "Received CL.";
     char buffer[MaxMailSize];
 
     outPktHdr.to = 0;   
@@ -535,7 +535,8 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
       printf("The postOffice send failed. You must not have the other Nachos running. Terminating Nachos.\n");
       interrupt->Halt();
     }
-/*
+  #endif
+
     locksLock->Acquire(); // Interupts enabled, need to synchronize
 
     // Validate length is nonzero and positive
@@ -576,7 +577,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     int indexLock = locks.size() - 1;
 
     locksLock->Release();
-*/
+
     return 0; // Processes can Acquire/Release
 }
 

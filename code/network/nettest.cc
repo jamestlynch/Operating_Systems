@@ -64,7 +64,7 @@ void Server(int farAddr){
         int syscall;
         ss >> syscall;
 
-        char *name;
+        char* name = new char[40];
         int indexcv, indexlock;
 
 

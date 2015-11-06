@@ -177,7 +177,17 @@ main(int argc, char **argv)
 	}
 #endif // FILESYS
 #ifdef NETWORK
-        if (!strcmp(*argv, "-o")) {
+        if (!strcmp(*argv, "-server")) {
+        	printf("main is calling server");
+	    ASSERT(argc > 1);
+            Delay(2); 				// delay for 2 seconds
+						// to give the user time to 
+						// start up another nachos
+            MailTest(atoi(*(argv + 1)));
+            argCount = 2;
+        }
+        if (!strcmp(*argv, "-client")) {
+        	printf("main is calling client");
 	    ASSERT(argc > 1);
             Delay(2); 				// delay for 2 seconds
 						// to give the user time to 
