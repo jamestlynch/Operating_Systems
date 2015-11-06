@@ -335,7 +335,7 @@ void AddrSpace::ReclaimStack(int stackPage)
     memLock->Acquire();
 
     // Reclaim 8 Pages of Stack
-    for(int i = stackPage; i < (UserStackSize / PageSize); i++)
+    for(int i = stackPage; i < stackPage + (UserStackSize / PageSize); i++)
     {
         // (2) Clear physical memory so it can be reused
         memBitMap->Clear(pageTable[i].physicalPage);
