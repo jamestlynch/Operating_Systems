@@ -37,8 +37,8 @@
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 
-bool debuggingLocks = true;
-bool debuggingLockErrors = true;
+bool debuggingLocks = false;
+bool debuggingLockErrors = false;
 bool debuggingCVs = true;
 bool debuggingCVErrors = true;
 
@@ -122,6 +122,8 @@ Semaphore::V()
 Lock::Lock(char* debugName) 
 {
     name = debugName;
+
+    if (debuggingLocks) printf(YELLOW  "[Lock::Lock] Creating Lock %s"  ANSI_COLOR_RESET  "\n", name);
    // lockOwner = NULL;
     lockOwner=NULL;
     //state = 0;
@@ -203,6 +205,8 @@ bool Lock::isHeldByCurrentThread()
 Condition::Condition(char* debugName) 
 {
     name = debugName;
+    
+    if (debuggingCVs) printf(BLUE  "[Condition::Condition] Creating Condition %s"  ANSI_COLOR_RESET  "\n", name);
     waitingLock = NULL;
     waitqueue = new List;
 }
