@@ -127,6 +127,17 @@ int copyout(unsigned int vaddr, int len, char *buf) {
 //  "len" -- the length of the file name
 //----------------------------------------------------------------------
 
+bool SendtoServer(PacketHeader pktHdr, MailHeader mailHdr, char *data){
+
+}
+        // Send a message to a mailbox on a remote 
+        // machine.  The fromBox in the MailHeader is 
+        // the return box for ack's.
+    
+void ReceivefromServer(PacketHeader *pktHdr, MailHeader *mailHdr, char *data){
+
+}
+
 void Create_Syscall(unsigned int vaddr, int len) {
     char *buf = new char[len + 1]; // Kernel buffer to copy file name into
 
@@ -503,7 +514,9 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
 {
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
-    char *data = "CL ";//2 bits for client machine 
+    char *data = "CL ";
+
+    //2 bits for client machine 
     //#/server each, 2 bits for postoficec #
     // thread # for client and server, and instruction
     //for 2 bits
@@ -519,7 +532,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     bool success = postOffice->Send(outPktHdr, outMailHdr, data); 
 
     if ( !success ) {
-      printf("The postOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+      printf("The postOffice send failed. You must not have the other Nachos running. Terminating Nachos.\n");
       interrupt->Halt();
     }
 

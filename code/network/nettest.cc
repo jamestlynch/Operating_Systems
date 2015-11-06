@@ -36,6 +36,9 @@ void Server(){
      while (true){
 
         postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
+        printf("Got \"%s\" from %d, box %d\n",buffer,inPktHdr.from,inMailHdr.from);
+        fflush(stdout);
+
         PacketHeader outPktHdr, inPktHdr;
         MailHeader outMailHdr, inMailHdr;
         char *data = "Server received message!";
@@ -50,6 +53,7 @@ void Server(){
             switch (type) 
             {
                 case Et;//exit
+                    postOffice->Send();
 
                 break;
 
