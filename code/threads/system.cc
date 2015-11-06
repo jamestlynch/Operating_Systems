@@ -191,6 +191,7 @@ Initialize(int argc, char **argv)
     memFIFO = new SynchList(); // keeps track of order Pages are added to Memory (for FIFO eviction)
     ipt = new IPTEntry[NumPhysPages]; // stores metadata about Memory Page's Process owner and corresponding vpn
 
+    // TODO: shouldn't this be set to 0?
     tlbCounter = -1;
 #endif
 

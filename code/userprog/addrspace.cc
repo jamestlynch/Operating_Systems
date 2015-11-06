@@ -149,6 +149,7 @@ PageTableEntry::PageTableEntry()
 
 PageTableEntry::~PageTableEntry()
 {
+    // TODO: this doesn't seem correct
     delete this;
 }
 
@@ -193,7 +194,7 @@ static void SwapHeader (NoffHeader *noffH)
 
 AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles) 
 {
-    executable = executableFile;
+    executable = executableFile; //openfile pointer
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
@@ -226,16 +227,18 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
     for (vpn = 0; vpn < numPages; vpn++) 
     {
         // Code is read-only
-        if ((vpn * PageSize) < (unsigned int)noffH.initData.inFileAddr)
+        /*if ((vpn * PageSize) < (unsigned int)noffH.initData.inFileAddr)
         {
             readOnly = true;
         }
 
-        memLock->Acquire();
+        memLock->Acquire();*/
 
+
+        // TODO: Do not use memBitMap->Find() here, in fact, remove all code below
         // Find available Memory, if any.
         // TODO: Change back to memBitMap->Find(), Causing IPT Miss to load from Executable without Mem being full.
-        ppn = -1; // memBitMap->Find();
+        /*ppn = -1; // memBitMap->Find();
 
         // Memory is available: Load into Memory
         if (ppn != -1)
@@ -263,35 +266,38 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
             DEBUG('p', "AddrSpace PageTable: Load Executable into Main Memory:\n \tdata\t%d\n \tvpn\t\t%d\n \tppn\t\t%d\n",
                 machine->mainMemory[ppn * PageSize], vpn, ppn);
         }
-        // Memory full: Store position in executable for later retrieval
-        else
-        {
+        // Memory full: Store position in executable for later retrieval*/
+        //else
+        //{
             offset = noffH.code.inFileAddr + vpn * PageSize;
 
-            DEBUG('p', "AddrSpace PageTable: Memory Full, Page beginning at vaddr %d will need to be loaded from executable:\n \tvaddr\t%d\n \tvpn\t\t%d\n \tppn\t\t%d\n",
+           /* DEBUG('p', "AddrSpace PageTable: Memory Full, Page beginning at vaddr %d will need to be loaded from executable:\n \tvaddr\t%d\n \tvpn\t\t%d\n \tppn\t\t%d\n",
                 offset, offset, vpn, ppn);
-        }
-        memLock->Release();
-
+            interrupt->Halt();*/
+        //}
+        //memLock->Release();
+        // TODO: Set Valid bit to false
         pageTable[vpn].virtualPage = vpn;
         pageTable[vpn].physicalPage = ppn;
         pageTable[vpn].offset = offset;
         pageTable[vpn].readOnly = readOnly;
-        pageTable[vpn].valid = valid;
+        pageTable[vpn].valid = false;
         pageTable[vpn].swapped = false;
         pageTable[vpn].dirty = false;
         pageTable[vpn].use = false;
     }
-
+    // TODO: Store executable in pointer
     // Store Open Executable so on-demand memory can take place
-    fileTable.Put(executable);
+    //fileTable.Put(executable);
+
+    //add openfile pointer to address space class
 
     DEBUG('p', "AddrSpace: CurrentThread = %s\n", currentThread->getName());
 
-    int execLength = executable->Length();
+    /*int execLength = executable->Length();
 
     OpenFile *exec = (OpenFile *)fileTable.Get(0);
-    DEBUG('p', "AddrSpace: Executable Length = %d, fileTable[0]->Length() = %d\n", execLength, exec->Length());
+    DEBUG('p', "AddrSpace: Executable Length = %d, fileTable[0]->Length() = %d\n", execLength, exec->Length());*/
 
     (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 }
@@ -315,6 +321,7 @@ AddrSpace::LoadIntoMemory(unsigned int vpn, unsigned int ppn)
         &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
         PageSize, // Read 128 bytes
         currentThread->space->pageTable[vpn].offset); // From this position in executable
+    //TODO: Loading from executable or swap file?
 }
 
 
@@ -367,6 +374,8 @@ void AddrSpace::SaveState()
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     
+    // TODO: this should be checking the dirty bit in TLB correct? Yeah, this isn't correct
+
     // The dirty bit tells us if memory has been written do during its time 
     //  in main memory. If it has been, then once we discard the memory we 
     //  must write it back to disk.
@@ -396,6 +405,7 @@ AddrSpace::RestoreState()
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     
+    // TODO: Why invalidate all pages i main memory not belonging to my process?
     // Invalidate all Pages in Main Memory not belonging to my Process
     for (ppn = 0; ppn < NumPhysPages; ppn++)
     {
@@ -441,6 +451,10 @@ AddrSpace::NewUserStack()
     int offset = -1; // Start out nowhere until demanded
     bool readOnly = false, valid = false;
     
+    // TODO: Why disable interrupts and acquire a lock? seems like we only need to do one of these things... 
+    // if the lock is already acquired and we disable interrupts we will get DeadLock
+
+
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
     // New PageTable = Old PageTable + 8 pages for new stack
@@ -519,6 +533,9 @@ AddrSpace::ReclaimStack(int stackPage)
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
+    // TODO: Why disable interrupts and acquire a lock? seems like we only need to do one of these things... 
+    // if the lock is already acquired and we disable interrupts we will get DeadLock
+
     // (1) Invalidate stack pages    
     for (vpn = stackPage; vpn < stackPage + (UserStackSize / PageSize); vpn++)
     {
@@ -526,6 +543,8 @@ AddrSpace::ReclaimStack(int stackPage)
         pageTable[vpn].use = false;
     }
 
+    // TODO: You shouldn't check if they're the same space but if they're the same VPN... There could be other pages from this addrspace in the IPT
+    // TODO: What about checking if it's in the TLB?
     // (2) Clear physical memory so it can be reused
     memLock->Acquire();
     for (ppn = 0; ppn < NumPhysPages; ppn++)
@@ -561,8 +580,12 @@ AddrSpace::ReclaimPageTable()
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
+    // TODO: Why disable interrupts and acquire a lock? seems like we only need to do one of these things... 
+    // if the lock is already acquired and we disable interrupts we will get DeadLock
+    // TODO: What about checking if it's in the TLB?
+
     // (2) Clear physical memory so it can be reused
-    memLock->Acquire();
+    memLock->Acquire(); 
     for (ppn = 0; ppn < NumPhysPages; ppn++)
     {
         if (ipt[ppn].space == this)

@@ -1126,7 +1126,7 @@ void runforkedthread(int vaddr)
     int stackAddr = (stackPage * PageSize) - 16;
 
     // Thread keeps track of stack's virtual address so it can translate
-    //  address and loads in stack on context switch.
+    // address and loads in stack on context switch.
     currentThread->stackPage = stackPage - (UserStackSize / PageSize);
 
     machine->WriteRegister(StackReg, stackAddr);
@@ -1282,7 +1282,7 @@ void Exec_Syscall(int vaddr, int len)
     t->space = space;
 
     // Close executable; Completely loaded into AS
-    delete executable;
+    //delete executable;
 
     // Let machine know how to run thread when scheduler switches process in
     t->Fork((VoidFunctionPtr)runnewprocess, 0);
@@ -1481,9 +1481,16 @@ void LoadIntoMemory(unsigned int vpn, unsigned int ppn)
 
         OpenFile *executable = currentThread->space->executable;
 
-        // (1) Get thread's executable
-        //OpenFile * executable = (OpenFile *)currentThread->space->fileTable.Get(0);
+        executable->ReadAt(
+             &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
+             PageSize, // Read 128 bytes
+             currentThread->space->pageTable[vpn].offset); // From this position in executable
 
+        /*char *temp= currentThread->space->executable;
+        OpenFile *executable= fileSystem->Open(temp);*/
+
+        // (1) Get thread's executable
+        
         DEBUG('p', "Loading from Executable, Executable Length = %d\n", executable->Length());
 
         // (2) Load from Executable into Main Memory
@@ -1519,12 +1526,13 @@ void LoadIntoMemory(unsigned int vpn, unsigned int ppn)
 int IPTMiss_Handler(unsigned int vpn)
 {
     // (1) Find free page of mainMem
+    // TODO: memLock->Acquire();
     int ppn = memBitMap->Find();
     memFIFO->Append((void *)ppn); // Maintain order of Adding to Memory for FIFO Eviction
     
     DEBUG('p', "FIFO Append works.\n");
 
-    // (2) Memory full; Evict (Random or FIFO) a page
+    // (2) Memory full: Evict (Random or FIFO) a page
     if (ppn == -1) {
         DEBUG('p', "Memory full.\n");
         ppn = MemoryFull_Handler();
@@ -1534,6 +1542,7 @@ int IPTMiss_Handler(unsigned int vpn)
     // (4) Move entry from Swapfile or Executable to Main Memory
     // (5) Update PageTable
     LoadIntoMemory(vpn, ppn);
+
 
     return ppn;
 }
@@ -1569,9 +1578,15 @@ void PageFault_Handler(unsigned int vaddr)
     int ppn = -1;
     for (int i = 0; i < NumPhysPages; i++)
     {
+        //PRINT VALUES OUT HERE, NOT FINDING IT WHEN IT SHOULD.
+        printf("ipt virtual page: %d\n", ipt[i].virtualPage);
+        printf("vpn: %d\n", vpn);
+        printf("ipt valid: %d\n", ipt[i].valid);
+
         // Memory entry is valid, belongs to same Process and is for the same Virtual Page
         if (ipt[i].virtualPage == vpn && ipt[i].valid && ipt[i].space == currentThread->space)
         {
+
             ppn = i;
             break;
         }
