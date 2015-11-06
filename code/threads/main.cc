@@ -177,6 +177,7 @@ main(int argc, char **argv)
 	}
 #endif // FILESYS
 #ifdef NETWORK
+	//run the server
         if (!strcmp(*argv, "-server")) {
         	printf("main is calling server");
 	    ASSERT(argc > 1);
@@ -186,6 +187,7 @@ main(int argc, char **argv)
             MailTest(atoi(*(argv + 1)));
             argCount = 2;
         }
+        //run clients
         if (!strcmp(*argv, "-client")) {
         	printf("main is calling client");
 	    ASSERT(argc > 1);
