@@ -798,6 +798,8 @@ int CreateCV_Syscall(unsigned int vaddr, int len)
 
 int Wait_Syscall(int indexcv, int indexlock)
 {
+    DEBUG('c', "User Program called Wait. CV: %d, Lock: %d\n", indexcv, indexlock);
+
     // Lock/CV indeces: (1) valid location, (2) defined, (3) belongs to currentThread's process
     if (validatecvindeces(indexcv, indexlock) == -1)
     {
@@ -864,13 +866,15 @@ void deletecondition(int indexcv)
 
 int Signal_Syscall(int indexcv, int indexlock)
 {
+    DEBUG('c', "User Program called Signal. CV: %d, Lock: %d\n", indexcv, indexlock);
+
     // Lock/CV indeces: (1) valid location, (2) defined, (3) belongs to currentThread's process
     if (validatecvindeces(indexcv, indexlock) == -1)
     {
         return -1;
     }
 
-    KernelCV * curKernelCV = conditions.at(indexlock);
+    KernelCV * curKernelCV = conditions.at(indexcv);
     curKernelCV->condition->Signal(locks.at(indexlock)->lock);
 
     // Marked for deletion and no waiting threads, delete
@@ -905,7 +909,7 @@ int Broadcast_Syscall(int indexcv, int indexlock)
         return -1;
     }
 
-    KernelCV * curKernelCV = conditions.at(indexlock);
+    KernelCV * curKernelCV = conditions.at(indexcv);
     curKernelCV->condition->Broadcast(locks.at(indexlock)->lock);
 
     // Just woke up any waiting threads. If marked for deletion, now delete.
