@@ -1024,12 +1024,6 @@ void Yield_Syscall()
 
 void Exit_Syscall(int status)
 {
-    // Status 0 = Success
-    if (status != 0)
-    {
-        printf("Exit: Arg must be 0, %d instead.\n", status);
-    }
-
     currentThread->Yield(); // Stop executing thread
     processLock->Acquire();
 

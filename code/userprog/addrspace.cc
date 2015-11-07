@@ -221,6 +221,7 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
     for (vpn = 0; vpn < numPages - (UserStackSize / PageSize); vpn++) 
     {
         offset = noffH.code.inFileAddr + (vpn * PageSize);
+        printf("Offset: %d", offset);
 
         pageTable[vpn].virtualPage = vpn;
         pageTable[vpn].physicalPage = -1;
@@ -287,13 +288,14 @@ void AddrSpace::LoadIntoMemory(int vpn, int ppn)
     }
     else if (pageTable[vpn].offset != -1)
     {
-        DEBUG('p', "LoadFromExecutable: Load vaddr %d into Main Memory at %d Page:\n \tdata\t%d\n \tvpn\t%d\n \tppn\t%d\n",
-                    (vpn * PageSize), ppn, machine->mainMemory[ppn * PageSize], vpn, ppn);
+        DEBUG('p', "LoadFromExecutable: Load vaddr %d into Main Memory:\n \t\n \tvpn\t%d\n \tppn\t%d\n \toffset\t%d\n" ,
+                    (vpn * PageSize), vpn, ppn, pageTable[vpn].offset);
 
         executable->ReadAt(
              &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
              PageSize, // Read 128 bytes
              pageTable[vpn].offset); // From this position in executable
+        printf("After loading from executable");
     }
     // Offset should be -1 only when neither in Executable nor Swap (offset = vaddr in file)
     // This is the case for unused Stack Pages
