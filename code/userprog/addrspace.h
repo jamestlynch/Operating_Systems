@@ -44,17 +44,20 @@ class AddrSpace {
         void SaveState();			// Save/restore address space-specific
         void RestoreState();		// info on a context switch
         Table fileTable;			// Table of openfiles
-        OpenFile *executable;
-        void LoadIntoMemory(unsigned int vpn, unsigned int ppn);
+        void LoadIntoMemory(int vpn, int ppn);
+        void RemoveFromMemory(int vpn, int ppn);
 
         int NewUserStack();
         void ReclaimStack(int stackPage);
         void ReclaimPageTable();
 
+    private:
         PageTableEntry *pageTable;
 
         unsigned int numPages;		// Number of pages in the virtual 
         				// address space
+        OpenFile *executable;
+        
 };
 
 //translation entry with process owner. might need to add more stuff to this class

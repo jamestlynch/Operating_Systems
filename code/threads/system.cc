@@ -40,6 +40,8 @@ Timer *timer;                   // the hardware timer device, for invoking conte
     SynchList *memFIFO;
     BitMap *memBitMap;
     Lock *memLock;
+    OpenFile *swapFile;
+    BitMap *swapBitMap;
     
     vector<KernelLock*> locks;
     vector<KernelCV*> conditions;
@@ -185,13 +187,17 @@ Initialize(int argc, char **argv)
     locksLock = new Lock("KernelLocksLock");
     processLock = new Lock("ProcessLock");
 
-#endif
-#ifdef USE_TLB
-    //evictionstrategy memoryEviction; // which memory eviction strategy we passed in
+
+    if(fileSystem->Create("SwapFile", 4000))
+    {
+        swapFile = fileSystem->Open("SwapFile");
+    }
+    swapBitMap = new BitMap(4000 / PageSize);
+
     memFIFO = new SynchList(); // keeps track of order Pages are added to Memory (for FIFO eviction)
     ipt = new IPTEntry[NumPhysPages]; // stores metadata about Memory Page's Process owner and corresponding vpn
-
-    // TODO: shouldn't this be set to 0?
+#endif
+#ifdef USE_TLB
     tlbCounter = -1;
 #endif
 
@@ -255,6 +261,16 @@ Cleanup()
             delete processInfo[i]->space;
         }
     }
+
+    delete memFIFO;
+    delete ipt;
+        
+    fileSystem->Remove("SwapFile");
+    delete swapFile;
+#endif
+
+#ifdef USE_TLB
+
 #endif
 
 #ifdef FILESYS_NEEDED
