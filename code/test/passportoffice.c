@@ -1855,6 +1855,8 @@ void ClerkInteraction (int clerkID, persontype clerkType)
 				Fork("CertifyPassportJob", sizeof("CertifyPassportJob"), RunSystemJob);
 				Wait(threadInitializedCV, paramLock);
 				ReleaseLock(paramLock);
+
+				customers[customerSSN].passportCertified = true;
 			}
 			ReleaseLock(filingApplicationLock);
 			ReleaseLock(filingPictureLock);
@@ -1895,9 +1897,10 @@ void ClerkInteraction (int clerkID, persontype clerkType)
 			Fork("ApplicationFilingJob", sizeof("ApplicationFilingJob"), RunSystemJob);
 			Wait(threadInitializedCV, paramLock);
 			ReleaseLock(paramLock);
+			customers[customerSSN].applicationFiled = true;
 			break; /* Application Clerk already did work */
 		case PICTURE:
-			if (clerkGroups[clerkType].clerks[clerkID].customerLikedPhoto == true)
+			if (clerkGroups[clerkType].clerks[clerkID].customerLikedPhoto)
 			{
 				/* File Photo in the system */
 				jobID = CreateSystemJob(customerSSN, clerkID, clerkType);
@@ -1906,6 +1909,7 @@ void ClerkInteraction (int clerkID, persontype clerkType)
 				Fork("PictureFilingJob", sizeof("PictureFilingJob"), RunSystemJob);
 				Wait(threadInitializedCV, paramLock);
 				ReleaseLock(paramLock);
+				customers[customerSSN].pictureFiled = true;
 			}
 			clerkGroups[clerkType].clerks[clerkID].customerLikedPhoto = false; /* Done checking if Customer liked photo; "forget" so ready for next Customer. */
 			break;
@@ -2222,8 +2226,6 @@ void ForkAgents ()
 
 	for (ssn = (numCustomers + numSenators); ssn < (numCustomers + numSenators) + (numAppClerks + numPicClerks + numPassportClerks + numCashiers); ssn++)
 	{
-		/* TODO: Debugging, delete. */
-		PrintfOne("Initializing Clerk with SSN %d\n", sizeof("Initializing Clerk with SSN %d\n"), ssn);
 		threadParam = ssn;
 		Fork("ClerkThread", sizeof("ClerkThread"), RunClerk);
 		Wait(threadInitializedCV, paramLock);
@@ -2231,8 +2233,6 @@ void ForkAgents ()
 
 	for (ssn = 0; ssn < (numCustomers + numSenators); ssn++)
 	{
-		/* TODO: Debugging, delete. */
-		PrintfOne("Initializing Customer with SSN %d\n", sizeof("Initializing Customer with SSN %d\n"), ssn);
 		threadParam = ssn;
 		Fork("CustomerThread", sizeof("CustomerThread"), RunCustomer);
 		Wait(threadInitializedCV, paramLock);
