@@ -647,7 +647,7 @@ int Signal(int indexcv, int indexlock)
     return -1;
   }
 
-  KernelCV * curKernelCV = conditions.at(indexlock);
+  KernelCV * curKernelCV = conditions.at(indexcv);
 
   curKernelCV->condition->Signal(locks.at(indexlock)->lock);
 
@@ -670,7 +670,7 @@ int Broadcast(int indexcv, int indexlock)
     return -1;
   }
 
-  KernelCV * curKernelCV = conditions.at(indexlock);
+  KernelCV * curKernelCV = conditions.at(indexcv);
   curKernelCV->condition->Broadcast(locks.at(indexlock)->lock);
 
   if(curKernelCV->toDelete)
@@ -744,11 +744,6 @@ void Yield_Syscall()
 
 void Exit_Syscall(int status)
 {
-  if(status != 0)
-  {
-    printf("Arg must be 0 to exit.");
-  }
-
   currentThread->Yield();
   processLock->Acquire();
 
