@@ -610,22 +610,22 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			switch(clerkType)
 			{
 				case APPLICATION:
-					PrintfOne("ApplicationClerk %d has signalled a Customer to come to their counter.\n", 
+					WriteOne("ApplicationClerk %d has signalled a Customer to come to their counter.\n", 
 						sizeof("ApplicationClerk %d has signalled a Customer to come to their counter.\n"), 
 						clerkID);
 					break;
 				case PICTURE:
-					PrintfOne("PictureClerk %d has signalled a Customer to come to their counter.\n", 
+					WriteOne("PictureClerk %d has signalled a Customer to come to their counter.\n", 
 						sizeof("PictureClerk %d has signalled a Customer to come to their counter.\n"),
 						clerkID);
 					break;
 				case PASSPORT:
-					PrintfOne("PassportClerk %d has signalled a Customer to come to their counter.\n",
+					WriteOne("PassportClerk %d has signalled a Customer to come to their counter.\n",
 						sizeof("PassportClerk %d has signalled a Customer to come to their counter.\n"),
 						clerkID);
 					break;
 				case CASHIER:
-					PrintfOne("Cashier %d has signalled a Customer to come to their counter.\n",
+					WriteOne("Cashier %d has signalled a Customer to come to their counter.\n",
 						sizeof("Cashier %d has signalled a Customer to come to their counter.\n"),
 						clerkID);
 					break;
@@ -635,25 +635,25 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			switch(clerkType)
 			{
 				case APPLICATION:
-					PrintfTwo("ApplicationClerk %d has received SSN from Customer %d\n",
+					WriteTwo("ApplicationClerk %d has received SSN from Customer %d\n",
 						sizeof("ApplicationClerk %d has received SSN from Customer %d\n"),
 						clerkID,
 						ssn);
 					break;
 				case PICTURE:
-					PrintfTwo("PictureClerk %d has received SSN from Customer %d\n", 
+					WriteTwo("PictureClerk %d has received SSN from Customer %d\n", 
 						sizeof("PictureClerk %d has received SSN from Customer %d\n"),
 						clerkID,
 						ssn);
 					break;
 				case PASSPORT:
-					PrintfTwo("PassportClerk %d has received SSN from Customer %d\n",
+					WriteTwo("PassportClerk %d has received SSN from Customer %d\n",
 						sizeof("PassportClerk %d has received SSN from Customer %d\n"),
 						clerkID,
 						ssn);
 					break;
 				case CASHIER:
-					PrintfTwo("Cashier %d has received SSN from Customer %d\n",
+					WriteTwo("Cashier %d has received SSN from Customer %d\n",
 						sizeof("Cashier %d has received SSN from Customer %d\n"),
 						clerkID,
 						ssn);
@@ -664,22 +664,22 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			switch(clerkType)
 			{
 				case APPLICATION:
-					PrintfOne("ApplicationClerk %d is going on break\n",
+					WriteOne("ApplicationClerk %d is going on break\n",
 						sizeof("ApplicationClerk %d is going on break\n"),
 						clerkID);
 					break;
 				case PICTURE:
-					PrintfOne("PictureClerk %d is going on break\n",
+					WriteOne("PictureClerk %d is going on break\n",
 						sizeof("PictureClerk %d is going on break\n"),
 						clerkID);
 					break;
 				case PASSPORT:
-					PrintfOne("PassportClerk %d is going on break\n",
+					WriteOne("PassportClerk %d is going on break\n",
 						sizeof("PassportClerk %d is going on break\n"),
 						clerkID);
 					break;
 				case CASHIER:
-					PrintfOne("Cashier %d is going on break\n",
+					WriteOne("Cashier %d is going on break\n",
 						sizeof("Cashier %d is going on break\n"),
 						clerkID);
 					break;
@@ -689,22 +689,22 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			switch(clerkType)
 			{
 				case APPLICATION:
-					PrintfOne("ApplicationClerk %d is coming off break\n",
+					WriteOne("ApplicationClerk %d is coming off break\n",
 						sizeof("ApplicationClerk %d is coming off break\n"),
 						clerkID);
 					break;
 				case PICTURE:
-					PrintfOne("PictureClerk %d is coming off break\n",
+					WriteOne("PictureClerk %d is coming off break\n",
 						sizeof("PictureClerk %d is coming off break\n"),
 						clerkID);
 					break;
 				case PASSPORT:
-					PrintfOne("PassportClerk %d is coming off break\n",
+					WriteOne("PassportClerk %d is coming off break\n",
 						sizeof("PassportClerk %d is coming off break\n"),
 						clerkID);
 					break;
 				case CASHIER:
-					PrintfOne("Cashier %d is coming off break\n",
+					WriteOne("Cashier %d is coming off break\n",
 						sizeof("Cashier %d is coming off break\n"),
 						clerkID);
 					break;
@@ -717,13 +717,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("ApplicationClerk %d has recorded a completed application for Customer %d\n",
+							WriteTwo("ApplicationClerk %d has recorded a completed application for Customer %d\n",
 								sizeof("ApplicationClerk %d has recorded a completed application for Customer %d\n"),
 								clerkID,
 								ssn);
 							break;
 						case SENATOR:
-							PrintfTwo("ApplicationClerk %d has recorded a completed application for Senator %d\n",
+							WriteTwo("ApplicationClerk %d has recorded a completed application for Senator %d\n",
 								sizeof("ApplicationClerk %d has recorded a completed application for Senator %d\n"),
 								clerkID,
 								ssn);
@@ -734,13 +734,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("PictureClerk %d has filed a picture for Customer %d\n",
+							WriteTwo("PictureClerk %d has filed a picture for Customer %d\n",
 								sizeof("PictureClerk %d has filed a picture for Customer %d\n"),
 								clerkID,
 								ssn);
 							break;
 						case SENATOR:
-							PrintfTwo("PictureClerk %d has filed a picture for Senator %d\n",
+							WriteTwo("PictureClerk %d has filed a picture for Senator %d\n",
 								sizeof("PictureClerk %d has filed a picture for Senator %d\n"),
 								clerkID,
 								ssn);
@@ -751,13 +751,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("PassportClerk %d has recorded Customer %d passport documentation\n",
+							WriteTwo("PassportClerk %d has recorded Customer %d passport documentation\n",
 								sizeof("PassportClerk %d has recorded Customer %d passport documentation\n"),
 								clerkID,
 								ssn);
 							break;
 						case SENATOR:
-							PrintfTwo("PassportClerk %d has recorded Senator %d passport documentation\n",
+							WriteTwo("PassportClerk %d has recorded Senator %d passport documentation\n",
 								sizeof("PassportClerk %d has recorded Senator %d passport documentation\n"),
 								clerkID,
 								ssn);
@@ -767,67 +767,67 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			}
 			break;
 		case Clerk_ReceivedBribe:
-			PrintfTwo("ApplicationClerk %d has received $500 from Customer %d\n",
+			WriteTwo("ApplicationClerk %d has received $500 from Customer %d\n",
 				sizeof("ApplicationClerk %d has received $500 from Customer %d\n"),
 				clerkID,
 				ssn);
 			break;
 		case Clerk_TookPicture:
-			PrintfTwo("PictureClerk %d has taken a picture of Customer %d\n",
+			WriteTwo("PictureClerk %d has taken a picture of Customer %d\n",
 				sizeof("PictureClerk %d has taken a picture of Customer %d\n"),
 				clerkID,
 				ssn);
 			break;
 		case Clerk_ToldByCustomerDoesNotLikePicture:
-			PrintfTwo("PictureClerk %d has been told that Customer %d does not like their picture\n",
+			WriteTwo("PictureClerk %d has been told that Customer %d does not like their picture\n",
 				sizeof("PictureClerk %d has been told that Customer %d does not like their picture\n"),
 				clerkID,
 				ssn);
 			break;
 		case Clerk_ToldByCustomerDoesLikePicture:
-			PrintfTwo("PictureClerk %d has been told that Customer %d does like their picture\n",
+			WriteTwo("PictureClerk %d has been told that Customer %d does like their picture\n",
 				sizeof("PictureClerk %d has been told that Customer %d does like their picture\n"),
 				clerkID,
 				ssn);
 			break;
 		case Clerk_DeterminedAppAndPicNotCompleted:
-			PrintfTwo("PassportClerk %d has determined that Customer %d does not have both their application and picture completed\n",
+			WriteTwo("PassportClerk %d has determined that Customer %d does not have both their application and picture completed\n",
 				sizeof("PassportClerk %d has determined that Customer %d does not have both their application and picture completed\n"),
 				clerkID,
 				ssn);
 			break;
 		case Clerk_DeterminedAppAndPicCompleted:
-			PrintfTwo("PassportClerk %d has determined that Customer %d has both their application and picture completed\n",
+			WriteTwo("PassportClerk %d has determined that Customer %d has both their application and picture completed\n",
 				sizeof("PassportClerk %d has determined that Customer %d has both their application and picture completed\n"),
 				clerkID,
 				ssn);
 			break;
 		case Clerk_VerifiedPassportCertified:
-			PrintfTwo("Cashier %d has verified that Customer %d has been certified by a PassportClerk\n",
+			WriteTwo("Cashier %d has verified that Customer %d has been certified by a PassportClerk\n",
 				sizeof("Cashier %d has verified that Customer %d has been certified by a PassportClerk\n"),
 				clerkID,
 				ssn);
 			break;
 		case Clerk_ReceivedPayment:
-			PrintfTwo("Cashier %d has received the $100 from Customer %d after certification\n",
+			WriteTwo("Cashier %d has received the $100 from Customer %d after certification\n",
 				sizeof("Cashier %d has received the $100 from Customer %d after certification\n"),
 				clerkID,
 				ssn);
 			break;
 		case Clerk_ReceivedPaymentGoBackInLine:
-			PrintfTwo("Cashier %d has received the $100 from Customer %d before certification. They are to go to the back of my line.\n",
+			WriteTwo("Cashier %d has received the $100 from Customer %d before certification. They are to go to the back of my line.\n",
 				sizeof("Cashier %d has received the $100 from Customer %d before certification. They are to go to the back of my line.\n"),
 				clerkID,
 				ssn);
 			break;
 		case Clerk_ProvidedPassport:
-			PrintfTwo("Cashier %d has provided Customer %d their completed passport\n",
+			WriteTwo("Cashier %d has provided Customer %d their completed passport\n",
 				sizeof("Cashier %d has provided Customer %d their completed passport\n"),
 				clerkID,
 				ssn);
 			break;
 		case Clerk_RecordedCustomerGivenPassport:
-			PrintfTwo("Cashier %d has recorded that Customer %d has been given their completed passport\n",
+			WriteTwo("Cashier %d has recorded that Customer %d has been given their completed passport\n",
 				sizeof("Cashier %d has recorded that Customer %d has been given their completed passport\n"),
 				clerkID,
 				ssn);
@@ -863,29 +863,29 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			switch(clerkType)
 			{
 				case APPLICATION:
-					PrintfOne("Manager has counted a total of $%d for ApplicationClerks\n",
+					WriteOne("Manager has counted a total of $%d for ApplicationClerks\n",
 						sizeof("Manager has counted a total of $%d for ApplicationClerks\n"),
 						money);
 					break;
 				case PICTURE:
-					PrintfOne("Manager has counted a total of $%d for PictureClerks\n",
+					WriteOne("Manager has counted a total of $%d for PictureClerks\n",
 						sizeof("Manager has counted a total of $%d for PictureClerks\n"),
 						money);
 					break;
 				case PASSPORT:
-					PrintfOne("Manager has counted a total of $%d for PassportClerks\n",
+					WriteOne("Manager has counted a total of $%d for PassportClerks\n",
 						sizeof("Manager has counted a total of $%d for PassportClerks\n"),
 						money);
 					break;
 				case CASHIER:
-					PrintfOne("Manager has counted a total of $%d for Cashiers\n",
+					WriteOne("Manager has counted a total of $%d for Cashiers\n",
 						sizeof("Manager has counted a total of $%d for Cashiers\n"),
 						money);
 					break;
 			}
 			break;
 		case Manager_CountedTotalMoney:
-			PrintfOne("Manager has counted a total of $%d for the passport office\n",
+			WriteOne("Manager has counted a total of $%d for the passport office\n",
 				sizeof("Manager has counted a total of $%d for the passport office\n"),
 				money);
 			break;
@@ -898,13 +898,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("Customer %d has gotten in regular line for ApplicationClerk %d.\n",
+							WriteTwo("Customer %d has gotten in regular line for ApplicationClerk %d.\n",
 								sizeof("Customer %d has gotten in regular line for ApplicationClerk %d.\n"),
 								ssn,
 								clerkID);
 							break;
 						case SENATOR:
-							PrintfTwo("Senator %d has gotten in regular line for ApplicationClerk %d.\n",
+							WriteTwo("Senator %d has gotten in regular line for ApplicationClerk %d.\n",
 								sizeof("Senator %d has gotten in regular line for ApplicationClerk %d.\n"),
 								ssn,
 								clerkID);
@@ -915,13 +915,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("Customer %d has gotten in regular line for PictureClerk %d.\n",
+							WriteTwo("Customer %d has gotten in regular line for PictureClerk %d.\n",
 								sizeof("Customer %d has gotten in regular line for PictureClerk %d.\n"),
 								ssn,
 								clerkID);
 							break;
 						case SENATOR:
-							PrintfTwo("Senator %d has gotten in regular line for PictureClerk %d.\n",
+							WriteTwo("Senator %d has gotten in regular line for PictureClerk %d.\n",
 								sizeof("Senator %d has gotten in regular line for PictureClerk %d.\n"),
 								ssn,
 								clerkID);
@@ -932,13 +932,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("Customer %d has gotten in regular line for PassportClerk %d.\n",
+							WriteTwo("Customer %d has gotten in regular line for PassportClerk %d.\n",
 								sizeof("Customer %d has gotten in regular line for PassportClerk %d.\n"),
 								ssn,
 								clerkID);
 							break;
 						case SENATOR:
-							PrintfTwo("Senator %d has gotten in regular line for PassportClerk %d.\n",
+							WriteTwo("Senator %d has gotten in regular line for PassportClerk %d.\n",
 								sizeof("Senator %d has gotten in regular line for PassportClerk %d.\n"),
 								ssn,
 								clerkID);
@@ -949,13 +949,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("Customer %d has gotten in regular line for Cashier %d.\n",
+							WriteTwo("Customer %d has gotten in regular line for Cashier %d.\n",
 								sizeof("Customer %d has gotten in regular line for Cashier %d.\n"),
 								ssn,
 								clerkID);
 							break;
 						case SENATOR:
-							PrintfTwo("Senator %d has gotten in regular line for Cashier %d.\n",
+							WriteTwo("Senator %d has gotten in regular line for Cashier %d.\n",
 								sizeof("Senator %d has gotten in regular line for Cashier %d.\n"),
 								ssn,
 								clerkID);
@@ -968,25 +968,25 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			switch(clerkType)
 			{
 				case APPLICATION:
-					PrintfTwo("Customer %d has gotten in bribe line for ApplicationClerk %d.\n",
+					WriteTwo("Customer %d has gotten in bribe line for ApplicationClerk %d.\n",
 						sizeof("Customer %d has gotten in bribe line for ApplicationClerk %d.\n"),
 						ssn,
 						clerkID);
 					break;
 				case PICTURE:
-					PrintfTwo("Customer %d has gotten in bribe line for PictureClerk %d.\n",
+					WriteTwo("Customer %d has gotten in bribe line for PictureClerk %d.\n",
 						sizeof("Customer %d has gotten in bribe line for PictureClerk %d.\n"),
 						ssn,
 						clerkID);
 					break;
 				case PASSPORT:
-					PrintfTwo("Customer %d has gotten in bribe line for PassportClerk %d.\n",
+					WriteTwo("Customer %d has gotten in bribe line for PassportClerk %d.\n",
 						sizeof("Customer %d has gotten in bribe line for PassportClerk %d.\n"),
 						ssn,
 						clerkID);
 					break;
 				case CASHIER:
-					PrintfTwo("Customer %d has gotten in bribe line for Cashier %d.\n",
+					WriteTwo("Customer %d has gotten in bribe line for Cashier %d.\n",
 						sizeof("Customer %d has gotten in bribe line for Cashier %d.\n"),
 						ssn,
 						clerkID);
@@ -1000,13 +1000,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("Customer %d has given SSN to ApplicationClerk %d.\n", 
+							WriteTwo("Customer %d has given SSN to ApplicationClerk %d.\n", 
 								sizeof("Customer %d has given SSN to ApplicationClerk %d.\n"),
 								ssn,
 								clerkID);
 							break;
 						case SENATOR:
-							PrintfTwo("Senator %d has given SSN to ApplicationClerk %d.\n",
+							WriteTwo("Senator %d has given SSN to ApplicationClerk %d.\n",
 								sizeof("Senator %d has given SSN to ApplicationClerk %d.\n"),
 								ssn,
 								clerkID);
@@ -1017,13 +1017,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("Customer %d has given SSN to PictureClerk %d.\n",
+							WriteTwo("Customer %d has given SSN to PictureClerk %d.\n",
 								sizeof("Customer %d has given SSN to PictureClerk %d.\n"),
 								ssn,
 								clerkID);
 							break;
 						case SENATOR:
-							PrintfTwo("Senator %d has given SSN to PictureClerk %d.\n",
+							WriteTwo("Senator %d has given SSN to PictureClerk %d.\n",
 								sizeof("Senator %d has given SSN to PictureClerk %d.\n"),
 								ssn, 
 								clerkID);
@@ -1034,13 +1034,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("Customer %d has given SSN to PassportClerk %d.\n",
+							WriteTwo("Customer %d has given SSN to PassportClerk %d.\n",
 								sizeof("Customer %d has given SSN to PassportClerk %d.\n"),
 								ssn,
 								clerkID);
 							break;
 						case SENATOR:
-							PrintfTwo("Senator %d has given SSN to PassportClerk %d.\n",
+							WriteTwo("Senator %d has given SSN to PassportClerk %d.\n",
 								sizeof("Senator %d has given SSN to PassportClerk %d.\n"),
 								ssn,
 								clerkID);
@@ -1051,13 +1051,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("Customer %d has given SSN to Cashier %d.\n",
+							WriteTwo("Customer %d has given SSN to Cashier %d.\n",
 								sizeof("Customer %d has given SSN to Cashier %d.\n"),
 								ssn,
 								clerkID);
 							break;
 						case SENATOR:
-							PrintfTwo("Senator %d has given SSN to Cashier %d.\n",
+							WriteTwo("Senator %d has given SSN to Cashier %d.\n",
 								sizeof("Senator %d has given SSN to Cashier %d.\n"),
 								ssn,
 								clerkID);
@@ -1070,13 +1070,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			switch(customerType)
 			{
 				case CUSTOMER:
-					PrintfTwo("Customer %d does not like their picture from PictureClerk %d.\n",
+					WriteTwo("Customer %d does not like their picture from PictureClerk %d.\n",
 						sizeof("Customer %d does not like their picture from PictureClerk %d.\n"),
 						ssn,
 						clerkID);
 					break;
 				case SENATOR:
-					PrintfTwo("Senator %d does not like their picture from PictureClerk %d.\n",
+					WriteTwo("Senator %d does not like their picture from PictureClerk %d.\n",
 						sizeof("Senator %d does not like their picture from PictureClerk %d.\n"),
 						ssn,
 						clerkID);
@@ -1087,13 +1087,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			switch(customerType)
 			{
 				case CUSTOMER:
-					PrintfTwo("Customer %d does like their picture from PictureClerk %d.\n",
+					WriteTwo("Customer %d does like their picture from PictureClerk %d.\n",
 						sizeof("Customer %d does like their picture from PictureClerk %d.\n"),
 						ssn,
 						clerkID);
 					break;
 				case SENATOR:
-					PrintfTwo("Senator %d does like their picture from PictureClerk %d.\n",
+					WriteTwo("Senator %d does like their picture from PictureClerk %d.\n",
 						sizeof("Senator %d does like their picture from PictureClerk %d.\n"),
 						ssn,
 						clerkID);
@@ -1107,13 +1107,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line.\n",
+							WriteTwo("Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line.\n",
 								sizeof("Customer %d has gone to PassportClerk %d too soon. They are going to the back of the line.\n"),
 								ssn,
 								clerkID);
 							break;
 						case SENATOR:
-							PrintfTwo("Senator %d has gone to PassportClerk %d too soon. They are going to the back of the line.\n",
+							WriteTwo("Senator %d has gone to PassportClerk %d too soon. They are going to the back of the line.\n",
 								sizeof("Senator %d has gone to PassportClerk %d too soon. They are going to the back of the line.\n"),
 								ssn,
 								clerkID);
@@ -1124,13 +1124,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 					switch(customerType)
 					{
 						case CUSTOMER:
-							PrintfTwo("Customer %d has gone to Cashier %d too soon. They are going to the back of the line.\n",
+							WriteTwo("Customer %d has gone to Cashier %d too soon. They are going to the back of the line.\n",
 								sizeof("Customer %d has gone to Cashier %d too soon. They are going to the back of the line.\n"),
 								ssn,
 								clerkID);
 							break;
 						case SENATOR:
-							PrintfTwo("Senator %d has gone to Cashier %d too soon. They are going to the back of the line.\n",
+							WriteTwo("Senator %d has gone to Cashier %d too soon. They are going to the back of the line.\n",
 								sizeof("Senator %d has gone to Cashier %d too soon. They are going to the back of the line.\n"),
 								ssn,
 								clerkID);
@@ -1142,13 +1142,13 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			switch(customerType)
 			{
 				case CUSTOMER:
-					PrintfTwo("Customer %d has given Cashier %d $100.\n",
+					WriteTwo("Customer %d has given Cashier %d $100.\n",
 						sizeof("Customer %d has given Cashier %d $100.\n"),
 						ssn,
 						clerkID);
 					break;
 				case SENATOR:
-					PrintfTwo("Senator %d has given Cashier %d $100.\n",
+					WriteTwo("Senator %d has given Cashier %d $100.\n",
 						sizeof("Senator %d has given Cashier %d $100.\n"),
 						ssn,
 						clerkID);
@@ -1156,7 +1156,7 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			}
 			break;
 		case Customer_GoingOutsideForSenator:
-			PrintfOne("Customer %d is going outside the Passport Office because their is a Senator present.\n",
+			WriteOne("Customer %d is going outside the Passport Office because their is a Senator present.\n",
 				sizeof("Customer %d is going outside the Passport Office because their is a Senator present.\n"),
 				ssn);
 			break;
@@ -1164,12 +1164,12 @@ void WriteOutput (outputstatement statement, persontype clerkType, persontype cu
 			switch(customerType)
 			{
 				case CUSTOMER:
-					PrintfOne("Customer %d is leaving the Passport Office.\n",
+					WriteOne("Customer %d is leaving the Passport Office.\n",
 						sizeof("Customer %d is leaving the Passport Office.\n"),
 						ssn);
 					break;
 				case SENATOR:
-					PrintfOne("Senator %d is leaving the Passport Office.\n",
+					WriteOne("Senator %d is leaving the Passport Office.\n",
 						sizeof("Senator %d is leaving the Passport Office.\n"),
 						ssn);
 					break;
