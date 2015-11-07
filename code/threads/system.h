@@ -61,6 +61,19 @@ class AddrSpace;
         AddrSpace *space;
         bool toDelete;
     };
+    struct ServerCV
+    {
+        Condition *condition;
+        AddrSpace *space;
+        bool toDelete;
+    };
+    struct ServerLock
+    {
+        Condition *condition;
+        AddrSpace *space;
+        bool toDelete;
+    };
+
 
     extern vector<KernelLock*> locks;
     extern vector<KernelCV*> conditions;

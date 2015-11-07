@@ -44,7 +44,6 @@ void Server(int farAddr){
     MailHeader outMailHdr, inMailHdr;
     char *data= new char;
     char buffer[MaxMailSize];
-    stringstream ss;
 
     while (true){
         printf("Server is started. waiting for message.\n");
@@ -80,12 +79,18 @@ void Server(int farAddr){
         // WAIT / SIGNAL / BROADCAST NEED: indexcv and indexlock
         // 
         //----------------------------------------------------------------------
-       switch (ss) 
+       switch (syscall) 
             {
 
                 case 'CL': //createlock. what information do we need? the name.
                     printf("Server received Create Lock request from client.\n");
                     ss >> name;
+                    // newKernelLock->toDelete = false; // flagged for deletion via Exit or DestroyLock
+                    // newKernelLock->space = currentThread->space; // lock process
+                    // newKernelLock->lock = new Lock(name); // OS lock
+
+                    //locks.push_back(newKernelLock); // Add to lock collection; indexed by lockID
+                    //int indexLock = locks.size() - 1;
                 break;
                 /*
                 case AL: //acquirelock
@@ -95,11 +100,14 @@ void Server(int farAddr){
                 break;
 
                 case DL: //destroylock
-                break;
+                break;*/
 
-                case CC: //createcv
+                case 'CV': //createcv. what information do we need? the name.
+                    printf("Server received Create CV request from client.\n");
+                    ss >> name;
+                    
                 break;
-
+/*
                 case WC://wait on cv
                 break;
 
@@ -111,6 +119,12 @@ void Server(int farAddr){
 
                 case DC://destroy
                 break;*/
+
+                default: printf("Invalid syscall request.");
+                //send from post office to the machine
+                     //postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
+
+                     break;
 
           //process the msg
           //send a reply (maybe)
