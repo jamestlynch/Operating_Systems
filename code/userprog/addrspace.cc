@@ -334,7 +334,7 @@ int AddrSpace::NewPageTable()
 void AddrSpace::ReclaimStack(int stackPage)
 {
     memLock->Acquire();
-    for(int i = stackPage; i < (UserStackSize / PageSize); i++)
+    for(int i = stackPage; i < stackPage + (UserStackSize / PageSize); i++)
     {
         memBitMap->Clear(pageTable[i].physicalPage);
         pageTable[i].valid = FALSE;

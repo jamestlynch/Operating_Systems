@@ -869,7 +869,7 @@ int Signal_Syscall(int indexcv, int indexlock)
         return -1;
     }
 
-    KernelCV * curKernelCV = conditions.at(indexlock);
+    KernelCV * curKernelCV = conditions.at(indexcv);
     curKernelCV->condition->Signal(locks.at(indexlock)->lock);
 
     // Marked for deletion and no waiting threads, delete
@@ -904,7 +904,7 @@ int Broadcast_Syscall(int indexcv, int indexlock)
         return -1;
     }
 
-    KernelCV * curKernelCV = conditions.at(indexlock);
+    KernelCV * curKernelCV = conditions.at(indexcv);
     curKernelCV->condition->Broadcast(locks.at(indexlock)->lock);
 
     // Just woke up any waiting threads. If marked for deletion, now delete.
@@ -1008,12 +1008,6 @@ void Yield_Syscall()
 
 void Exit_Syscall(int status)
 {
-    // Status 0 = Success
-    if (status != 0)
-    {
-        printf("Arg must be 0 to exit.");
-    }
-
     currentThread->Yield(); // Stop executing thread
     processLock->Acquire();
 

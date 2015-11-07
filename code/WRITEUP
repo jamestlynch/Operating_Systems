@@ -1,16 +1,270 @@
-Title:  Writeup for Project 1, Fall 2015
-Date:  09/20/15
+Title:  Writeup for Project 2, Fall 2015
+Date:  10/20/2015
 Group 8
-James Lynch		jamestly@usc.edu
+James Lynch	jamestly@usc.edu
 Austin Spiegel	aspiegel@usc.edu
 Haley Lenner	lenner@usc.edu
  
 I. Requirements:
 
-The requirements of the assignment is to simulate interactions among clerks, cashiers, and customers. Customers need to go into the office, get an application filed by an app clerk, a photo taken by a picture clerk, a passport certification by a passport clerk, and then finally receive a passport. These threads should be running simultaneously and the requirements are to simulate this passport office and allow customers to interact with clerks in a way that show the possibilities of race conditions occurring, but controlling and preventing them by using the various topics we discussed in class- locks, condition variables, and semaphores. There are many stipulations that are in place which prevent the customer from moving to the next step of the program- not waiting long enough for something to be filed or having clerks on break or clerks with long lines are the main issues. The program should handle these issues by yielding until a variable changes which allows progression to the next step. The program should allow senators, special customers, to have the entire passport office to themselves. Other than that, they should receive passports in the same way that customers do, with the exception of bribe lines- Senators should not bribe.
+The requirements of the assignment are to create userprograms that can interact with the operating system via syscalls. Basically
+put up a wall between the userprogram and OS code because userprograms are not directly allowed to called operating system code,
+they need to request to do something w/ the operating system and then let the operating system actually perform the function. This also needs to simulate the idea that user programs can only create changes within their own programs and cannot access/create locks or conditions in processes that are not their own. The OS needs to handle these syscalls and perform the action required depending on whether the input is valid or not. We also are implementing several userprog tests to ensure the program works and also convert passport office to c so it can be run as a userprog.
 
 
 II. Assumptions:
+You must pass 0 into Exit() to exit properly.
+
+III. Design:
+
+Our design idea is to create kernel lock and kernel cv structs and a process struct. These structs will hold Lock *lock, AddrSpace *space, and bool toDelete (locktest).Condition *condition, AddrSpace *space, and bool toDelete (conditiontest). The process will hold the number of executing threads, sleeping threads, address space, and an id for the process. Each of these structs will be stored in vectors, and all of the syscalls will use the vector for quick lookup. These vectors need to be accessed by userprogs one at a time to avoid race conditions so we'll put locks around all of the vectors. The goal is to ultimately make sure that the process addspace is the same space as the lock addspace and the cv addspace when making verifications, to make sure it has the proper access to do so and the lock/cv belongs to the process. For all syscalls we are going to validate the input passed in, which will be vaddr, length, lock indeces, and cv indeces. These all must be within bounds and nonnegative. For createLock, after validation we are going to create a new kernellock struct and then populate the struct addrspace with curr addrspace, delete=false, and an actual associated lock. Then we will push it to the back of the vector of kernellock struct pointers. For Acquire, we will pass in the index of the kernel lock struct and then do validations. Then update the process table numExecuting threads(-1) and sleeping threads (+1), then call the actual OS method to acquire the lock to run the OS code. Then after that code runs it means the thread is no longer sleeping so we need to increment the numExecutingThreads and decrement sleeping. These are accessing process table so we'll need to acquire the process table lock when making changes. For release lock we will release the lock at the index after validations. Release also needs to prompt a check for destroy, because if todelete is true and this was the last thread to release the lock then destroyLock will need to be called. For DestroyLock, we pass in indexes and do valiadtion tests and then check if todelete is set to true. if it is set to true and the queue for the lock is empty then we'll delete it and if it's not set to true or the wait queue is empty then we will set it to true, and wait for the waitqueue to be empty. 
+
+For createCV, after validation we are going to create a new kernelcv struct and then populate the struct addrspace with curr addrspace, delete=false, and an actual associated cv. Then we will push it to the back of the vector of kernelcondition struct pointers. For wait, we are updating the process table numExecuting threads(-1) and sleeping threads (+1), then call the actual OS method to wait / run the OS code. Then after that code runs it means the thread is no longer sleeping so we need to increment the numExecutingThreads and decrement sleeping. These are accessing process table so we'll need to acquire the process table lock again when making changes. We will need to know the index cv and index lock of what we are waiting on and do validations for these as well. For signal we will wake up the thread waiting on the cv after validations and then check destroylock to see if the thread was the last thread in the sleepqueue for the cv and the cv should be deleted. Broadcast also needs to check if destroylock is true but does not need to check the wait queue since nobody will be asleep on that queue once everyone is woken up. For broadcast and signal, we are again calling the OS broadcast and signal methods in the OS after creating temporary kernelcv with the parameter index which calls the method on the lock from the lock vector at the parameter index. For DestroyCV, we pass in indexes and do valiadtion tests and then check if todelete is set to true. We are not deleting the actual struct objects for cvs or locks because that would change the indexes of everyting in the vector. If toDelete is set to true and the queue for the lock is empty then we'll delete it and if it's not set to true or the wait queue is empty then we will set it to true, and wait for the waitqueue to be empty. If conditions succeed and can be deleted, we are setting the structs to null and then removing the actual lock and condition inside to keep indeces the same.
+
+/*** EXIT SYSCALL ***/
+Exit yields the current thread once... this allows any sleeping threads that were recently woken up by the currentThread to wake up. We then acquire the processLock because we will be modifying the process table.  There are 3 possible cases for exiting...
+
+1: This is not the last executing thread in the process!  In this case, we reclaim currentThread's stack pages, decrement the process's numExecutingThreads, release the processLock, and finish the currentThread.
+
+2: This is the last executing thread, but not the last executing process!  In this case, we loop through the condition and lock tables, deleting all of the locks and conditions that are in the same space as the current process.  When deleting the locks and conditions, we deallocate their objects and kernelStructs.  We then reclaim the physical memory from the pageTable for the current process's space.  We then deallocate the current process's space and the process struct, setting the processes location in the processInfo to NULL.  We release the processLock and finish the currentThread.
+
+3: This is the last executing thread of the last process!  We will just release the processLock and call interrupt->Halt(), stopping the machine.
+
+/*** FORK SYSCALL ***/
+We use a pointer to the new thread's name and load it into a char buffer.  We then acquire the process lock, because we will be adding a new thread to the process.  We retrieve our current process from the processInfo vector using our currentThread's processID.  We create a new thread and assign its space to the current processe's space.  We increment numExecutingThreads, and then fork the new Thread, calling Kernel_Thread.
+
+Kernel_Thread: Write the address of the Forked function into the PCReg and NextPCReg (vaddr + 4).  We then allocate new pages to the currentThread's space's pageTable.  We calcuate the the address of the currentThread's stack position (stackPage * PageSize - 16), store the value in the currentThread, and write the value to the StackReg.  We then run the machine.
+
+/*** EXEC SYSCALL ***/
+We use a pointer to the new process's name and load it into a char buffer.  We then acquire the process lock, because we will be adding a new thread to the process.  We then open the executable using the filesystem.  If we can't open the executable, we print an error and return the function.  We create a new AddrSpace, passing the open executable into it.  We create a new Process and a new Thread.  We add the new process to the processInfo vector.  We set the new process's ID, space, numExecutingThreads (1), and numSleepingThreads (0).  We set the new thread's processID and space to the new process's ID and space.  We delete the executable because it's already been read into main memory.  We then fork the new Thread, calling Exec_Thread.
+
+Exec_Thread: We call space->InitRegisters() and space->RestoreState(), setting the currentThreads stackPage (used during Exit) and run the machine.
+
+progtest.cc: We changed StartProcess and made it very similar to Exec as described above.
+
+/*** ADDRSPACE ***/
+AddrSpace(OpenFile* executable): We edited this function slightly for multiprogramming.  Before allocating the pageTable, we acquire the memLock.  We then loop through the pageTable, setting each page's physicalPage to a location in physicalMemory allocated by our memBitMap.  If the memBitMap is incapabable of finding an empty location, we print an error and halt the machine (No more physical memory available). We then read a chunk of information from the executable's starting location, offset by our current (virtualPage * PageSize), into the spot in Physical Memory given to us by the memBitMap.
+
+InitRegisters(): Edited this function to return an integer.  This integer is the stack address of the UserStack.  This function is only called when a process is Executed, so the process will only have 1 function with 1 stack.  We return the stack address so that the currentThread knows where it's stack is located.  When the currentThread ends, we will know what pages to deallocate from the pageTable.
+
+NewPageTable(): This creates a new pageTable with size numPages + (UserStackSize / PageSize).  We then copy all of the information from the previous pageTable into the new pageTable.  We initialize the new pages, similarly to the AddrSpace constructor.  We find a place in physical memory for the new pages, using the memBitMap.  We then set the pageTable, numPages, and call RestoreState().  This is all protected by the memLock.  We return numPages, which is the new stack's page position.  This is used by currentThread, so that it will know what pages to deallocate from the pageTable.
+
+ReclaimStack(int stackPage): This deallocates a UserStack from the pageTable.  It takes in a stackPage position and loops through (UserStackSize / PageSize) pages, clearing the memBitMap.  This opens up space in the physical memory for use elsewhere.  We also set each page to valid = FALSE.  This is protected by the memLock.
+
+ReclaimPageTable(): This deallocates the entire pageTable.  We loop through all of the pages, clearing the memBitMap.  This opens up space in the physical memory for use elsewhere.  We also set all pages to valid = FALSE.  This is protected by the memLock.
+
+
+IV. Implementation:
++ Files Modified: 
+	System.h
+	System.cc
+	Syscall.h
+	exception.cc
+	addrspace.cc
+	start.s
+	thread.cc - added int processID & int stackPage
+	progtest.cc
+
++ Files added:
+	passporttest.cc
+	test1.c
+	test2.c
+	test3.c
+	test4.c
+	test5.c
+	test6.c
+	test7.c
+
++ Data Structures added/modified
+
+    Machine *machine;
+    BitMap *memBitMap;
+    vector<KernelLock*> locks;
+    vector<KernelCV*> conditions;
+    vector<Process*> processInfo;
+    Lock *memLock;
+    Lock *processLock;
+    Lock *conditionsLock;
+    Lock *locksLock;
+
+   	struct KernelLock
+    {
+        Lock *lock;
+        AddrSpace *space;
+        bool toDelete;      
+    };
+
+    // KernelCV extra info for cleaning up and guaranteeing process CV ownership
+    struct KernelCV
+    {
+        Condition *condition;
+        AddrSpace *space;
+        bool toDelete;
+    };  
+
+    struct Process
+    {
+    	AddrSpace *space;
+    	int numSleepingThreads;
+    	int numExecutingThreads;
+    	int processID;
+    };
+
++ Functions added and in which file.
+
+exception.cc
+	void Kernel_Thread(int vaddr)
+	void WriteInt_Syscall(int integer)
+	void WriteError_Syscall(unsigned int vaddr, int len)
+	int checkLockErrors(int index)
+
+-- Functions to test simulation:
+
+test1();
+test2();
+test3();
+test4();
+test5();
+test6();
+test7();
+
++ Functions modified and in which file.
+progtest
+	void StartProcess(char *filename)
+
+syscall.h
+	int WriteOne(char* buf, int size, int num1)
+	int WriteTwo(char* buf, int size, int num1, int num2)
+	void WriteError(char* buffer, int size)
+	int WriteInt(int integer)
+	int Random(int lower, int upper)
+
+	int CreateLock(char* name, int size) 
+	int AcquireLock(int indexlock)
+	int ReleaseLock(int indexlock)
+	int DestroyLock(int indexlock)
+
+	int CreateCV(char* name, int size)
+	int Wait(int indexcv, int indexlock)
+	int Signal(int indexcv, int indexlock)
+	int Broadcast(int indexcv, int indexlock)
+	int DestroyCV(int indexcv)
+
+	void Halt()
+	void Yield() 
+	void Exit(int status)
+	void Fork(char* name, int len, void (*func)())
+	void Exec(char* name, int len)
+
+system.cc/system.h
+	void Cleanup()
+	void Initialize()
+
+addrspace.cc/addrspace.h
+	Addrspace()
+	int InitRegisters()
+	int NewPageTable()
+	void ReclaimStack(int stackPage)
+	void ReclaimPageTable()
+
+exception.cc
+	void WriteInt_Syscall(int integer)
+	int Random(int lower, int upper)
+	int WriteOne(unsigned int vaddr, int len, int num1)
+	int WriteTwo(unsigned int vaddr, int len, int num1, int num2)
+	void WriteError_Syscall(unsigned int vaddr, int len)
+	
+	int checkLockErrors(int index)
+	int CreateLock_Syscall(unsigned int vaddr, int len) 
+	int AcquireLock(int indexlock)
+	void DeleteLock(int indexlock)
+	int ReleaseLock(int indexlock)
+	int DestroyLock(int indexlock)
+
+	int checkCVErrors(int indexcv, int indexlock)
+	int CreateCV(unsgned int vaddr, int len)
+	int Wait(int indexcv, int indexlock)
+	void DeleteCondition(int indexcv)
+	int Broadcast(int indexcv, int indexlock)
+	int DestroyCV(int indexcv)
+
+	void Halt()
+	void Yield_Syscall() 
+	void Exit_Syscall(int status)
+	void Kernel_Thread(int vaddr)
+	void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
+	void Exec_Thread()
+	void Exec_Syscall(int vaddr, int len)
+	void ExceptionHandler(ExceptionType which)
+
+V. Testing:  (For each test case, you must show)
++ How to test
+
+To test the lock and cv syscalls, go to userprog and type the following:
+run lock and condition tests = 
+	'nachos -x ../test/test1’
+	'nachos -x ../test/test2'
+	'nachos -x ../test/test3’
+	'nachos -x ../test/test4’
+	'nachos -x ../test/test5’
+	'nachos -x ../test/test6’
+	'nachos -x ../test/test7’
+
+run passport office = 'nachos -x ../test/passporttest'
+
++ Test Output
+
+/*** LOCK & CV SYSCALL TESTS ***/
+- Our output will say pass/fail for validation tests 1-4. For test 5, it shows we support mutual exclusion and lock functionality is in place with syscalls by acquiring and releasig lock 1, then lock 2, then lock 3. There should not be any overlap since they are all acquiring the same lock. Test 6 is showing how broadcast works by waiting on a condition variable and then being woken up by the thread who acquired the lock and called broadcast, and then printing out to console when things are woken up. 
+
+test1-
+	output should say pass or fail
+test2-
+	output should say pass or fail
+test3-
+	output should say pass or fail
+test4-
+	output should say pass or fail
+test5-
+	Passed if acquired GREEN printed acquired/released numbers are in increasing order/non overlapping. This means people are properly acquiring and releasing locks. This tests all lock functions.
+test6-
+	Passed if FINISHED green numbers are in increasing order. This means that things were executing in the proper order and the broadcast woke every thread up and then they acquired and released the threads according to the order in which they were forked. This tests signal and broadcast and shows that wait works as well, since threads are waiting to be broadcasted.
+test7- 
+	This test we added console output within the code to walk through what was happening. The order of what happens should be the following: 
+		-Thread 1 forked
+		-Thread 2 forked
+		-Thread 3 forked
+		-Thread 1 acquires a lock and immediately Waits on the cv and lock. 
+		-Thread 2 acquires the lock and then tries to destroy the CV but cannot because thread 1 is waiting on it so the sleepqueue is not empty, so 
+		-^this sets toDelete to true.
+		-Thread 2 waits on the same cv and lock
+		-Thread 3 acquires the lock
+		-Thread 3 broadcasts 
+		-Thread 1 and 2 wake up, respectively
+		-ToDelete was set to true, the condition is deleted.
+		-Thread 3 releases the lock.
+		done
+
+/*** EXEC/FORK/EXIT SYSCALL TESTS ***/
+ExecTest: First, we try to execute a file that has a name with length -1.  This will print an error ("Invalid length for thread identifier."), but allow the user program to continue.  Then we try to execute a file that does not exist.  This will also print an error, but allow the user program to continue ("Unable to open file test"). This executes the user program sort twice.  Beware, it takes a while to finish... but it shows that we do not have any trouble executing two large (and slow) processes at once.
+
+nachos -x ../test/execTest
+
+The Lock/CV tests listed above test Fork and Exit well.  They fork multiple threads and end multiple threads.  If they don't behave as expected, we know there is a problem with either Fork or Exit (and we used these tests to help solve those problems).
+
+VI. Discussion:
+
+All of the syscalls work 100% properly, including FORK/EXEC/EXIT. We did not design our tests to run with -rs values. Our tests display proper functionality for the syscalls, fork exec and exit and the simulation works.
+
+
+/*** REQUIREMENTS -- PART 3 ***/
+
+I. Requirements:
+
+The requirement is to write a c user program that implements a passport office simulation. This user program can no longer access lock and condition variables on their own, they have to now request to the OS that they want them and then the OS has to provide them.
+
+II. Passport Assumptions:
+
 -there is a random chance of customers going to an application line vs a picture line first.
 -filing an application and picture take a random time, between 20 and 100 yields.
 -being punished takes 100-1000 yields
@@ -18,7 +272,7 @@ II. Assumptions:
 -Manager will wake up an additional clerk when there are three people in any line, if not all are currently awake. People only get in a line that is active. If everyone is on break, the manager will wake up a clerk when a customer goes into their line
 -money values of 100 600 1100 and 1600 are randomly distributed.
 -the user can enter invalid input. must test for that.
--the customer ALWAYS bribes the clerk, if they have the money to do so. 
+-the customer ALWAYS bribes the clerk, if they have the money to do so. 
 -you pick the shortest line based on the normal line. Then if you have the money to bribe, you get in the bribe line for that line.
 -manager’s thread gets put to sleep when all of the customers have left the passport building and nobody else is working.
 -only one senator at a time can be in the passport office. There are no senator bribe lines.
@@ -26,184 +280,27 @@ II. Assumptions:
 -each type of clerk has their own money ‘pool,' the manager goes and reads each type of clerks money pool rather than the manager going to each individual clerk and getting the money.
 -manager only prints out the money when there is a change in the amount of money that is collected.
 
-III. Design:
 
-Customers have the type of clerk they are currently interacting with, a social security #, and money associated with them. walk in, randomly decide if they will get a photo taken or an application filed. From there, they go to the group of clerks (application or picture), and choose the shortest line witin that group. Each customer has a random amt of $(100, 600, 1100, 1600), and bribing any clerk requires 500. If a customer has enough money, they randomly decides if they will use it to bribe the clerk. All clerks accept bribes. They also have the option to go on a shorter bribe line, which means that they will cut every other customer in front of them. Every clerk has a bribe line. The customer needs to wait on the line, and will walk to the counter when they get to the front of the line and the customer before leaves and the clerk in their line signals them. Once they get to the counter this is what happens:
-    Application: customer walks to counter, and gives clerk the SSN. The clerk files the application. If the customer has already gone to the picture clerk then the customer will go to the passport clerk after leaving this counter. Otherwise, the customer goes to the application clerk. the application clerk files the application.
-    Picture: customer walks to the counter, clerk takes the picture. the customer randomly decides to like or not like (50% chance they like, 50% they don't). if they don't like it they return to the end of the line and try again. If they do like it and have already gone to the application clerk, they get in line for the passport clerk. if they have not gone to the application clerk, they go to the line for the application clerk. the picture clerk files the accepted picture.
+III. Design Changes:
 
-Once the customer goes to the application clerk and picture clerk, they get in the shortest line for the Passport clerk. If they get to the passport clerk before the application and picture clerks have filed their application and photo, they are punished by having to wait a certain amount of time, and then are told to go to the end of the line. Once they get to the passport counter and receive the passport, they go on line for the cashier clerk to pay the $100 and receive their passport. Then they leave the passport office.
+Our design was to implement it as close to possible as original. We converted all classes to structs, use enums for state, arrays for locks on lines and desks, structs for clerks. Every decision that has to be made by a customer or a clerk requires its own method. This includes GetBackInLine, MakePhotoDecision, ChooseLine, etc. We are using writeOutput to print to the screen just as we did for sys calls. once all of the booleans in the customer struct are true, ( bool turnedInApplication; bool acceptedPassport; bool gotPassport; bool applicationFiled;bool pictureFiled; bool passportCertified; bool passportRecorded; ) the customer is done with the interaction and can leave the passport office. Same for senators. In addition to a customer struct we create a clerk struct to hold its state, current line length, and the boolean customer information that it needs to know. And we hold a clerk group struct which holds data about the current customer, its line, the lock on its counter, and its money. This information is all pertinent to how its behavior works.  We have an initialize method for each type of clerk and for the customer. They set all of the values for the structs to be equal to the value of the CreateCV sys call. Decide clerk was similar to the first implementation but accessing different data structures in order to get information. The customer still decides the line to get on but passes the information via changing array values and booleans. He has functions to get back in line, make photo decision, pay for passport, punish too soon, etc. Output- The clerk, manager, and customer has its own section of switch statements since they are all having different interactions. In order to write output we created a giant switch statement with nested cases of the person interaction happening, the clerk type, cases of the type of clerk,and finally if it is a senator or a customer. We are making the create acquire wait signal and broadcast calls as system calls instead of making the calls to the operating system.
 
-Senators can randomly come to the office and will wait until current counter interactions are done and then kick everyone else out of the Passport office. They go through the same process as the regular customers. When they receive their passport and leave the office, the customers can come back in their office and resume their activities.
+IV. Methods:
 
-Managers are keeping track of the overall profit $$ made, and the $ made by each type of clerk. Since every Clerk also goes 'on break' when nobody is in their line, Managers also wake up clerks. Manager will wake up an additional clerk when there are three people in any line, if not all are currently awake. People only get in a line that is active. If everyone is on break, the manager will wake up a clerk when a customer goes into their line. The simulation should end when the same number of customers and senators that were created have gotten their passports and left the passport office.
+void InitializePictureClerkData ()
+void InitializePassportClerkData ()
+void InitializeCashierData ()
+int DecideClerk (int ssn, enum persontype clerkType)
+void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
+void GetBackInLine (int ssn, enum persontype clerkType)
+void PayForPassport (int ssn, int clerkID)
+void PunishTooSoon (int ssn, int clerkID, enum persontype clerkType)
+void CustomerInteraction (int ssn, int clerkID, enum persontype clerkType)
+void AcceptBribe (int clerkID, enum persontype clerkType)
+void TakeBreak (int clerkID, enum persontype clerkType) 
+void ResetSystemJob (int jobID)
+void ClerkInteraction (int clerkID, enum persontype clerkType)
+enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
+void Clerk(int ssn)
+void InitializeData
 
-
-
-IV. Implementation:
-+ Files Modified: 
-	threadtest.cc
-	synch.cc/synch.h
-
-+ Files added:	none
-
-+ Data Structures added/modified
-
-SYNC.CC/SYNC.H
-
-	inside Lock class:
-   		List *sleepqueue;
-    		char* name;
-    		Thread *lockOwner;
-    		Thread *lockOwner;
-    		bool state;
-    		bool isHeldBySomeOne;
-
-	inside Condition class: 
-    		List * waitqueue;
-
-
-THREADTEST.CC
-	struct ClerkGroupData
-	struct ClerkData 
-    	struct CustomerData
-	struct ManagerData 
-	struct FilingJob
-	struct ClerkFunctionStruct
-	enum ClerkStatus
-	const int moneyOptions[]
-	bool runningSimulation
-	struct DecideLineParams
-	enum ClerkStatus
-	const int moneyOptions[4]
-
-+ Functions added and in which file.
-
-SYNCH.CC
-inside Lock:
-	void setName(char * inName)
-	bool getState()
-
-inside Condition:
-	char* getName()
-
-
-THREADTEST.CC
--- functions to create simulation:
-void Clerk(ClerkFunctionStruct * clerkFunctionStruct) 
-void CustomerToApplicationClerk(int ssn, int myLine)
-void FileApplication(FilingJob* jobPointer) 
-void ApplicationClerkToCustomer(int lineNumber)
-void FilePicture(FilingJob* jobPointer) 
-void CustomerToPictureClerk(int ssn, int myLine)
-void PictureClerkToCustomer(int lineNumber)
-void CertifyPassport(FilingJob * certifyingJobPointer)
-void CustomerToPassportClerk(int ssn, int myLine)
-void PassportClerkToCustomer(int lineNumber)
-void CustomerToCashier(int ssn, int& money, int myLine)
-void CashierToCustomer(int lineNumber)
-int ManageClerk(int clerkType)
-void Manager()
-void Senator()
-int DecideLine(int ssn, int& money, int clerkType) 
-void Leave(int ssn)
-void Customer(int ssn) 
-void GetInput()
-void InitializeData()
-void CleanUpData()
-void InitializeAppClerks () 
-void CleanUpAppClerks()
-void InitializePicClerks ()
-void InitializePassportClerks () 
-void InitializeCashiers() 
-void InitializeManager()
-void InitializeCustomers()
-
-
-
--- Functions to test simulation:
-void ShortestLineTest_PrintResults(int numDecisionsSoFar, int numLines) {
-void ShortestLineTest_Customer(DecideLineParams* decideLineParamsPointer) {
-void ShortestLineTest(int numLineDecisions, int defaultMoney, int numLines, int defaultLineCount, bool useRandomClerkStates, bool useRandomLineCounts, bool useRandomMoney, ClerkStatus defaultStatus) 
-void CashierTest_Customer(int ssn){
-void CashierTest(int defaultMoney, int numCashier, int numCustomer, ClerkStatus defaultStatus){
-void ClerksGoOnBreak_Customer(int i)
-void ClerksGoOnBreak() 
-void ManagerTakesClerkOffBreak_MultipleCustomers(int i)
-void ManagerTakesClerkOffBreak_SingleCustomer(int i)
-void ManagerTakesClerkOffBreak()
-void Part2()
-void Test1()
-void Test2()
-void Test3()
-void Test4()
-void Test5()
-void Test7()
-
-+ Functions modified and in which file.
-
-SYNCH.CC
-
-Class Condition{
-    void Wait(Lock *conditionLock); // these are the 3 operations on 
-    void Signal(Lock *conditionLock);   // conditionLock must be held by
-    void Broadcast(Lock *conditionLock);// the currentThread for all of 
-}
-Class Lock{
-    void setName(char * inName);
-    void Acquire();
-    void Release();
-    bool getState();
-}
-
-
-V. Testing:  (For each test case, you must show)
-
-+ How to test
-
-    To test part 2 as a simulation with user input, you type 'nachos -P2' into command line. Follow the prompts to enter the quantity of each clerk type, customer, and senator. Then the simulation will run.
-    To test part 2 using the testing requirements document:
-		run test 1 = 'nachos -T1’
-		run test 2 = 'nachos -T2’
-		run test 3 = 'nachos -T3’
-		run test 4 = 'nachos -T4’
-		run test 5 = 'nachos -T5’
-		run test 7 = 'nachos -T7’
-Test6-Does not exist. Since nobody accesses the total money except for the manager, there can never be a race condition.
-
-+ Test Output
-
-- Describe the testing output. You don't have to dump all the output info. Just make sure your description can exactly reflect your output. The grader of your submission will be wanting to compare the output they get with what you say the output is.
-
-Test1-Customers always take the shortest line, but no 2 customers ever choose the same shortest line at the same time
-
-Assumptions about Customer's Line Decisions-
-   	Customers always go straight to the counter if the Clerk is (i) AVAILABLE and (ii) its line is empty
-   	Customers decide their clerk based ONLY on the length of the regular line
-   	Customers always bribe if they have enough money (>= $600)
-	Customers will join a long bribe line if the clerk's regular line is shortest.
-
-The print statement should show each customer and their decision of which line they are going to. There are 50 customers and 5 clerks (MAX of each). The output will show the lines, count, state, and amount of bribes for each line as output. 
-
-Test2-Managers only read one from one Clerk's total money received, at a time.
-
-	Create 4 customers an app clerk and a cashier. We kick off 3 customers going to app clerk with the assumption that 1 will bribe. After the customer finishes at the cashier we make sure that the manager has counted 100$ for the cashier and 0$ for the app clerk. The manager counts each groups $ separately, after all customers decide which line to go in, we check to make sure tat the app clerks have 500$ because one of them was bribed. 
-
-Test3-Customers do not leave until they are given their passport by the Cashier. The Cashier does not start on another customer until they know that the last Customer has left their area
-
-	None of the customer’s passports are certified at start. They should always go to the back of the line. Then, once the passport certified is set to true for each customer, there is a print statement notifying of this. Afterwards, the cashier gives the customer their passport. And each customer then leaves when they receive the passport. The next waiting customer should never come to the counter before a cashier signals them to. Read print statements for full interaction.
-
-Test4- Clerks go on break when they have no one waiting in their line
-	
-	One customer goes to one app clerk and has his interaction w the app clerk. after customer is done we check to make sure nobody is in the app clerks line, and then he goes on break. Read print statements for full interaction.
-
-Test5-Managers get Clerks off their break when lines get too long
-	We have 6 customers and 2 app clerks. We send one customer to an app clerk and then after the customer is done w/ interaction, check that the app clerks line is 0 and they go on break. Then spawn 4 more customers and we wait until one is completed and then check to see that another clerk is woken up. Then we wait until the 3 other customers are finished and check to make sure that both clerks are on break. Then we send 1 final customer and after he decides a line, we check to make sure that the 1st clerk is busy. Idea is that shows if all clerks are on break, then a customer chooses a clerk and the manager wakes that clerk up because every clerk is on break.
-
-Test6-Does not exist. There is no test case for this. Since nobody accesses the total money except for the manager. Therefore there can never be a race condition.
-
-Test7-The behavior of Customers is proper when Senators arrive. This is before, during, and after.
-
-VI. Discussion:
-
-Based on our tests, we have dealt with all race conditions, since for every test we ran, the values outputted were correct. We also have avoided deadlock since threads never go to sleep forever without waking up. We have properly simulated a passport office and have shown all cases for what could happen with using random values and comparing them to what should be output.
