@@ -222,7 +222,7 @@ Lock::Release()
     // Thread allowed to Release, free up lock for another thread to Acquire
     else
     {
-        DEBUG('s', "%s Released %s lock.", currentThread->getName(), name);
+        DEBUG('s', "%s Released %s lock.\n", currentThread->getName(), name);
         state = LOCKFREE;
         lockOwner = NULL;
 
