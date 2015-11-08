@@ -114,11 +114,7 @@ class AddrSpace;
 
 #endif
 
-#ifdef USE_TLB
-
     extern int tlbCounter;
-
-#endif
 
 #ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB 
 

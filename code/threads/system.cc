@@ -52,11 +52,8 @@ Timer *timer;                   // the hardware timer device, for invoking conte
     Lock *locksLock;
 
 #endif
-#ifdef USE_TLB
-    
+
     int tlbCounter;
-    
-#endif
 
 #ifdef NETWORK
     PostOffice *postOffice;
@@ -197,9 +194,8 @@ Initialize(int argc, char **argv)
     memFIFO = new SynchList(); // keeps track of order Pages are added to Memory (for FIFO eviction)
     ipt = new IPTEntry[NumPhysPages]; // stores metadata about Memory Page's Process owner and corresponding vpn
 #endif
-#ifdef USE_TLB
+    
     tlbCounter = -1;
-#endif
 
 #ifdef FILESYS
     synchDisk = new SynchDisk("DISK");
