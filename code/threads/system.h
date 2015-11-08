@@ -19,6 +19,7 @@
 #include "synchlist.h"
 //#include "filesys.h"
 #include <vector>
+#include <queue>
 #include <string>
 using namespace std;
 
@@ -110,7 +111,7 @@ class AddrSpace;
 
     // typedef enum evictionstrategy { EVICTRAND, EVICTFIFO } evictionstrategy;
     // evictionstrategy memoryEviction;
-    extern SynchList *memFIFO;
+    extern std::queue<int> memFIFO;
 
 #endif
 

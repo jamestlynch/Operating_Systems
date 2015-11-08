@@ -37,7 +37,7 @@ Timer *timer;                   // the hardware timer device, for invoking conte
     Machine *machine;
 
     IPTEntry *ipt;
-    SynchList *memFIFO;
+    queue<int> memFIFO;
     BitMap *memBitMap;
     Lock *memLock;
     OpenFile *swapFile;
@@ -194,7 +194,7 @@ Initialize(int argc, char **argv)
     }
     swapBitMap = new BitMap(4000 / PageSize);
 
-    memFIFO = new SynchList(); // keeps track of order Pages are added to Memory (for FIFO eviction)
+    //memFIFO = new SynchList(); // keeps track of order Pages are added to Memory (for FIFO eviction)
     ipt = new IPTEntry[NumPhysPages]; // stores metadata about Memory Page's Process owner and corresponding vpn
 #endif
 #ifdef USE_TLB
@@ -262,10 +262,10 @@ Cleanup()
         }
     }
 
-    delete memFIFO;
+    //delete memFIFO;
     delete ipt;
         
-    fileSystem->Remove("SwapFile");
+    //fileSystem->Remove("SwapFile");
     delete swapFile;
 #endif
 
