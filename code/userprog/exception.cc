@@ -1267,19 +1267,17 @@ void Exec_Syscall(int vaddr, int len)
 
     // Add new process to process table; Used for determining how to handle Exits
     Process * p = new Process();
+    processInfo.push_back(p);
+
     p->processID = processInfo.size() - 1;
     p->space = space;
     p->numExecutingThreads = 1;
     p->numSleepingThreads = 0;
-    processInfo.push_back(p);
-
+    
     // Thread needs to be able to restore itself on context switches (AS) and handling Exits (processID)
     Thread * t = new Thread(buf);
     t->processID = p->processID;
     t->space = space;
-
-    // Close executable; Completely loaded into AS
-    //delete executable;
 
     // Let machine know how to run thread when scheduler switches process in
     t->Fork((VoidFunctionPtr)runnewprocess, 0);

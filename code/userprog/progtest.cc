@@ -49,8 +49,6 @@ void StartProcess(char *filename)
     currentThread->processID = p->processID;
     currentThread->space = space;
 
-    //delete executable;			// close file
-
     currentThread->stackPage = space->InitRegisters();		// set the initial register values
     space->RestoreState();		// load page table register
 

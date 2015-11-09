@@ -188,11 +188,11 @@ Initialize(int argc, char **argv)
     processLock = new Lock("ProcessLock");
 
 
-    if(fileSystem->Create("SwapFile", 4000))
+    if(fileSystem->Create("SwapFile", 8000))
     {
         swapFile = fileSystem->Open("SwapFile");
     }
-    swapBitMap = new BitMap(4000 / PageSize);
+    swapBitMap = new BitMap(divRoundUp(8000, PageSize));
 
     //memFIFO = new SynchList(); // keeps track of order Pages are added to Memory (for FIFO eviction)
     ipt = new IPTEntry[NumPhysPages]; // stores metadata about Memory Page's Process owner and corresponding vpn
@@ -265,7 +265,7 @@ Cleanup()
     //delete memFIFO;
     delete ipt;
         
-    //fileSystem->Remove("SwapFile");
+    fileSystem->Remove("SwapFile");
     delete swapFile;
 #endif
 
