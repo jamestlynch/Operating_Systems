@@ -218,7 +218,7 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
     
     // Store the location of each virtual page in the Page Table
     pageTable = new PageTableEntry[numPages];
-    for (vpn = 0; vpn < numPages - divRoundUp(UserStackSize, PageSize) - divRoundUp(noffH.uninitData.size, PageSize); vpn++) 
+    for (vpn = 0; vpn < numPages /*- divRoundUp(UserStackSize, PageSize) - divRoundUp(noffH.uninitData.size, PageSize)*/; vpn++) 
     {
         offset = noffH.code.inFileAddr + (vpn * PageSize);
 
@@ -232,7 +232,7 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
         pageTable[vpn].use = false;
     }
 
-    for(vpn = numPages - divRoundUp(UserStackSize, PageSize) - divRoundUp(noffH.uninitData.size, PageSize); vpn < numPages; vpn++)
+    /*for(vpn = numPages - divRoundUp(UserStackSize, PageSize) - divRoundUp(noffH.uninitData.size, PageSize); vpn < numPages; vpn++)
     {
         pageTable[vpn].virtualPage = vpn;
         pageTable[vpn].physicalPage = -1;
@@ -242,7 +242,7 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
         pageTable[vpn].swapped = false;
         pageTable[vpn].dirty = false;
         pageTable[vpn].use = false;
-    }
+    }*/
 }
 
 //----------------------------------------------------------------------
@@ -330,7 +330,6 @@ void AddrSpace::RemoveFromMemory(int vpn, int ppn)
     // TODO: save to swap file
     if(ipt[ppn].dirty)
     {
-        DEBUG('p', "Saving to SwapFile\n");
         int swapPage = swapBitMap->Find();
 
         ASSERT(swapPage != -1);
@@ -341,6 +340,9 @@ void AddrSpace::RemoveFromMemory(int vpn, int ppn)
 
         pageTable[vpn].offset = swapPage * PageSize;
         pageTable[vpn].swapped = true;
+
+        DEBUG('p', "SaveToSwap: Save vaddr %d into Swap:\n \t\n \tvpn\t%d\n \tppn\t%d\n \toffset\t%d\n" ,
+                    (vpn * PageSize), vpn, ppn, pageTable[vpn].offset);
     }
     
     // Update the Page Table
@@ -507,7 +509,7 @@ void AddrSpace::ReclaimStack(int stackPage)
             ipt[pageTable[vpn].physicalPage].valid = false;
             for(tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
             {
-                if(machine->tlb[tlbEntry].valid && machine->tlb[tlbEntry].virtualPage == vpn && machine->tlb[tlbEntry].physicalPage == pageTable[vpn].physicalPage)
+                if(machine->tlb[tlbEntry].valid && machine->tlb[tlbEntry].virtualPage == vpn && ipt[machine->tlb[tlbEntry].physicalPage].space == this)
                 {
                     machine->tlb[tlbEntry].valid = false;
                 }
@@ -565,7 +567,7 @@ void AddrSpace::ReclaimPageTable()
             ipt[pageTable[vpn].physicalPage].valid = false;
             for(tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
             {
-                if(machine->tlb[tlbEntry].valid && machine->tlb[tlbEntry].virtualPage == vpn && machine->tlb[tlbEntry].physicalPage == pageTable[vpn].physicalPage)
+                if(machine->tlb[tlbEntry].valid && machine->tlb[tlbEntry].virtualPage == vpn && ipt[machine->tlb[tlbEntry].physicalPage].space == this)
                 {
                     machine->tlb[tlbEntry].valid = false;
                 }

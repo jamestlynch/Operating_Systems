@@ -142,15 +142,16 @@ main(int argc, char **argv)
 					// for console input
 		}
 
-		// memoryEviction = EVICTFIFO;
+		isFIFO = true;
 
-		// if (!strcmp(*argv, "-P"))
-		// {
-		// 	if (!strcmp(*(argv + 1), "RAND"))
-		// 	{
-		// 		memoryEviction = EVICTRAND;
-		// 	}
-		// }
+		if (!strcmp(*argv, "-P"))
+		{
+			if (!strcmp(*(argv + 1), "RAND"))
+			{
+				printf("Not isFIFO\n");
+				isFIFO = false;
+			}
+		}
 #endif // USER_PROGRAM
 #ifdef FILESYS
 	if (!strcmp(*argv, "-cp")) { 		// copy from UNIX to Nachos
