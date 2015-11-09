@@ -17,6 +17,7 @@
 #include "timer.h"
 #include "synch.h"
 #include "synchlist.h"
+//#include "filesys.h"
 #include <vector>
 #include <string>
 using namespace std;
@@ -122,7 +123,7 @@ class ServerCV {
     extern Lock *memLock;
 
     // IPTs store Pages from various user programs; We need a way of telling
-    //  the process that the memory belongs to.
+    // the process that the memory belongs to.
 
     class IPTEntry : public TranslationEntry
     {
@@ -131,6 +132,9 @@ class ServerCV {
     };
 
     extern IPTEntry *ipt;
+
+    extern OpenFile *swapFile;
+    extern BitMap *swapBitMap;
 
     // Memory Eviction Strategy
     //  Get from -P flag when running Nachos, memFIFO stores the order PPNs
@@ -144,9 +148,7 @@ class ServerCV {
 
 #ifdef USE_TLB
 
-    
-
-#endif
+    #endif
 
 #ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB 
 

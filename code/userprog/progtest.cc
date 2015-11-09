@@ -38,11 +38,6 @@ void StartProcess(char *filename)
     }
 
     space = new AddrSpace(executable);
-    for(int i=0; i<10; i++){
-        printf("inside start process valid bit: %d\n", ipt[i].valid);
-        printf("inside start process ipt virtual page: %d\n", ipt[i].virtualPage);
-
-    }
 
     Process * p = new Process();
 
