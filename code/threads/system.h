@@ -35,8 +35,39 @@ extern Statistics *stats;				// performance metrics
 extern Timer *timer;					// the hardware alarm clock
 extern int tlbCounter;
 
+
 class Machine;
 class AddrSpace;
+class ServerLock {
+    public:
+        ServerLock(char* name) {
+            name= serverlockName;
+            toDelete= false;
+            state= 0; //0=free, 1=busy
+        }
+    public:
+        //who owns the lock
+        //what is the name of the lock
+        //queue of who is waiting for the lock
+        char * serverlockName;
+        List * waitqueue;
+        bool toDelete;
+        int state;
+
+    };
+
+class ServerCV {
+    public:
+        ServerCV() {
+            
+        }
+    public:
+        //who owns the cv
+        //what is the name of the cv
+        //queue of who is waiting on the cv
+    };
+// create server lock vector
+
 
 #ifdef USER_PROGRAM
 
@@ -61,19 +92,6 @@ class AddrSpace;
         AddrSpace *space;
         bool toDelete;
     };
-    struct ServerCV
-    {
-        Condition *condition;
-        AddrSpace *space;
-        bool toDelete;
-    };
-    struct ServerLock
-    {
-        Condition *condition;
-        AddrSpace *space;
-        bool toDelete;
-    };
-
 
     extern vector<KernelLock*> locks;
     extern vector<KernelCV*> conditions;
@@ -147,6 +165,8 @@ class AddrSpace;
 
 	#include "post.h"
 	extern PostOffice* postOffice;
+    extern vector<int> mvs;
+    extern vector<ServerLock*> slocks;
 
 #endif
 

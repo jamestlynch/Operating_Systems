@@ -25,6 +25,7 @@
 void StartProcess(char *filename)
 {
     processLock->Acquire();
+    printf("TEST PRINT");
 
     OpenFile *executable = fileSystem->Open(filename);
     AddrSpace *space;
@@ -54,7 +55,7 @@ void StartProcess(char *filename)
     currentThread->processID = p->processID;
     currentThread->space = space;
 
-    //delete executable;			// close file
+    delete executable;			// close file
 
     currentThread->stackPage = space->InitRegisters();		// set the initial register values
     space->RestoreState();		// load page table register
@@ -66,7 +67,7 @@ void StartProcess(char *filename)
 					// the address space exits
 					// by doing the syscall "exit"
 }
-
+std::vector< std::vector<int>* > monitorVars;
 // Data structures needed for the console test.  Threads making
 // I/O requests wait on a Semaphore to delay until the I/O completes.
 

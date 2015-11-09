@@ -22,6 +22,7 @@ Timer *timer;                   // the hardware timer device, for invoking conte
 int tlbCounter;
 
 
+
 #ifdef FILESYS_NEEDED
     FileSystem *fileSystem;
 #endif
@@ -59,6 +60,9 @@ int tlbCounter;
 
 #ifdef NETWORK
     PostOffice *postOffice;
+    vector<int> mvs;
+    vector<ServerLock*> slocks;
+
 #endif
 
 

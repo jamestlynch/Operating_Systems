@@ -193,6 +193,7 @@ static void SwapHeader (NoffHeader *noffH)
 
 AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles) 
 {
+    printf("Inside constructor");
     executable = executableFile; //openfile pointer
 
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts

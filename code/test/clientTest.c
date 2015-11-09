@@ -1,14 +1,15 @@
-#include "copyright.h"
+#include "syscall.h"
 
-#include "system.h"
-#include "network.h"
-#include "post.h"
-#include "interrupt.h"
-#include <sstream>
 
 int indexcheck1;
 
 void ClientTest(){
-	indexcheck1= CreateLock("abc", -1);
-	printf(indexcheck1);
+	indexcheck1= CreateLock("abc", 3);
+	Write("Client test index: %d \n",indexcheck1, 1);
+}
+int main() 
+{
+    Write("Client test start\n", sizeof("Client test start\n"), 1);
+    ClientTest();
+
 }

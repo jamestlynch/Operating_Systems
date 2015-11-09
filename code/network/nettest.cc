@@ -37,6 +37,18 @@
 //	4. wait for an acknowledgement from the other machine to our 
 //	    original message
 
+
+void doCreateLock(char* name){
+    //acquire the server lock
+    //check
+    
+    ServerLock *sl= new ServerLock(name);
+    sl->waitqueue = new List();
+    slocks.push_back(sl);
+    return;
+
+}
+
 void Server(int farAddr){
     
     stringstream ss;
@@ -66,7 +78,6 @@ void Server(int farAddr){
         char* name = new char[40];
         int indexcv, indexlock;
 
-
         //----------------------------------------------------------------------
         // SERVER stuff
         // get information passed from the client above. read it in and
@@ -85,6 +96,7 @@ void Server(int farAddr){
                 case 'CL': //createlock. what information do we need? the name.
                     printf("Server received Create Lock request from client.\n");
                     ss >> name;
+                    doCreateLock(name);
                     // newKernelLock->toDelete = false; // flagged for deletion via Exit or DestroyLock
                     // newKernelLock->space = currentThread->space; // lock process
                     // newKernelLock->lock = new Lock(name); // OS lock
@@ -102,13 +114,13 @@ void Server(int farAddr){
                 case DL: //destroylock
                 break;*/
 
-                case 'CV': //createcv. what information do we need? the name.
+               case 'CV': //createcv. what information do we need? the name.
                     printf("Server received Create CV request from client.\n");
                     ss >> name;
                     
                 break;
-/*
-                case WC://wait on cv
+
+               /* case WC://wait on cv
                 break;
 
                 case SC://signal cv
@@ -118,8 +130,8 @@ void Server(int farAddr){
                 break;
 
                 case DC://destroy
-                break;*/
-
+                break;
+*/
                 default: printf("Invalid syscall request.");
                 //send from post office to the machine
                      //postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);

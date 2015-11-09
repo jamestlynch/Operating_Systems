@@ -128,7 +128,7 @@ int copyout(unsigned int vaddr, int len, char *buf) {
 //  "len" -- the length of the file name
 //----------------------------------------------------------------------
 
-bool SendtoServer(PacketHeader pktHdr, MailHeader mailHdr, char *data){
+/*bool SendtoServer(PacketHeader pktHdr, MailHeader mailHdr, char *data){
   return true;
 }
         // Send a message to a mailbox on a remote 
@@ -138,7 +138,7 @@ bool SendtoServer(PacketHeader pktHdr, MailHeader mailHdr, char *data){
 void ReceivefromServer(PacketHeader *pktHdr, MailHeader *mailHdr, char *data){
 
 }
-
+*/
 void Create_Syscall(unsigned int vaddr, int len) {
     char *buf = new char[len + 1]; // Kernel buffer to copy file name into
 
@@ -515,6 +515,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
 {
   #ifdef NETWORK
 
+    printf("TEST INSIDE CREATE LOCK\n", sizeof("TEST INSIDE CREATE LOCK\n"), 1);
   if (len <= 0)
     {
         printf("%s","Length for lock's identifier name must be nonzero and positive\n");
@@ -523,7 +524,8 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     }
 
     char * buf = new char[len + 1];
-    char * message= new char[40]; //max size of a message can be 40 according to class notes
+    char * message= new char[40]; 
+    //max size of a message can be 40 according to class notes
 
 
 
@@ -607,6 +609,8 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     buf[len] = '\0'; // Add null terminating character to lock name
 
    // lock with metadata
+    KernelLock * newKernelLock = new KernelLock(); // cv with metadata
+    
     newKernelLock->toDelete = false; // flagged for deletion via Exit or DestroyLock
     newKernelLock->space = currentThread->space; // lock process
     newKernelLock->lock = new Lock(buf); // OS lock
@@ -1664,7 +1668,7 @@ void PageFault_Handler(unsigned int vaddr)
     
     // (2) Find entry in Main Memory
     int ppn = -1;
-    for (int i = 0; i < NumPhysPages; i++)
+    for (unsigned int i = 0; i < NumPhysPages; i++)
     {
         //PRINT VALUES OUT HERE, NOT FINDING IT WHEN IT SHOULD.
         printf("ipt virtual page: %d\n", ipt[i].virtualPage);

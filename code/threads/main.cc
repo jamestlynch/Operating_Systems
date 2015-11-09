@@ -63,8 +63,10 @@ extern void Server(int farAddr);
 extern void MailTest(int networkID);
 
 
+
 #ifdef THREADS
-extern void Part2(void), TestSuite(void), Test2(void), Test1(void), Test3(void), Test4(void), Test5(void), Test7(void);
+extern void Part2(void), TestSuite(void), Test2(void), Test1(void), Test3(void), Test4(void), Test5(void), Test7(void), clientTest();;
+
 #endif //THREADS
 
 //----------------------------------------------------------------------
@@ -119,7 +121,7 @@ main(int argc, char **argv)
 
 
 #endif 	//THREADS
-/*#ifdef USER_PROGRAM
+#ifdef USER_PROGRAM
         // Run a user program
         if (!strcmp(*argv, "-x")) 
         {
@@ -139,7 +141,6 @@ main(int argc, char **argv)
 	        	ConsoleTest(*(argv + 1), *(argv + 2));
 	        	argCount = 3;
 	    	}
-	    	
 	    	interrupt->Halt();		// once we start the console, then 
 					// Nachos will loop forever waiting 
 					// for console input
@@ -154,7 +155,7 @@ main(int argc, char **argv)
 		// 		memoryEviction = EVICTRAND;
 		// 	}
 		// }
-#endif // USER_PROGRAM*/
+#endif // USER_PROGRAM
 #ifdef FILESYS
 	if (!strcmp(*argv, "-cp")) { 		// copy from UNIX to Nachos
 	    ASSERT(argc > 2);
@@ -177,6 +178,7 @@ main(int argc, char **argv)
 	}
 #endif // FILESYS
 #ifdef NETWORK
+
 		printf("start main\n");
         //start the server
         if (!strcmp(*argv, "-server")) {
@@ -188,26 +190,6 @@ main(int argc, char **argv)
             Server(atoi(*(argv + 1)));
             argCount = 2;
         }
-         else if (!strcmp(*argv, "-x")) 
-        {
-        	printf("inside x")
-	    	ASSERT(argc > 1);
-            StartProcess(*(argv + 1));
-            argCount = 2;
-        	}
-
-    
-		/*
-        //run clients
-        if (!strcmp(*argv, "-server")) {
-        	printf("main is calling client");
-	    	//ASSERT(argc > 1);
-            Delay(2); 				// delay for 2 seconds
-						// to give the user time to 
-						// start up another nachos
-            MailTest(atoi(*(argv + 1)));
-            argCount = 2;
-        }*/
 #endif // NETWORK*/
     }
 
