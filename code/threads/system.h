@@ -60,13 +60,16 @@ class ServerLock {
 
 class ServerCV {
     public:
-        ServerCV() {
-            
+        ServerCV(char* name) {
+            name= servercvName;
+            toDelete= false;
+            state= 0; //0=free, 1=busy
         }
     public:
-        //who owns the cv
-        //what is the name of the cv
-        //queue of who is waiting on the cv
+        char * servercvName;
+        List * waitqueue;
+        bool toDelete;
+        int state;
     };
 // create server lock vector
 
@@ -157,10 +160,8 @@ class ServerCV {
 #endif
 
 #ifdef FILESYS
-
 	#include "synchdisk.h"
 	extern SynchDisk *synchDisk;
-
 #endif
 
 #ifdef NETWORK
@@ -169,6 +170,7 @@ class ServerCV {
 	extern PostOffice* postOffice;
     extern vector<int> mvs;
     extern vector<ServerLock*> slocks;
+    extern vector<ServerCV*> clocks;
 
 #endif
 

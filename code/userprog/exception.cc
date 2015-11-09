@@ -537,6 +537,10 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
 
+    //2 bits for client machine 
+    //#/server each, 2 bits for postoficec #
+    // thread #, for client and server, and instruction
+    //for 2 bits
     char buffer[MaxMailSize];
 
     outPktHdr.to = 0;   
@@ -544,7 +548,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     outMailHdr.from = 1; //change to machine ID not hardcoded
 
   std::stringstream temp;
-  temp << "CL" <<" "<< buf << " " << len; //currently passses in CL, name length
+  temp << "CL" <<" "<< buf << " " << len; //currently passses in CL, name leng
   temp >> message;
   outMailHdr.length = strlen(message) +1;
 
@@ -561,7 +565,9 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
   printf("Lock %s created by server\n", buffer);
   fflush(stdout);
 
-  return atoi(buffer);
+  //Return the server's response to calling program
+  int returnValue = atoi(buffer);
+  return returnValue;
 
 
 #else //PROJECT 2 CODE
@@ -825,6 +831,64 @@ int validatecvindeces(int indexcv, int indexlock)
 
 int CreateCV_Syscall(unsigned int vaddr, int len)
 {
+#ifdef NETWORK
+  if (len <= 0)
+    {
+        printf("%s","Length for condition's identifier name must be nonzero and positive\n");
+        locksLock->Release();
+        return -1;
+    }
+
+    char * buf = new char[len + 1];
+    char * message= new char[40]; 
+    //max size of a message can be 40 according to class notes
+
+    if (copyin(vaddr, len, buf) == -1)
+    {
+        printf("%s","Bad pointer passed to create new lock\n");
+        locksLock->Release();
+        delete[] buf;
+        return -1;
+    }
+    buf[len] = '\0';
+
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+
+    //2 bits for client machine 
+    //#/server each, 2 bits for postoficec #
+    // thread #, for client and server, and instruction
+    //for 2 bits
+    char buffer[MaxMailSize];
+
+    outPktHdr.to = 0;   
+    outMailHdr.to = 0;
+    outMailHdr.from = 1; //change to machine ID not hardcoded
+
+  std::stringstream temp;
+  temp << "CC" <<" "<< buf << " " << len; //currently passses in CL, name leng
+  temp >> message;
+  outMailHdr.length = strlen(message) +1;
+
+  //Send request
+  printf("in create syscall\n");
+  bool success = postOffice->Send(outPktHdr, outMailHdr, message);
+  if ( !success ) {
+    printf("The postOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+    interrupt->Halt();
+  }
+
+  //Wait for the server's response
+  postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
+  printf("Lock %s created by server\n", buffer);
+  fflush(stdout);
+
+  //Return the server's response to calling program
+  int returnValue = atoi(buffer);
+  return returnValue;
+
+
+#else //PROJECT 2 CODE
     conditionsLock->Acquire(); // Synchronize CV creation; Interrupts enabled
 
     // Validate length is nonzero and positive

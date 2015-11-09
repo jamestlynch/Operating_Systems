@@ -32,15 +32,112 @@
 //	4. wait for an acknowledgement from the other machine to our 
 //	    original message
 
+int dovalidatelockindex(int index)
+{
+    // (1) Index corresponds to valid location
+    if (index < 0)
+    {
+        printf("%s","Invalid lock table index, negative.\n");
+        return -1;
+    }
 
+    int size = slocks.size();
+
+    // (1) Index corresponds to valid location
+    if (index > size - 1)
+    {
+        printf("%s","Invalid lock table index, bigger than size.\n");
+        return -1;
+    }
+
+    ServerLock * currentServerLock = slocks.at(index);
+
+    // (2) Defined lock
+    if (!currentServerLock)
+    {
+        printf("Lock %d is NULL.\n", index);
+        return -1;
+    }
+
+    return 0;
+}
 void doCreateLock(char* name){
     //acquire the server lock
-    //check
-    
     ServerLock *sl= new ServerLock(name);
     sl->waitqueue = new List();
     slocks.push_back(sl);
     return;
+
+}
+void doAcquireLock(int indexlock){
+
+}
+void doReleaseLock(int indexlock){
+
+}
+void doDestroyLock(int indexlock){
+
+}
+int dovalidatecvindeces(int indexcv, int indexlock)
+{
+    // // (1) index to valid location
+    // if (indexcv < 0 || indexlock < 0)
+    // {
+    //     printf("%s","Invalid index.\n");
+    //     return -1;
+    // }
+
+    // int csize = conditions.size();
+    // int lsize = slocks.size();
+
+    // // (1) index to valid location
+    // if (indexcv > csize - 1 || indexlock > lsize - 1)
+    // {
+    //     printf("%s","Index out of bounds.\n");
+    //     return -1;
+    // }
+
+    // KernelCV * currentKernelCV = conditions.at(indexcv);
+    // KernelLock * currentKernelLock = slocks.at(indexlock);
+
+    // // (2) index to defined lock and cv
+    // if (!currentKernelCV  || !currentKernelLock)
+    // {
+    //     printf("Condition %d is set to NULL or Lock %d is set to NULL.\n", indexcv, indexlock);
+    //     return -1;
+    // }
+
+    // // (3) lock belongs to process
+    // if (currentKernelLock->space != currentThread->space)
+    // {
+    //     printf("Lock %d does not belong to the current process.\n", indexlock);
+    //     return -1;
+    // }
+
+    // // (3) cv belongs to process
+    // if (currentKernelCV->space != currentThread->space)
+    // {
+    //     printf("Condition %d does not belong to the current process.\n", indexcv);
+    //     return -1;
+    // }
+
+    return 0;
+}
+void doCreateCV(char* name){
+    ServerCV *sc= new ServerCV(name);
+    sc->waitqueue= new List();
+    return;
+}
+void doWaitCV(int indexlock, int indexcv){
+
+}
+void doSignalCV(int indexlock, int indexcv){
+
+}
+void doBroadcastCV(int indexlock, int indexcv){
+
+}
+void doDestroyCV(int indexlock, int indexcv){
 
 }
 
@@ -51,6 +148,7 @@ void Server(){
     MailHeader outMailHdr, inMailHdr;
 
     char buffer[MaxMailSize];
+    char *data = "Requested thing is complete";
 
     while (true){
         printf("Server is started. waiting for message.\n");
@@ -60,19 +158,24 @@ void Server(){
 
         outPktHdr.to = inPktHdr.from;     
         outMailHdr.to = 0;//machine id
-        outMailHdr.from = 0; 
-        //outMailHdr.length = strlen(/**/) + 1;
+        outMailHdr.from = 0;
+
+        ss.str(buffer);
+
+        char* type= new char;
+        char *lockname = new char;
+        ss>> type;
+        outMailHdr.length = strlen(data) + 1;
+        
         /*
-            lendth of outmailhdr should be the size of the buffer passed in.
-
-
+            lendth of outmailhdr should be the size of the statement sent back
         */
-
         
-        ss.clear();
         
-        // ss<<(char*)buffer; //put buffer object passed into receive, into the stringstream.
-        // ss.str(buffer); //get the string content
+          //put buffer object passed into receive, into the stringstream.
+        // string s = ss.str(buffer);
+        //test= ss.str(buffer); //get the string content
+        // printf("Test: %s\n", p);
         // printf(ss.str());
 
         // char syscall[2];
@@ -94,8 +197,46 @@ void Server(){
         // WAIT / SIGNAL / BROADCAST NEED: indexcv and indexlock
         // 
         //----------------------------------------------------------------------
-//       if ()
-//             {
+       printf("Type of call: %s\n", type);
+       if (strcmp(type, "CL") == 0)
+             {
+                printf("Server received Create Lock request from client.\n");
+                ss >> lockname;
+                doCreateLock(lockname);
+                
+            }
+        else if (strcmp(type, "AL") == 0) //need to pass index
+             {
+                printf("Inside if else statement\n");
+            }
+        else if (strcmp(type, "RL") == 0) //need to pass index
+             {
+                printf("Inside if else statement\n");
+            }
+        else if (strcmp(type, "DL") == 0)
+             {
+                printf("Inside if else statement\n");
+            }
+        else if (strcmp(type, "CC") == 0)
+             {
+                printf("Inside if else statement\n");
+            }
+        else if (strcmp(type, "WC") == 0)
+             {
+                printf("Inside if else statement\n");
+            }
+        else if (strcmp(type, "SC") == 0)
+             {
+                printf("Inside if else statement\n");
+            }
+        else if (strcmp(type, "BC") == 0)
+             {
+                printf("Inside if else statement\n");
+            }
+        else if (strcmp(type, "DC") == 0)
+             {
+                printf("Inside if else statement\n");
+            }
 
 //                 case 'CL': //createlock. what information do we need? the name.
 //                     printf("Server received Create Lock request from client.\n");
@@ -138,9 +279,9 @@ void Server(){
 //                      break;
 
 //           //process the msg
-//           //send a reply (maybe)
-// }
-    }
+//           //send a reply
+            
+        }
     }
 
 void

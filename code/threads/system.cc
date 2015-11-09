@@ -68,6 +68,7 @@ int tlbCounter;
     PostOffice *postOffice;
     vector<int> mvs;
     vector<ServerLock*> slocks;
+    vector<ServerCV*> clocks;
 
 #endif
 
