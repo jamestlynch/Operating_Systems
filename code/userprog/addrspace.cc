@@ -218,7 +218,7 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
     
     // Store the location of each virtual page in the Page Table
     pageTable = new PageTableEntry[numPages];
-    for (vpn = 0; vpn < numPages /*- divRoundUp(UserStackSize, PageSize) - divRoundUp(noffH.uninitData.size, PageSize)*/; vpn++) 
+    for (vpn = 0; vpn < numPages - divRoundUp(UserStackSize, PageSize) - divRoundUp(noffH.uninitData.size, PageSize); vpn++) 
     {
         offset = noffH.code.inFileAddr + (vpn * PageSize);
 
@@ -232,7 +232,7 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
         pageTable[vpn].use = false;
     }
 
-    /*for(vpn = numPages - divRoundUp(UserStackSize, PageSize) - divRoundUp(noffH.uninitData.size, PageSize); vpn < numPages; vpn++)
+    for(vpn = numPages - divRoundUp(UserStackSize, PageSize) - divRoundUp(noffH.uninitData.size, PageSize); vpn < numPages; vpn++)
     {
         pageTable[vpn].virtualPage = vpn;
         pageTable[vpn].physicalPage = -1;
@@ -242,7 +242,7 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
         pageTable[vpn].swapped = false;
         pageTable[vpn].dirty = false;
         pageTable[vpn].use = false;
-    }*/
+    }
 }
 
 //----------------------------------------------------------------------
