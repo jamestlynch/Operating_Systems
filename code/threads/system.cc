@@ -39,7 +39,7 @@ int tlbCounter;
     Machine *machine;
 
     IPTEntry *ipt;
-    SynchList *memFIFO;
+    queue<int> memFIFO;
     BitMap *memBitMap;
     Lock *memLock;
     OpenFile *swapFile;
@@ -52,6 +52,8 @@ int tlbCounter;
     Lock *processLock;
     Lock *conditionsLock;
     Lock *locksLock;
+
+    bool isFIFO;
 
 #endif
 #ifdef USE_TLB
@@ -194,13 +196,14 @@ Initialize(int argc, char **argv)
     processLock = new Lock("ProcessLock");
 
 
-    if(fileSystem->Create("SwapFile", 4000))
+    if(fileSystem->Create("SwapFile", 8000))
     {
         swapFile = fileSystem->Open("SwapFile");
+        printf("File Length: %d\n", swapFile->Length());
     }
-    swapBitMap = new BitMap(4000 / PageSize);
+    swapBitMap = new BitMap(divRoundUp(8000, PageSize));
 
-    memFIFO = new SynchList(); // keeps track of order Pages are added to Memory (for FIFO eviction)
+    //memFIFO = new SynchList(); // keeps track of order Pages are added to Memory (for FIFO eviction)
     ipt = new IPTEntry[NumPhysPages]; // stores metadata about Memory Page's Process owner and corresponding vpn
 #endif
     
@@ -267,9 +270,10 @@ Cleanup()
         }
     }
 
-    delete memFIFO;
+    //delete memFIFO;
     delete ipt;
-        
+
+    
     fileSystem->Remove("SwapFile");
     delete swapFile;
 #endif

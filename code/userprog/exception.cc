@@ -1120,6 +1120,8 @@ void Yield_Syscall()
 
 void Exit_Syscall(int status)
 {
+    printf("Exit: %d\n", status);
+    printf("File Length: %d\n", swapFile->Length());
     currentThread->Yield(); // Stop executing thread
     processLock->Acquire();
 
@@ -1218,7 +1220,7 @@ void runforkedthread(int vaddr)
 
     // Thread keeps track of stack's virtual address so it can translate
     // address and loads in stack on context switch.
-    currentThread->stackPage = stackPage - (UserStackSize / PageSize);
+    currentThread->stackPage = stackPage - divRoundUp(UserStackSize, PageSize);
 
     machine->WriteRegister(StackReg, stackAddr);
 
@@ -1359,19 +1361,17 @@ void Exec_Syscall(int vaddr, int len)
 
     // Add new process to process table; Used for determining how to handle Exits
     Process * p = new Process();
+    processInfo.push_back(p);
+
     p->processID = processInfo.size() - 1;
     p->space = space;
     p->numExecutingThreads = 1;
     p->numSleepingThreads = 0;
-    processInfo.push_back(p);
-
+    
     // Thread needs to be able to restore itself on context switches (AS) and handling Exits (processID)
     Thread * t = new Thread(buf);
     t->processID = p->processID;
     t->space = space;
-
-    // Close executable; Completely loaded into AS
-    //delete executable;
 
     // Let machine know how to run thread when scheduler switches process in
     t->Fork((VoidFunctionPtr)runnewprocess, 0);
@@ -1425,16 +1425,16 @@ unsigned int GetPageToEvict()
 {
     int ppn;
 
-    // switch (memoryEviction)
-    // {
-    //     case EVICTRAND:
-    //         srand(time(0));
-    //         ppn = rand() % NumPhysPages;
-    //         break;
-    //     case EVICTFIFO:
-            ppn = (unsigned int)memFIFO->Remove();
-    //         break;
-    // }
+    if(isFIFO)
+    {
+        ppn = memFIFO.front();
+        memFIFO.pop();
+    }
+    else
+    {
+        srand(time(0));
+        ppn = rand() % NumPhysPages;
+    }
 
     return ppn;
 }
@@ -1457,23 +1457,28 @@ int MemoryFull_Handler()
     //  Call eviction strategy based on flag passed into Nachos.
     ppn = GetPageToEvict();
 
-    // (2) Dirty Page: Place evicted page in swapfile, update PageTable
-    for (tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
+    if(ipt[ppn].valid)
     {
-        // Memory has been written to during its time in main memory,
-        // Now that we're discarding the memory we must write it back
-        // to disk.
-        if (machine->tlb[tlbEntry].physicalPage == ppn && machine->tlb[tlbEntry].valid)
+        if(ipt[ppn].space == currentThread->space)
         {
-            if (machine->tlb[tlbEntry].dirty)
+            for (tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
             {
-                ipt[ppn].dirty = true;
+                // Memory has been written to during its time in main memory,
+                // Now that we're discarding the memory we must write it back
+                // to disk.
+                if (machine->tlb[tlbEntry].physicalPage == ppn && machine->tlb[tlbEntry].valid)
+                {
+                    if (machine->tlb[tlbEntry].dirty)
+                    {
+                        ipt[ppn].dirty = true;
+                    }
+                    machine->tlb[tlbEntry].valid = false;
+                }   
             }
-            machine->tlb[tlbEntry].valid = false;
-        }   
-    }
+        }
 
-    ipt[ppn].space->RemoveFromMemory(ipt[ppn].virtualPage, ppn);
+        ipt[ppn].space->RemoveFromMemory(ipt[ppn].virtualPage, ppn);
+    }
 
     return ppn;
 }
@@ -1496,10 +1501,9 @@ int IPTMiss_Handler(int vpn)
 {
     // (1) Find free page of mainMem
     // TODO: Disable Interrupts or Lock?
-    memLock->Acquire();
+    
     
     //DEBUG('p', "FIFO Append works.\n");
-
     int ppn = memBitMap->Find();
 
     // (2) Memory full: Evict (Random or FIFO) a page
@@ -1509,14 +1513,16 @@ int IPTMiss_Handler(int vpn)
         ppn = MemoryFull_Handler();
     }
 
-    memFIFO->Append((void *)ppn); // Maintain order of Adding to Memory for FIFO Eviction
+    if(isFIFO)
+    {
+        memFIFO.push(ppn); // Maintain order of Adding to Memory for FIFO Eviction
+    }
 
     // (3) Look up where Page located
     // (4) Move entry from Swapfile or Executable to Main Memory
     // (5) Update PageTable
     currentThread->space->LoadIntoMemory(vpn, ppn);
 
-    memLock->Release();
     return ppn;
 }
 
@@ -1551,11 +1557,6 @@ void PageFault_Handler(unsigned int vaddr)
     int ppn = -1;
     for (unsigned int i = 0; i < NumPhysPages; i++)
     {
-        //PRINT VALUES OUT HERE, NOT FINDING IT WHEN IT SHOULD.
-        /*printf("ipt virtual page: %d\n", ipt[i].virtualPage);
-        printf("vpn: %d\n", vpn);
-        printf("ipt valid: %d\n", ipt[i].valid);*/
-
         // Memory entry is valid, belongs to same Process and is for the same Virtual Page
         if (ipt[i].valid && ipt[i].virtualPage == vpn && ipt[i].space == currentThread->space)
         {
@@ -1591,7 +1592,7 @@ void PageFault_Handler(unsigned int vaddr)
     machine->tlb[evictEntry].use = ipt[ppn].use;
     machine->tlb[evictEntry].dirty = ipt[ppn].dirty; 
 
-    (void) interrupt->SetLevel(oldLevel); // Restore interrupts
+    interrupt->SetLevel(oldLevel); // Restore interrupts
 }
 
 //========================================================================================================================================

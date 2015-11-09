@@ -14,8 +14,8 @@
 
 int main()
 {
-	Exec("", -1);
-	Exec("test", 4);
+	/*Exec("", -1);
+	Exec("test", 4);*/
 	Exec("../test/sort", 12);
 	Exec("../test/sort", 12);
 

@@ -19,6 +19,7 @@
 #include "synchlist.h"
 //#include "filesys.h"
 #include <vector>
+#include <queue>
 #include <string>
 using namespace std;
 
@@ -140,9 +141,8 @@ class ServerCV {
     //  Get from -P flag when running Nachos, memFIFO stores the order PPNs
     //  allocated for FIFO eviction.
 
-    // typedef enum evictionstrategy { EVICTRAND, EVICTFIFO } evictionstrategy;
-    // evictionstrategy memoryEviction;
-    extern SynchList *memFIFO;
+    extern bool isFIFO;
+    extern std::queue<int> memFIFO;
 
 #endif
 
