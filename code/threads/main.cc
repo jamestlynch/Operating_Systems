@@ -59,7 +59,7 @@
 extern void ThreadTest(void), Copy(char *unixFile, char *nachosFile);
 extern void Print(char *file), PerformanceTest(void);
 extern void StartProcess(char *file), ConsoleTest(char *in, char *out);
-extern void Server(int farAddr);
+extern void Server();
 extern void MailTest(int networkID);
 
 
@@ -126,7 +126,9 @@ main(int argc, char **argv)
         if (!strcmp(*argv, "-x")) 
         {
 	    	ASSERT(argc > 1);
+	    	printf("Hello test");
             StartProcess(*(argv + 1));
+            printf("after test");
             argCount = 2;
         }
 
@@ -188,12 +190,12 @@ main(int argc, char **argv)
             Delay(2); 	// delay for 2 seconds
 						// to give the user time to 
 						// start up another nachos
-            Server(atoi(*(argv + 1)));
+            Server();
             argCount = 2;
         }
 #endif // NETWORK*/
     }
-
+printf("before finish");
     currentThread->Finish();	// NOTE: if the procedure "main" 
 				// returns, then the program "nachos"
 				// will exit (as any other normal program

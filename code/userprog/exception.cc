@@ -514,8 +514,6 @@ int validatelockindex(int index)
 int CreateLock_Syscall(unsigned int vaddr, int len) 
 {
   #ifdef NETWORK
-
-    printf("TEST INSIDE CREATE LOCK\n", sizeof("TEST INSIDE CREATE LOCK\n"), 1);
   if (len <= 0)
     {
         printf("%s","Length for lock's identifier name must be nonzero and positive\n");
@@ -527,9 +525,6 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     char * message= new char[40]; 
     //max size of a message can be 40 according to class notes
 
-
-
-    // Translation failed; else string copied into buf (!= -1)
     if (copyin(vaddr, len, buf) == -1)
     {
         printf("%s","Bad pointer passed to create new lock\n");
@@ -542,22 +537,18 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
 
-    //2 bits for client machine 
-    //#/server each, 2 bits for postoficec #
-    // thread #, for client and server, and instruction
-    //for 2 bits
     char buffer[MaxMailSize];
 
     outPktHdr.to = 0;   
     outMailHdr.to = 0;
-    outMailHdr.from = 1;
+    outMailHdr.from = 1; //change to machine ID not hardcoded
 
   std::stringstream temp;
-  temp << "CL" << buf; //currently passses in CL, and the name. 
+  temp << "CL" <<" "<< buf << " " << len; //currently passses in CL, name length
   temp >> message;
   outMailHdr.length = strlen(message) +1;
 
-  //Send the request
+  //Send request
   printf("in create syscall\n");
   bool success = postOffice->Send(outPktHdr, outMailHdr, message);
   if ( !success ) {
@@ -570,9 +561,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
   printf("Lock %s created by server\n", buffer);
   fflush(stdout);
 
-  //Return the server's response to calling program
-  int returnValue = atoi(buffer);
-  return returnValue;
+  return atoi(buffer);
 
 
 #else //PROJECT 2 CODE

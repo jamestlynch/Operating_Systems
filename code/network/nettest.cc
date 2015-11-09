@@ -24,11 +24,6 @@
 #include "interrupt.h"
 #include <sstream>
 
-#define CL         0
-#define SC_Exit         1
-#define SC_Exec         2
-#define SC_Join         3
-#define SC_Create       4
 
 // Test out message delivery, by doing the following:
 //	1. send a message to the machine with ID "farAddr", at mail box #0
@@ -49,12 +44,12 @@ void doCreateLock(char* name){
 
 }
 
-void Server(int farAddr){
+void Server(){
     
     stringstream ss;
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
-    char *data= new char;
+
     char buffer[MaxMailSize];
 
     while (true){
@@ -64,19 +59,28 @@ void Server(int farAddr){
         fflush(stdout);
 
         outPktHdr.to = inPktHdr.from;     
-        outMailHdr.to = 0;
-        outMailHdr.from = 0;
-        outMailHdr.length = strlen(data) + 1;
+        outMailHdr.to = 0;//machine id
+        outMailHdr.from = 0; 
+        //outMailHdr.length = strlen(/**/) + 1;
+        /*
+            lendth of outmailhdr should be the size of the buffer passed in.
+
+
+        */
+
+        
         ss.clear();
         
-        ss<<(char*)buffer; //put buffer object passed into receive, into the stringstream.
-        ss.str(buffer); //get the string content
+        // ss<<(char*)buffer; //put buffer object passed into receive, into the stringstream.
+        // ss.str(buffer); //get the string content
+        // printf(ss.str());
 
-        int syscall;
-        ss >> syscall;
+        // char syscall[2];
+        // ss >> syscall;
+        // printf("SYSCALL: %s\n",sizeof("SYSCALL: %d\n"), syscall);
 
-        char* name = new char[40];
-        int indexcv, indexlock;
+        // char* name = new char[40];
+        // int indexcv, indexlock;
 
         //----------------------------------------------------------------------
         // SERVER stuff
@@ -90,57 +94,54 @@ void Server(int farAddr){
         // WAIT / SIGNAL / BROADCAST NEED: indexcv and indexlock
         // 
         //----------------------------------------------------------------------
-       switch (syscall) 
-            {
+//       if ()
+//             {
 
-                case 'CL': //createlock. what information do we need? the name.
-                    printf("Server received Create Lock request from client.\n");
-                    ss >> name;
-                    doCreateLock(name);
-                    // newKernelLock->toDelete = false; // flagged for deletion via Exit or DestroyLock
-                    // newKernelLock->space = currentThread->space; // lock process
-                    // newKernelLock->lock = new Lock(name); // OS lock
+//                 case 'CL': //createlock. what information do we need? the name.
+//                     printf("Server received Create Lock request from client.\n");
+//                     ss >> name;
+//                     doCreateLock(name);
+//                     
+//                 break;
+                
+//                 case AL: //acquirelock
+//                 break;
 
-                    //locks.push_back(newKernelLock); // Add to lock collection; indexed by lockID
-                    //int indexLock = locks.size() - 1;
-                break;
-                /*
-                case AL: //acquirelock
-                break;
+//                 case RL: //releaselock
+//                 break;
 
-                case RL: //releaselock
-                break;
+//                 case DL: //destroylock
+//                 break;
 
-                case DL: //destroylock
-                break;*/
-
-               case 'CV': //createcv. what information do we need? the name.
-                    printf("Server received Create CV request from client.\n");
-                    ss >> name;
+//                case 'CV': //createcv. what information do we need? the name.
+//                     printf("Server received Create CV request from client.\n");
+//                     ss >> name;
                     
-                break;
+//                 break;
 
-               /* case WC://wait on cv
-                break;
+//                /* case WC://wait on cv
+//                 break;
 
-                case SC://signal cv
-                break;
+//                 case SC://signal cv
+//                 break;
 
-                case BC://broadcast
-                break;
+//                 case BC://broadcast
+//                 break;
 
-                case DC://destroy
-                break;
-*/
-                default: printf("Invalid syscall request.");
-                //send from post office to the machine
-                     //postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
+//                 case DC://destroy
+//                 break;
+// */
+//                 default: printf("Invalid syscall request.");
+//                 //send from post office to the machine
+//                      //postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
 
-                     break;
+//                      break;
 
-          //process the msg
-          //send a reply (maybe)
-}}}
+//           //process the msg
+//           //send a reply (maybe)
+// }
+    }
+    }
 
 void
 MailTest(int farAddr)
