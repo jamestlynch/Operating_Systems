@@ -69,6 +69,7 @@ int tlbCounter;
     vector<int> mvs;
     vector<ServerLock*> slocks;
     vector<ServerCV*> clocks;
+    Lock *bigServerLock;
 
 #endif
 

@@ -171,6 +171,8 @@ class ServerCV {
     extern vector<int> mvs;
     extern vector<ServerLock*> slocks;
     extern vector<ServerCV*> clocks;
+    extern Lock *serverLock;
+    extern Lock *bigServerLock;
 
 #endif
 

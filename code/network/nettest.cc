@@ -62,12 +62,17 @@ int dovalidatelockindex(int index)
     return 0;
 }
 void doCreateLock(char* name){
+
     //acquire the server lock
+    bigServerLock->Acquire();
+    printf("creating a lock inside of server");
+    
     ServerLock *sl= new ServerLock(name);
+    printf("create lock name: %s", name);
     sl->waitqueue = new List();
     slocks.push_back(sl);
+    bigServerLock->Release();
     return;
-
 }
 void doAcquireLock(int indexlock){
 
@@ -148,7 +153,7 @@ void Server(){
     MailHeader outMailHdr, inMailHdr;
 
     char buffer[MaxMailSize];
-    char *data = "Requested thing is complete";
+    char *data = "Requested is complete";
 
     while (true){
         printf("Server is started. waiting for message.\n");
@@ -166,24 +171,6 @@ void Server(){
         char *lockname = new char;
         ss>> type;
         outMailHdr.length = strlen(data) + 1;
-        
-        /*
-            lendth of outmailhdr should be the size of the statement sent back
-        */
-        
-        
-          //put buffer object passed into receive, into the stringstream.
-        // string s = ss.str(buffer);
-        //test= ss.str(buffer); //get the string content
-        // printf("Test: %s\n", p);
-        // printf(ss.str());
-
-        // char syscall[2];
-        // ss >> syscall;
-        // printf("SYSCALL: %s\n",sizeof("SYSCALL: %d\n"), syscall);
-
-        // char* name = new char[40];
-        // int indexcv, indexlock;
 
         //----------------------------------------------------------------------
         // SERVER stuff
@@ -202,6 +189,7 @@ void Server(){
              {
                 printf("Server received Create Lock request from client.\n");
                 ss >> lockname;
+                //printf("lockname is: %d", lockname);
                 doCreateLock(lockname);
                 
             }
@@ -237,49 +225,6 @@ void Server(){
              {
                 printf("Inside if else statement\n");
             }
-
-//                 case 'CL': //createlock. what information do we need? the name.
-//                     printf("Server received Create Lock request from client.\n");
-//                     ss >> name;
-//                     doCreateLock(name);
-//                     
-//                 break;
-                
-//                 case AL: //acquirelock
-//                 break;
-
-//                 case RL: //releaselock
-//                 break;
-
-//                 case DL: //destroylock
-//                 break;
-
-//                case 'CV': //createcv. what information do we need? the name.
-//                     printf("Server received Create CV request from client.\n");
-//                     ss >> name;
-                    
-//                 break;
-
-//                /* case WC://wait on cv
-//                 break;
-
-//                 case SC://signal cv
-//                 break;
-
-//                 case BC://broadcast
-//                 break;
-
-//                 case DC://destroy
-//                 break;
-// */
-//                 default: printf("Invalid syscall request.");
-//                 //send from post office to the machine
-//                      //postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
-
-//                      break;
-
-//           //process the msg
-//           //send a reply
             
         }
     }

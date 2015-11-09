@@ -522,7 +522,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     }
 
     char * buf = new char[len + 1];
-    char * message= new char[40]; 
+    //char * message= new char[40];
     //max size of a message can be 40 according to class notes
 
     if (copyin(vaddr, len, buf) == -1)
@@ -548,12 +548,17 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     outMailHdr.from = 1; //change to machine ID not hardcoded
 
   std::stringstream temp;
-  temp << "CL" <<" "<< buf << " " << len; //currently passses in CL, name leng
-  temp >> message;
+  temp << "CL " << buf << " " << len;
+  char *message= (char *) temp.str().c_str();
+
+     //currently passses in CL, name length
+
+
   outMailHdr.length = strlen(message) +1;
+  printf("Full message contents: %s\n", message);
 
   //Send request
-  printf("in create syscall\n");
+  printf("in create syscall lockname being passed in is: %s\n", buf);
   bool success = postOffice->Send(outPktHdr, outMailHdr, message);
   if ( !success ) {
     printf("The postOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
@@ -931,6 +936,7 @@ int CreateCV_Syscall(unsigned int vaddr, int len)
     conditionsLock->Release();
 
     return conditionIndex; // User can call Wait, Signal, Broadcast
+    #endif
 }
 
 //----------------------------------------------------------------------
