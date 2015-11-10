@@ -40,22 +40,24 @@ extern int tlbCounter;
 
 class Machine;
 class AddrSpace;
-class ServerLock {
+struct ServerLock {
     public:
         ServerLock(char* name) {
-            name= serverlockName;
+            serverlockName= name;
             toDelete= false;
-            state= 0; //0=free, 1=busy
-        }
+            state = 0; //0=free, 1=busy
+            //waitqueue= new queue<char*>; //to wake someone up, just need to
+            // send message, make waitQ a Q of replay messages.pop off top and send
+}
     public:
         //who owns the lock
         //what is the name of the lock
         //queue of who is waiting for the lock
-        char * serverlockName;
-        List * waitqueue;
+        char *serverlockName;
+        std::queue<char*> waitqueue;
         bool toDelete;
-        int state;
-
+        bool state;
+        int machineID;
     };
 
 class ServerCV {
@@ -64,12 +66,15 @@ class ServerCV {
             name= servercvName;
             toDelete= false;
             state= 0; //0=free, 1=busy
+            lockUsed=-1;
         }
     public:
         char * servercvName;
-        List * waitqueue;
+        std::queue<char*> sleepqueue;
+        int lockUsed;
         bool toDelete;
         int state;
+        List *waitqueue;
     };
 // create server lock vector
 
@@ -170,9 +175,9 @@ class ServerCV {
 	extern PostOffice* postOffice;
     extern vector<int> mvs;
     extern vector<ServerLock*> slocks;
-    extern vector<ServerCV*> clocks;
-    extern Lock *serverLock;
+    extern vector<ServerCV*> sconditions;
     extern Lock *bigServerLock;
+    extern Lock *bigServerCV;
 
 #endif
 

@@ -1,15 +1,15 @@
 #include "syscall.h"
 
 
-int indexcheck1;
+int indexcheck1, indexcheck2;
 
 void ClientTest(){
 	indexcheck1= CreateLock("abc", 3);
+	indexcheck2= AcquireLock(indexcheck1);
+
 	Write("Client test index: %d \n",indexcheck1, 1);
 }
 int main() 
 {
-    Write("Client test start\n", sizeof("Client test start\n"), 1);
     ClientTest();
-
 }

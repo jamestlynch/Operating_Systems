@@ -68,8 +68,9 @@ int tlbCounter;
     PostOffice *postOffice;
     vector<int> mvs;
     vector<ServerLock*> slocks;
-    vector<ServerCV*> clocks;
+    vector<ServerCV*> sconditions;
     Lock *bigServerLock;
+    Lock *bigServerCV;
 
 #endif
 
@@ -222,6 +223,7 @@ Initialize(int argc, char **argv)
 
 #ifdef NETWORK
     postOffice = new PostOffice(netname, rely, 10);
+    bigServerLock = new Lock("bigServerLock");
 #endif
 }
 
@@ -235,6 +237,7 @@ Cleanup()
     printf("\nCleaning up...\n");
 #ifdef NETWORK
     delete postOffice;
+    delete bigServerLock;
 #endif
     
 #ifdef USER_PROGRAM

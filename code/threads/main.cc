@@ -126,9 +126,7 @@ main(int argc, char **argv)
         if (!strcmp(*argv, "-x")) 
         {
 	    	ASSERT(argc > 1);
-	    	printf("Hello test");
             StartProcess(*(argv + 1));
-            printf("after test");
             argCount = 2;
         }
 

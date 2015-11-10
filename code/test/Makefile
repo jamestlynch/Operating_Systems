@@ -74,7 +74,6 @@ conditiontest: conditiontest.o start.o
 	$(LD) $(LDFLAGS) start.o conditiontest.o -o conditiontest.coff
 	../bin/coff2noff conditiontest.coff conditiontest
 
-
 runtests.o: runtests.c
 	$(CC) $(CFLAGS) -c runtests.c
 runtests: runtests.o start.o
