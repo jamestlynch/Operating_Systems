@@ -70,7 +70,6 @@ int dovalidatelockindex(int index, PacketHeader inPktHdr)
 void doCreateLock(char* name, PacketHeader inPktHdr){
     ServerLock *sl= new ServerLock(name);
     sl->machineID= inPktHdr.from;
-    sl->waitqueue= new List();
     sl->state= 0; //free
     printf("create lock name: %s\n", name);
     slocks.push_back(sl);
