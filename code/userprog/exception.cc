@@ -1025,7 +1025,7 @@ void Yield_Syscall()
 void Exit_Syscall(int status)
 {
     printf("Exit: %d\n", status);
-
+    printf("File Length: %d\n", swapFile->Length());
     currentThread->Yield(); // Stop executing thread
     processLock->Acquire();
 
@@ -1331,17 +1331,16 @@ unsigned int GetPageToEvict()
 {
     int ppn;
 
-    // switch (memoryEviction)
-    // {
-    //     case EVICTRAND:
-    //         srand(time(0));
-    //         ppn = rand() % NumPhysPages;
-    //         break;
-    //     case EVICTFIFO:
-    ppn = memFIFO.front();
-    memFIFO.pop();
-    //         break;
-    // }
+    if(isFIFO)
+    {
+        ppn = memFIFO.front();
+        memFIFO.pop();
+    }
+    else
+    {
+        srand(time(0));
+        ppn = rand() % NumPhysPages;
+    }
 
     return ppn;
 }
@@ -1364,25 +1363,28 @@ int MemoryFull_Handler()
     //  Call eviction strategy based on flag passed into Nachos.
     ppn = GetPageToEvict();
 
-    // (2) Dirty Page: Place evicted page in swapfile, update PageTable
-    for (tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
+    if(ipt[ppn].valid)
     {
-        // Memory has been written to during its time in main memory,
-        // Now that we're discarding the memory we must write it back
-        // to disk.
-        if (machine->tlb[tlbEntry].physicalPage == ppn && machine->tlb[tlbEntry].valid)
+        if(ipt[ppn].space == currentThread->space)
         {
-            if (machine->tlb[tlbEntry].dirty)
+            for (tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
             {
-                ipt[ppn].dirty = true;
+                // Memory has been written to during its time in main memory,
+                // Now that we're discarding the memory we must write it back
+                // to disk.
+                if (machine->tlb[tlbEntry].physicalPage == ppn && machine->tlb[tlbEntry].valid)
+                {
+                    if (machine->tlb[tlbEntry].dirty)
+                    {
+                        ipt[ppn].dirty = true;
+                    }
+                    machine->tlb[tlbEntry].valid = false;
+                }   
             }
-            machine->tlb[tlbEntry].valid = false;
-        }   
+        }
+
+        ipt[ppn].space->RemoveFromMemory(ipt[ppn].virtualPage, ppn);
     }
-
-    DEBUG('p', "Removing page from Memory:\n\tppn\t%d\n\tvpn\t%d\n", ppn, ipt[ppn].virtualPage);
-
-    ipt[ppn].space->RemoveFromMemory(ipt[ppn].virtualPage, ppn);
 
     return ppn;
 }
@@ -1417,7 +1419,10 @@ int IPTMiss_Handler(int vpn)
         ppn = MemoryFull_Handler();
     }
 
-    memFIFO.push(ppn); // Maintain order of Adding to Memory for FIFO Eviction
+    if(isFIFO)
+    {
+        memFIFO.push(ppn); // Maintain order of Adding to Memory for FIFO Eviction
+    }
 
     // (3) Look up where Page located
     // (4) Move entry from Swapfile or Executable to Main Memory

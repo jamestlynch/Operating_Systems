@@ -51,6 +51,8 @@ Timer *timer;                   // the hardware timer device, for invoking conte
     Lock *conditionsLock;
     Lock *locksLock;
 
+    bool isFIFO;
+
 #endif
 #ifdef USE_TLB
     
@@ -191,6 +193,7 @@ Initialize(int argc, char **argv)
     if(fileSystem->Create("SwapFile", 8000))
     {
         swapFile = fileSystem->Open("SwapFile");
+        printf("File Length: %d\n", swapFile->Length());
     }
     swapBitMap = new BitMap(divRoundUp(8000, PageSize));
 
@@ -264,7 +267,8 @@ Cleanup()
 
     //delete memFIFO;
     delete ipt;
-        
+
+    
     fileSystem->Remove("SwapFile");
     delete swapFile;
 #endif
