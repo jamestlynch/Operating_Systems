@@ -9,11 +9,10 @@ void ClientTest3(){
 	indexcheck2= AcquireLock(indexcheck1);
 }
 
-<<<<<<< HEAD:code/test/clientTest3.c
 int main() 
 {
     ClientTest3();
-=======
+}
 void MVTest()
 {
 	int indexmv, mvvalue;
@@ -33,11 +32,4 @@ void MVTest()
 	{
 		Write("Passed [CreateAndUpdateMV]\n", sizeof("Passed [CreateAndUpdateMV]\n"), 1);
 	}
-}
-
-int main() 
-{
-    /*ClientTest();*/
-    MVTest();
->>>>>>> b410c0212518da70c98a49e2f7b0022ea9e795fe:code/test/clientTest.c
 }

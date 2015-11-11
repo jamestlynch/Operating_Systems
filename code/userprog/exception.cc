@@ -24,6 +24,7 @@
 #include "system.h"
 #include "network.h"
 #include "syscall.h"
+#include "post.h"
 #include <stdio.h>
 #include <iostream>
 #include <string>
