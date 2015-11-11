@@ -69,10 +69,10 @@ int copyin(unsigned int vaddr, int len, char *buf)
     {
         result = machine->ReadMem( vaddr, 1, paddr ); // Read 1 byte at vaddr into paddr
 
-        //while(!result) // FALL 09 CHANGES
-        //{
-        //    result = machine->ReadMem( vaddr, 1, paddr ); // FALL 09 CHANGES: TO HANDLE PAGE FAULT IN THE ReadMem SYS CALL
-        //}
+        while(!result) // FALL 09 CHANGES
+        {
+           result = machine->ReadMem( vaddr, 1, paddr ); // FALL 09 CHANGES: TO HANDLE PAGE FAULT IN THE ReadMem SYS CALL
+        }
 
         buf[bytes++] = *paddr; // Update value of buffer to byte read from vaddr (per loop)
 
@@ -1316,16 +1316,20 @@ int CreateMV_Syscall(unsigned int vaddr, int idlength, int mvsize)
     }
 
     // Wait for message from server -- comes with MV index
-    char *inMessage = new char;
-    postOffice->Receive(0, &inPktHdr, &inMailHdr, inMessage);
-    
+    char *response = new char;
+    postOffice->Receive(0, &inPktHdr, &inMailHdr, response);
+    DEBUG('n', "Received \"%s\" from %d, box %d\n", response, inPktHdr.from, inMailHdr.from);
+
     fflush(stdout);
     ss.str("");
-    ss << inMessage;
+    ss << response;
 
     // Get the return value
+    int status;
+    string requestType;
     int indexmv;
-    ss >> indexmv;
+    
+    ss >> status >> requestType >> indexmv;
     
     return indexmv;
 #endif // NETWORK
@@ -1384,9 +1388,15 @@ void SetMV_Syscall(int indexmv, int indexvar, int value)
     }
 
     // Wait for message from server
-    char *inMessage = new char;
-    postOffice->Receive(0, &inPktHdr, &inMailHdr, inMessage);
+    char *response = new char;
+    postOffice->Receive(0, &inPktHdr, &inMailHdr, response);
+    DEBUG('n', "Received \"%s\" from %d, box %d\n", response, inPktHdr.from, inMailHdr.from);
+
+    int status;
+    string requestType;
     
+    ss >> status >> requestType;
+
     return;
 #endif // NETWORK
 }
@@ -1445,16 +1455,22 @@ int GetMV_Syscall(int indexmv, int indexvar)
     }
 
     // Wait for message from server
-    char *inMessage = new char;
-    postOffice->Receive(0, &inPktHdr, &inMailHdr, inMessage);
-    
+    char *response = new char;
+    postOffice->Receive(0, &inPktHdr, &inMailHdr, response);
+    DEBUG('n', "Received \"%s\" from %d, box %d\n", response, inPktHdr.from, inMailHdr.from);
+
     fflush(stdout);
     ss.str("");
-    ss << inMessage;
+    ss << response;
 
     // Get the return value
+    int status;
+    string requestType;
     int value;
-    ss >> value;
+    
+    ss >> status >> requestType >> value;
+
+    printf("value = %d\n", value);
 
     return value;
 #endif // NETWORK
@@ -1504,8 +1520,15 @@ void DestroyMV_Syscall(int indexmv)
     }
 
     // Wait for message from server
-    char *inMessage = new char;
-    postOffice->Receive(0, &inPktHdr, &inMailHdr, inMessage);
+    char *response = new char;
+    postOffice->Receive(0, &inPktHdr, &inMailHdr, response);
+    DEBUG('n', "Received \"%s\" from %d, box %d\n", response, inPktHdr.from, inMailHdr.from);
+
+    // Parse response
+    int status;
+    string requestType;
+    
+    ss >> status >> requestType;
 
     return;
 #endif // NETWORK
@@ -2199,7 +2222,7 @@ void ExceptionHandler(ExceptionType which)
 
             case SC_GetMV:
             DEBUG('a', "Get Monitor Variable syscall.\n");
-            GetMV_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
+            rv = GetMV_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
             break;
 
             case SC_DestroyMV:
