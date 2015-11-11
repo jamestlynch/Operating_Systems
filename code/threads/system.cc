@@ -69,19 +69,26 @@ int tlbCounter;
     vector<int> mvs;
     vector<ServerLock*> slocks;
     vector<ServerCV*> sconditions;
-    Lock *bigServerLock;
-    Lock *bigServerCV;
-class ServerLock{
- public:
-    ServerLock(char* name) {
+    vector<Mail*> mailMessages;
+
+    ServerLock::ServerLock(char* name, int netname, int box) {
         serverlockName= name;
         toDelete= false;
         state = 0; //0=free, 1=busy
+        machineID= netname;
+        mailbox=box;
 
-             //to wake someone up, just need to
-            // send message, make waitQ a Q of replay messages.pop off top and send
     }
-};
+    ServerCV::ServerCV(char *name, int netname, int mailbox){
+        servercvName= name;
+        toDelete= false;
+        state = 0; //0=free, 1=busy,
+    }
+    // Message::Message(PacketHeader packet, MailHeader mail, char* msg){
+    //     packetheader=packet;
+    //     mailheader=mail;
+    //     message=msg;
+    // }
 
 
 #endif
@@ -235,7 +242,6 @@ Initialize(int argc, char **argv)
 
 #ifdef NETWORK
     postOffice = new PostOffice(netname, rely, 10);
-    bigServerLock = new Lock("bigServerLock");
 #endif
 }
 
@@ -249,7 +255,6 @@ Cleanup()
     printf("\nCleaning up...\n");
 #ifdef NETWORK
     delete postOffice;
-    delete bigServerLock;
 #endif
     
 #ifdef USER_PROGRAM

@@ -40,44 +40,38 @@ extern int tlbCounter;
 
 class Machine;
 class AddrSpace;
-struct ServerLock {
-    public:
-        ServerLock(char* name) {
-            serverlockName= name;
-            toDelete= false;
-            state = 0; //0=free, 1=busy
-            machineID= netname;
+class Mail;
 
-             //to wake someone up, just need to
-            // send message, make waitQ a Q of replay messages.pop off top and send
-}
+class ServerLock {
     public:
+        ServerLock(char *name, int netname, int box);
         //who owns the lock
         //what is the name of the lock
         //queue of who is waiting for the lock
         char *serverlockName;
-        std::queue<char*> waitqueue;
+        std::queue<Mail*> waitqueue;
         bool toDelete;
         bool state;
         int machineID;
+        int mailbox;
     };
 
 class ServerCV {
     public:
-        ServerCV(char* name) {
-            name= servercvName;
-            toDelete= false;
-            state= 0; //0=free, 1=busy
-            lockUsed=-1;
-        }
-    public:
+        ServerCV(char *name, int netname, int mailbox);
         char * servercvName;
-        std::queue<char*> sleepqueue;
+        std::queue<Mail*> sleepqueue;
         int lockUsed;
         bool toDelete;
         int state;
-        List *waitqueue;
     };
+// class Message{
+//     public:
+//         Message(PacketHeader packet, MailHeader mail, char* msg);
+//         PacketHeader *packetheader;
+//         MailHeader *mailheader;
+//         char* message;
+// };
 // create server lock vector
 
 
@@ -110,6 +104,7 @@ class ServerCV {
 
     extern Lock *locksLock; // Synchronize lock table
     extern Lock *conditionsLock; // Synchronize CV table
+
 
     // To properly clean up User Programs on Exit, store information about
     //  all running processes inside a table.
@@ -178,8 +173,7 @@ class ServerCV {
     extern vector<int> mvs;
     extern vector<ServerLock*> slocks;
     extern vector<ServerCV*> sconditions;
-    extern Lock *bigServerLock;
-    extern Lock *bigServerCV;
+    extern vector<Mail*> mailMessages;
 
 #endif
 
