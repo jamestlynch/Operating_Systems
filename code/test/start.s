@@ -234,37 +234,37 @@ Random:
 	j	$31
 	.end Random
 
-	.globl CreateMonitor
-	.ent	CreateMonitor
-CreateMonitor:
-	addiu $2,$0,SC_CreateMonitor
+	.globl CreateMV
+	.ent	CreateMV
+CreateMV:
+	addiu $2,$0,SC_CreateMV
 	syscall
 	j	$31
-	.end CreateMonitor
+	.end CreateMV
 
-	.globl SetMonitor
-	.ent	SetMonitor
-SetMonitor:
-	addiu $2,$0,SC_SetMonitor
+	.globl SetMV
+	.ent	SetMV
+SetMV:
+	addiu $2,$0,SC_SetMV
 	syscall
 	j	$31
-	.end SetMonitor
+	.end SetMV
 
-	.globl GetMonitor
-	.ent	GetMonitor
-GetMonitor:
-	addiu $2,$0,SC_GetMonitor
+	.globl GetMV
+	.ent	GetMV
+GetMV:
+	addiu $2,$0,SC_GetMV
 	syscall
 	j	$31
-	.end GetMonitor
+	.end GetMV
 
-	.globl DestroyMonitor
-	.ent	DestroyMonitor
-DestroyMonitor:
-	addiu $2,$0,SC_DestroyMonitor
+	.globl DestroyMV
+	.ent	DestroyMV
+DestroyMV:
+	addiu $2,$0,SC_DestroyMV
 	syscall
 	j	$31
-	.end DestroyMonitor
+	.end DestroyMV
 
 /* dummy function to keep gcc happy */
         .globl  __main

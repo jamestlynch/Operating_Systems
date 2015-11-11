@@ -23,34 +23,34 @@
 /*																																			*/
 /*========================================================================================================================================	*/
 
-#define SC_Halt				0
-#define SC_Exit				1
-#define SC_Exec				2
-#define SC_Join				3
-#define SC_Create			4
-#define SC_Open				5
-#define SC_Read				6
-#define SC_Write			7
-#define SC_Close			8
-#define SC_Fork				9
-#define SC_Yield			10
-#define SC_CreateLock		11
-#define SC_AcquireLock		12
-#define SC_ReleaseLock		13
-#define SC_DestroyLock		14
-#define SC_CreateCV			15
-#define SC_Wait				16
-#define SC_Signal			17	
-#define SC_Broadcast		18	
-#define SC_DestroyCV		19
-#define SC_Random			20
-#define SC_PrintError		21
-#define SC_PrintfOne		22
-#define SC_PrintfTwo		23
-#define SC_CreateMonitor	24
-#define SC_SetMonitor		25
-#define SC_GetMonitor 		26
-#define SC_DestroyMonitor	27
+#define SC_Halt			0
+#define SC_Exit			1
+#define SC_Exec			2
+#define SC_Join			3
+#define SC_Create		4
+#define SC_Open			5
+#define SC_Read			6
+#define SC_Write		7
+#define SC_Close		8
+#define SC_Fork			9
+#define SC_Yield		10
+#define SC_CreateLock	11
+#define SC_AcquireLock	12
+#define SC_ReleaseLock	13
+#define SC_DestroyLock	14
+#define SC_CreateCV		15
+#define SC_Wait			16
+#define SC_Signal		17	
+#define SC_Broadcast	18	
+#define SC_DestroyCV	19
+#define SC_Random		20
+#define SC_PrintError	21
+#define SC_PrintfOne	22
+#define SC_PrintfTwo	23
+#define SC_CreateMV		24
+#define SC_SetMV		25
+#define SC_GetMV 		26
+#define SC_DestroyMV	27
 
 #define MAXFILENAME 256
 
@@ -323,28 +323,28 @@ int Random(int lower, int upper);
 /*	and returns "indexmv" to MV for future access.							*/
 /*------------------------------------------------------------------------	*/
 
-int CreateMonitor(char *id, int idlength, int arraysize);
+int CreateMV(char *id, int idlength, int arraysize);
 
 /*------------------------------------------------------------------------	*/
-/* SetMonitor 																*/
+/* SetMV 																	*/
 /*	Sets "indexvar" variable inside of MV array at "indexmv" to "value."	*/
 /*------------------------------------------------------------------------	*/
 
-int SetMonitor(int indexmv, int indexvar, int value);
+int SetMV(int indexmv, int indexvar, int value);
 
 /*------------------------------------------------------------------------	*/
-/* GetMonitor 																*/
+/* GetMV 																	*/
 /*	Gets "indexvar" variable inside of MV array at "indexmv."				*/
 /*------------------------------------------------------------------------	*/
 
-int GetMonitor(int indexmv, int indexvar);
+int GetMV(int indexmv, int indexvar);
 
 /*------------------------------------------------------------------------	*/
-/* DestroyMonitor 															*/
-/*	Deletes Monitor Variable array at "indexmv"								*/
+/* DestroyMV 																*/
+/*	Deletes MV Variable array at "indexmv"									*/
 /*------------------------------------------------------------------------	*/
 
-int DestroyMonitor(int indexmv);
+int DestroyMV(int indexmv);
 
 #endif /* IN_ASM */
 
