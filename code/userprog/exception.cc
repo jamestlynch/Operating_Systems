@@ -1256,25 +1256,274 @@ int DestroyCV_Syscall(int indexcv)
 }
 
 //----------------------------------------------------------------------
+// CreateMV_Syscall
+//  Passes a message to a server, creating a Monitor Variable with the
+//  id at "vaddr" and size "mvsize." The client (below) must validate
+//  the name before sending it along to the server.
+//
+//  Returns the index to the Monitor Variable for future access.
+//
+//  "vaddr" -- the virtual address of the MV identifier
+//  "idlength" -- the length of the MV identifier
+//  "mvsize" -- the size of the Monitor Variable array
+//----------------------------------------------------------------------
+
+int CreateMV(unsigned int vaddr, int idlength, int mvsize)
+{
+    // Validate length is nonzero and positive
+    if (idlength <= 0)
+    {
+        printf("Invalid length for MV identifier\n");
+        return -1;
+    }
+
+    // Validate MV.size > 0
+    if (mvsize <= 0)
+    {
+        printf("%s\n", "Invalid size for MV array.");
+        return -1;
+    }
+
+    char *mvID = new char[idlength + 1];
+
+    // Out of memory
+    if (!mvID)
+    {
+        printf("Error allocating buffer for creating new MV!\n");
+        return -1;
+    }
+
+    // Translation failed; else string copied into buf (!= -1)
+    if (copyin(vaddr, idlength, mvID) == -1)
+    {
+        printf("Bad pointer passed to create new CV\n");
+        delete[] mvID;
+        return -1;
+    }
+
+    // Set message headers
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+
+    outPktHdr.to = 0; // Server Machine ID
+    outMailHdr.to = 0; // Server Machine ID
+    outPktHdr.from = netname; // Client Machine ID
+    outMailHdr.from = netname; // Client Machine ID
+
+    // Create the message
+    std::stringstream ss;
+    ss << "CM " << mvID << " " << mvsize;
+    char *message = (char *) ss.str().c_str();
+    outMailHdr.length = strlen(message) + 1;
+
+    DEBUG('n', "Client Sending Message to %d: %s\n", outPktHdr.to, message);
+
+    // Send request
+    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
+    if (!success)
+    {
+        printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+        interrupt->Halt();
+    }
+
+    // Wait for message from server -- comes with MV index
+    char *inMessage = new char;
+    postOffice->Receive(0, &inPktHdr, &inMailHdr, inMessage);
+    
+    fflush(stdout);
+    ss.str("");
+    ss << inMessage;
+
+    // Get the return value
+    int indexmv;
+    ss >> indexmv;
+    
+    return indexmv;
+}
+
+//----------------------------------------------------------------------
+// SetMV_Syscall
+//  Passes a message to a server, updating the value at "indexvar" 
+//  inside of the Monitor Variable array at "indexmv" on the server. The
+//  server validates the indeces passed in by the client (below).
+//
+//  "indexmv" -- the index to the MV inside MV server collection
+//  "indexvar" -- the index within the MV that is being updated
+//  "value" -- the updated value
+//----------------------------------------------------------------------
+
+void SetMV_Syscall(int indexmv, int indexvar, int value)
+{
+    // Validate indeces are positive
+    if (indexmv < 0)
+    {
+        printf("Invalid index for MV\n");
+        return -1;
+    }
+
+    // Validate indeces are positive
+    if (indexvar < 0)
+    {
+        printf("%s\n", "Invalid index inside of MV\n");
+        return -1;
+    }
+
+    // Set message headers
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+
+    outPktHdr.to = 0; // Server Machine ID
+    outMailHdr.to = 0; // Server Machine ID
+    outPktHdr.from = netname; // Client Machine ID
+    outMailHdr.from = netname; // Client Machine ID
+
+    // Create the message
+    std::stringstream ss;
+    ss << "SM " << indexmv << " " << indexvar << " " << value;
+    char *message = (char *) ss.str().c_str();
+    outMailHdr.length = strlen(message) + 1;
+
+    DEBUG('n', "Client Sending Message to %d: %s\n", outPktHdr.to, message);
+
+    // Send request
+    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
+    if (!success)
+    {
+        printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+        interrupt->Halt();
+    }
+
+    // Wait for message from server
+    char *inMessage = new char;
+    postOffice->Receive(0, &inPktHdr, &inMailHdr, inMessage);
+    
+    return;
+}
+
+//----------------------------------------------------------------------
+// GetMV_Syscall
+//  Passes a message to a server, asking to retrieve the "indexvar" of 
+//  the MV at "indexmv." The server validates the indeces passed in by 
+//  the client (below).
+//
+//  Returns the value at "indexvar" of the Monitor Variable.
+//
+//  "indexmv" -- the index to the MV inside MV server collection
+//  "indexvar" -- the index within the MV that is being retrieved
+//----------------------------------------------------------------------
+
+int GetMV_Syscall(int indexmv, int indexvar)
+{
+    // Validate indeces are positive
+    if (indexmv < 0)
+    {
+        printf("Invalid index for MV\n");
+        return -1;
+    }
+
+    // Validate indeces are positive
+    if (indexvar < 0)
+    {
+        printf("%s\n", "Invalid index inside of MV\n");
+        return -1;
+    }
+
+    // Set message headers
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+
+    outPktHdr.to = 0; // Server Machine ID
+    outMailHdr.to = 0; // Server Machine ID
+    outPktHdr.from = netname; // Client Machine ID
+    outMailHdr.from = netname; // Client Machine ID
+
+    // Create the message
+    std::stringstream ss;
+    ss << "GM " << indexmv << " " << indexvar;
+    char *message = (char *) ss.str().c_str();
+    outMailHdr.length = strlen(message) + 1;
+
+    DEBUG('n', "Client Sending Message to %d: %s\n", outPktHdr.to, message);
+
+    // Send request
+    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
+    if (!success)
+    {
+        printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+        interrupt->Halt();
+    }
+
+    // Wait for message from server
+    char *inMessage = new char;
+    postOffice->Receive(0, &inPktHdr, &inMailHdr, inMessage);
+    
+    fflush(stdout);
+    ss.str("");
+    ss << inMessage;
+
+    // Get the return value
+    int value;
+    ss >> value;
+
+    return value;
+}
+
+//----------------------------------------------------------------------
+// DestroyMV_Syscall
+//  Passes a message to a server, asking to delete the Monitor Variable
+//  at "indexmv." The server validates the indeces passed in by the 
+//  client (below).
+//
+//  "indexmv" -- the index to the MV inside MV server collection
+//----------------------------------------------------------------------
+
+void DestroyMV_Syscall(int indexmv)
+{
+    // Validate indeces are positive
+    if (indexmv < 0)
+    {
+        printf("Invalid index for MV\n");
+        return -1;
+    }
+
+    // Set message headers
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+
+    outPktHdr.to = 0; // Server Machine ID
+    outMailHdr.to = 0; // Server Machine ID
+    outPktHdr.from = netname; // Client Machine ID
+    outMailHdr.from = netname; // Client Machine ID
+
+    // Create the message
+    std::stringstream ss;
+    ss << "DM " << indexmv;
+    char *message = (char *) ss.str().c_str();
+    outMailHdr.length = strlen(message) + 1;
+
+    DEBUG('n', "Client Sending Message to %d: %s\n", outPktHdr.to, message);
+
+    // Send request
+    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
+    if (!success)
+    {
+        printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+        interrupt->Halt();
+    }
+
+    // Wait for message from server
+    char *inMessage = new char;
+    postOffice->Receive(0, &inPktHdr, &inMailHdr, inMessage);
+
+    return;
+} 
+
+//----------------------------------------------------------------------
 // Yield_Syscall
 //  Syscall allows thread some control over execution. This yields 
 //  control to another thread, which the scheduler with switch if any
 //  ready.
 //----------------------------------------------------------------------
-void CreateMV(){
-
-}
-
-void DestroyMV(){
-
-} 
-void GetMV(){
-
-}
-
-void SetMV(){
-
-}
 
 void Yield_Syscall() 
 {
@@ -1943,6 +2192,26 @@ void ExceptionHandler(ExceptionType which)
             case SC_Random:
             DEBUG('a', "Random syscall.\n");
             rv = Random_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
+            break;
+
+            case SC_CreateMV:
+            DEBUG('a', "Create Monitor Variable syscall.\n");
+            rv = CreateMV_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
+            break;
+
+            case SC_SetMV:
+            DEBUG('a', "Set Monitor Variable syscall.\n");
+            SetMV_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
+            break;
+
+            case SC_GetMV:
+            DEBUG('a', "Get Monitor Variable syscall.\n");
+            GetMV_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
+            break;
+
+            case SC_DestroyMV:
+            DEBUG('a', "Destroy Monitor Variable syscall.\n");
+            DestroyMV_Syscall(machine->ReadRegister(4));
             break;
         }
 
