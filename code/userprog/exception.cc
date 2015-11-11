@@ -537,7 +537,6 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
 
     outPktHdr.to = 0;  //machine id of server
     outMailHdr.to = 0; //mailbox to
-    outPktHdr.from = 1;  //machine id of client
     outMailHdr.from = 1; //mailbox from
 
   std::stringstream temp;
@@ -749,7 +748,7 @@ int ReleaseLock_Syscall(int indexlock)
 
     outPktHdr.to = 0;  //machine id of server
     outMailHdr.to = 0; //mailbox to
-    outPktHdr.from = 1;  //machine id of server
+    outPktHdr.from = netname;  //machine id of server
     outMailHdr.from = 1; //mailbox from
 
     std::stringstream temp;

@@ -46,7 +46,9 @@ struct ServerLock {
             serverlockName= name;
             toDelete= false;
             state = 0; //0=free, 1=busy
-            //waitqueue= new queue<char*>; //to wake someone up, just need to
+            machineID= netname;
+
+             //to wake someone up, just need to
             // send message, make waitQ a Q of replay messages.pop off top and send
 }
     public:

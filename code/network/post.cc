@@ -183,7 +183,8 @@ PostOffice::PostOffice(NetworkAddress addr, double reliability, int nBoxes)
     sendLock = new Lock("message send lock");
 
 // Second, initialize the mailboxes
-    netAddr = addr; 
+    netAddr = addr;
+    printf("machine id is %d\n",netAddr); 
     numBoxes = nBoxes;
     boxes = new MailBox[nBoxes];
 

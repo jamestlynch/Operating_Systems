@@ -71,6 +71,18 @@ int tlbCounter;
     vector<ServerCV*> sconditions;
     Lock *bigServerLock;
     Lock *bigServerCV;
+class ServerLock{
+ public:
+    ServerLock(char* name) {
+        serverlockName= name;
+        toDelete= false;
+        state = 0; //0=free, 1=busy
+
+             //to wake someone up, just need to
+            // send message, make waitQ a Q of replay messages.pop off top and send
+    }
+};
+
 
 #endif
 
@@ -162,7 +174,7 @@ Initialize(int argc, char **argv)
 	    argCount = 2;
 	} else if (!strcmp(*argv, "-m")) {
 	    ASSERT(argc > 1);
-	    netname = atoi(*(argv + 1));
+	    netname = atoi(*(argv + 1)); //GET THIS NETNAME INTO MACHINE ID OF SERVERLOCK
 	    argCount = 2;
 	}
 #endif

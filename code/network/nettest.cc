@@ -74,24 +74,35 @@ void doCreateLock(char* name, PacketHeader inPktHdr){
     printf("create lock name: %s\n", name);
     slocks.push_back(sl);
 }
-void doAcquireLock(int indexlock){
-    
-        if (slocks.at(indexlock)->state == 1){ //lock is valid but busy so go on wait queue
-                slocks.at(indexlock)->waitqueue.push_back(/**/); //(void*)inPktHdr.from)
-            }
-        else { // lock is valid and available so get the lock
-                slocks.at(indexlock)->state = 1;
-            }
-    
+void doAcquireLock(int indexlock, PacketHeader inPktHdr){
+    if (slocks.at(indexlock)->state == 1){ //lock is valid but busy so go on wait queue
+            slocks.at(indexlock)->waitqueue.push((char*)inPktHdr.from); //(void*)inPktHdr.from)
+        }
+    else { // lock is valid and available so get the lock
+            slocks.at(indexlock)->state = 1;
+        }
 }
-void doReleaseLock(int indexlock){
-        //check that the machineID trying to release the lock is the machine
+void doReleaseLock(int indexlock, PacketHeader inPktHdr){
+        //check that the machineID trying to release the lock is the correct machine
         //id that owns the lock
         //slocks.at(indexlock)->waitqueue.pop_front();
+    if (!slocks.at(indexlock)){
+        printf("This lock index is null\n");
+    }
+    else if (!slocks.at(indexlock)->waitqueue.empty()){ // 
+        //slocks.at(indexlock)->waitqueue.pop_front((char*)inPktHdr.from);
+    }
+    else{
+        slocks.at(indexlock)->state = 0;
+    }
     
 }
 void doDestroyLock(int indexlock){
-
+        if(slocks.at(indexlock)->state == 0 ) // if lock is free and nobody is waiting
+         {
+            ServerLock * sl = slocks.at(indexlock);
+            delete sl;
+        }
 
 }
 int dovalidatecvindeces(int indexcv, int indexlock, PacketHeader inPktHdr)
@@ -203,7 +214,6 @@ void Server(){
 
        if (strcmp(type, "CL") == 0)
              {
-                bigServerLock->Acquire();
                 printf("Server received Create Lock request from client.\n");
                 ss >> lockname;
                 ss >> length;
@@ -211,76 +221,67 @@ void Server(){
                 {
                     printf("%s","Length for locks's identifier name must be nonzero and positive\n");
                     response="-1";
-                    bigServerLock->Release();
                     break;
                 }
                 else{
                 //printf("lockname is: %d", lockname);
+                printf(inPktHdr.from);
                 doCreateLock(lockname, inPktHdr);
                 printf("After creating the lock\n");
-                bigServerLock->Release();
+        
                 }
             }
         else if (strcmp(type, "AL") == 0) //need to pass index
              {
-                bigServerLock->Acquire();
                 printf("Server received Acquire Lock request from client.\n");
                 ss >> lockindex;
                 int size = slocks.size();
                 if (dovalidatelockindex(lockindex, inPktHdr)==-1){
                     printf("%s","acquire lock: lock index invalid or wrong machine.\n");
                     response="-1";
-                    bigServerLock->Release();
                     break;
                 }
                 else{
-                    doAcquireLock(lockindex);
+                    doAcquireLock(lockindex, inPktHdr);
                     printf("After acquiring the lock\n");
-                    bigServerLock->Release();
                 }
             }
         else if (strcmp(type, "RL") == 0) //need to pass index
              {
                 printf("Server received Release Lock request from client.\n");
-                bigServerLock->Acquire();
                 ss >> lockindex;
                 int size = slocks.size();
                 if (dovalidatelockindex(lockindex, inPktHdr)==-1){
                     printf("%s","release lock: lock index invalid or wrong machine.\n");
                     response="-1";
-                    bigServerLock->Release();
                     break;
                 }
                 else
                 {
                     //printf("lockname is: %d", lockname);
-                    doReleaseLock(lockindex);
+                    doReleaseLock(lockindex, inPktHdr);
                     printf("After creating the lock\n");
-                    bigServerLock->Release();
                 }
             }
         else if (strcmp(type, "DL") == 0)
              {
                 printf("Server received Destroy Lock request from client.\n");
-                bigServerLock->Acquire();
                 ss >> lockindex;
                 int size = slocks.size();
                 if (dovalidatelockindex(lockindex, inPktHdr)==-1){
                     printf("%s","destroy lock: lock index invalid or wrong machine.\n");
                     response="-1";
-                    bigServerLock->Release();
                     break;
                 }
                 else{
                 //printf("lockname is: %d", lockname);
                 doDestroyLock(lockindex);
                 printf("the lock at specified index has been destroyed\n");
-                bigServerLock->Release();
+        
                 }
             }
-        /*else if (strcmp(type, "CC") == 0)
+        else if (strcmp(type, "CC") == 0)
              {
-                bigServerCV->Acquire();
                 printf("Server received Create Condition request from client.\n");
                 
                 ss >> cvname;
@@ -295,35 +296,30 @@ void Server(){
                 }
                 else{
                 //printf("lockname is: %d", lockname);
-                doCreateCV(lockname);
+                doCreateCV(lockname, inPktHdr);
                 printf("After creating the cv\n");
-                bigServerCV->Release();
                 }
             }
         else if (strcmp(type, "WC") == 0)
              {
-                bigServerLock->Acquire();
                 printf("Inside if else statement\n");
-                bigServerLock->Release();
+        
             }
         else if (strcmp(type, "SC") == 0)
              {
-                bigServerLock->Acquire();
                 printf("Inside if else statement\n");
-                bigServerLock->Release();
+        
             }
         else if (strcmp(type, "BC") == 0)
              {
-                bigServerLock->Acquire();
                 printf("Inside if else statement\n");
-                bigServerLock->Release();
+        
             }
         else if (strcmp(type, "DC") == 0)
              {
-                bigServerLock->Acquire();
                 printf("Inside if else statement\n");
-                bigServerLock->Release();
-            }*/
+        
+            }
         if(outPktHdr.to != -1) 
             {
                 outPktHdr.to = 1;
@@ -342,6 +338,7 @@ void Server(){
                     printf("postOffice send failed. Terminating...\n");
                     interrupt->Halt();
                 }
+        
             }
         }
     }
