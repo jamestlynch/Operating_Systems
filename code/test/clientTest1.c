@@ -9,9 +9,6 @@ void ClientTest1(){
 	res3= CreateLock("ghi", 3);
 	res4= CreateLock("jkl", 3);
 	res5= CreateLock("mno", 3);
-
-
-	
 }
 
 int main() 

@@ -12,7 +12,6 @@ void ClientTest2(){
 	test5= AcquireLock(4);
 	test6= AcquireLock(5);
 	Exit(0);
-
 }
 
 int main() 
