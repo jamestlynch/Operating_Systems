@@ -22,6 +22,7 @@
 // of liability and disclaimer of warranty provisions.
 #include "copyright.h"
 #include "system.h"
+#include "network.h"
 #include "syscall.h"
 #include <stdio.h>
 #include <iostream>
@@ -128,17 +129,6 @@ int copyout(unsigned int vaddr, int len, char *buf) {
 //  "len" -- the length of the file name
 //----------------------------------------------------------------------
 
-/*bool SendtoServer(PacketHeader pktHdr, MailHeader mailHdr, char *data){
-  return true;
-}
-        // Send a message to a mailbox on a remote 
-        // machine.  The fromBox in the MailHeader is 
-        // the return box for ack's.
-    
-void ReceivefromServer(PacketHeader *pktHdr, MailHeader *mailHdr, char *data){
-
-}
-*/
 void Create_Syscall(unsigned int vaddr, int len) {
     char *buf = new char[len + 1]; // Kernel buffer to copy file name into
 
@@ -389,7 +379,7 @@ void PrintfOne_Syscall(unsigned int vaddr, int len, int num1)
     // Translation failed; else string copied into buf (!= -1)
     if (copyin(vaddr,len,buf) == -1) 
     {
-        printf("%s","Bad pointer passed to Create\n");
+        printf("%s","Bad pointer passed to PrintfOne\n");
         delete buf;
         return;
     }
@@ -429,7 +419,7 @@ void PrintfTwo_Syscall(unsigned int vaddr, int len, int num1, int num2)
     // Translation failed; else string copied into buf (!= -1)
     if (copyin(vaddr,len,buf) == -1) 
     {
-        printf("%s","Bad pointer passed to Create\n");
+        printf("%s","Bad pointer passed to PrintfTwo\n");
         delete buf;
         return;
     }
@@ -497,6 +487,56 @@ int validatelockindex(int index)
     }
 
     return 0;
+}
+
+void SendRequest(string request)
+{
+    // Set message headers
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = 0; // Server Machine ID
+    outMailHdr.to = 0; // Server Machine ID
+    outMailHdr.from = 0; // Client Mailbox ID
+
+    // Create the message
+    char *message = (char *) request.c_str();
+    outMailHdr.length = strlen(message) + 1;
+
+    DEBUG('n', "Client Sending Message to %d: %s\n", outPktHdr.to, message);
+
+    // Send request
+    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
+    if (!success)
+    {
+        printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+        interrupt->Halt();
+    }
+}
+
+int ReceiveResponse()
+{
+    // Get message headers
+    PacketHeader inPktHdr;
+    MailHeader inMailHdr;
+
+    // Wait for message from server
+    char *response = new char[MaxMailSize];
+    postOffice->Receive(0, &inPktHdr, &inMailHdr, response);
+    DEBUG('n', "Received \"%s\" from %d, box %d\n", response, inPktHdr.from, inMailHdr.from);
+
+    stringstream ss;
+    fflush(stdout);
+    ss.str(response);
+
+    // Get the return value
+    int status;
+    string requestType;
+    int returnValue;
+    
+    ss >> status >> requestType >> returnValue;
+
+    return returnValue;
 }
 
 //----------------------------------------------------------------------
@@ -757,7 +797,7 @@ int ReleaseLock_Syscall(int indexlock)
 
     outPktHdr.to = 0;  //machine id of server
     outMailHdr.to = 0; //mailbox to
-    outMailHdr.from = 1; //mailbox from
+    outMailHdr.from = 0; //mailbox from
 
     std::stringstream temp;
     temp << "RL " << indexlock;
@@ -824,7 +864,7 @@ int ReleaseLock_Syscall(int indexlock)
 
 int DestroyLock_Syscall(int indexlock)
 {
-    #ifdef NETWORK
+#ifdef NETWORK
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
 
@@ -963,61 +1003,43 @@ int validatecvindeces(int indexcv, int indexlock)
 int CreateCV_Syscall(unsigned int vaddr, int len)
 {
 #ifdef NETWORK
-    char * buf = new char[len + 1];
-    //char * message= new char[40];
-    //max size of a message can be 40 according to class notes
 
-    if (copyin(vaddr, len, buf) == -1)
+    // Validate length is nonzero and positive
+    if (len <= 0)
     {
-        printf("%s","Bad pointer passed to create new lock\n");
-        delete[] buf;
+        printf("Invalid length for CV identifier\n");
         return -1;
     }
-    buf[len] = '\0';
 
-    PacketHeader outPktHdr, inPktHdr;
-    MailHeader outMailHdr, inMailHdr;
+    char * cvID = new char[len + 1];
 
-    //2 bits for client machine 
-    //#/server each, 2 bits for postoficec #
-    // thread #, for client and server, and instruction
-    //for 2 bits
-    char *buffer= new char;
+    // Out of memory
+    if (!cvID)
+    {
+        printf("Error allocating kernel buffer for creating new CV!\n");
+        return -1;
+    }
 
-    outPktHdr.to = 0;  //machine id of server
-    outMailHdr.to = 0; //mailbox to
-    outMailHdr.from = 1; //mailbox from
+    // Translation failed; else string copied into buf (!= -1)
+    if (copyin(vaddr, len, cvID) == -1)
+    {
+        printf("Bad pointer passed to create new CV\n");
+        delete[] cvID;
+        return -1;
+    }
 
-  std::stringstream temp;
-  temp << "CC " << buf << " " << len;
-  char *message= (char *) temp.str().c_str();
+    cvID[len] = '\0'; // Add null terminating character to cv name
 
-  outMailHdr.length = strlen(message) +1;
-  printf("Full message contents: %s\n", message);
+    stringstream ss;
+    ss << "CC" << " " << cvID;
+    string request = ss.str();
+    SendRequest(request);
+    int indexcv = ReceiveResponse();
+    
+    return indexcv;
 
-  //Send request
-  //printf("in create syscall lockname being passed in is: %s\n", buf);
-  bool success = postOffice->Send(outPktHdr, outMailHdr, message);
-  if ( !success ) {
-    printf("The postOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
-    interrupt->Halt();
-  }
-    printf("before receive");
+#else
 
-    // Wait for message from server -- comes with lock ID
-    postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
-    printf("after receive buffer value: %s", buffer);
-    fflush(stdout);
-    // Retrieve lock ID/index
-
-    int x;
-    temp.str("");
-    temp << buffer;
-    temp >> x;
-    printf("Returning x: %d\n", x);
-    return x;
-
-#else //PROJECT 2 CODE
     conditionsLock->Acquire(); // Synchronize CV creation; Interrupts enabled
 
     // Validate length is nonzero and positive
@@ -1060,7 +1082,8 @@ int CreateCV_Syscall(unsigned int vaddr, int len)
     conditionsLock->Release();
 
     return conditionIndex; // User can call Wait, Signal, Broadcast
-    #endif
+
+#endif
 }
 
 //----------------------------------------------------------------------
@@ -1079,46 +1102,16 @@ int CreateCV_Syscall(unsigned int vaddr, int len)
 int Wait_Syscall(int indexcv, int indexlock)
 {
 #ifdef NETWORK
-    PacketHeader outPktHdr, inPktHdr;
-    MailHeader outMailHdr, inMailHdr;
+    
+    stringstream ss;
+    ss << "WC" << " " << indexcv << indexlock;
+    string request = ss.str();
+    SendRequest(request);
+    indexcv = ReceiveResponse();
+    
+    return indexcv;
 
-    //2 bits for client machine 
-    //#/server each, 2 bits for postoficec #
-    // thread #, for client and server, and instruction
-    //for 2 bits
-    char *buffer= new char;
-
-    outPktHdr.to = 0;  //machine id of server
-    outMailHdr.to = 0; //mailbox to
-    outMailHdr.from = 1; //mailbox from
-
-    std::stringstream temp;
-    temp << "WC " << indexlock << " "<<indexcv;
-    char *message= (char *) temp.str().c_str();
-
-    outMailHdr.length = strlen(message) +1;
-    printf("Full message contents: %s\n", message);
-
-    //Send request
-    //printf("in create syscall lockname being passed in is: %s\n", buf);
-    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
-    if ( !success ) {
-        printf("The postOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
-        interrupt->Halt();
-    }
-
-    // Wait for message from server -- comes with lock ID
-    postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
-    printf("after receive buffer value: %s", buffer);
-    fflush(stdout);
-    // Retrieve lock ID/index
-    int x;
-    temp.str("");
-    temp << buffer;
-    temp >> x;
-    printf("Returning x: %d\n", x);
-    return x;
-    #else
+#else
 
     // Lock/CV indeces: (1) valid location, (2) defined, (3) belongs to currentThread's process
     if (validatecvindeces(indexcv, indexlock) == -1)
@@ -1147,7 +1140,7 @@ int Wait_Syscall(int indexcv, int indexlock)
     processLock->Release();
 
     return indexcv;
-    #endif
+#endif
 }
 
 //----------------------------------------------------------------------
@@ -1187,47 +1180,17 @@ void deletecondition(int indexcv)
 
 int Signal_Syscall(int indexcv, int indexlock)
 {
-    #ifdef NETWORK
-    PacketHeader outPktHdr, inPktHdr;
-    MailHeader outMailHdr, inMailHdr;
+#ifdef NETWORK
+    
+    stringstream ss;
+    ss << "SC" << " " << indexcv << indexlock;
+    string request = ss.str();
+    SendRequest(request);
+    indexcv = ReceiveResponse();
+    
+    return indexcv;
 
-    //2 bits for client machine 
-    //#/server each, 2 bits for postoficec #
-    // thread #, for client and server, and instruction
-    //for 2 bits
-    char *buffer= new char;
-
-    outPktHdr.to = 0;  //machine id of server
-    outMailHdr.to = 0; //mailbox to
-    outMailHdr.from = 1; //mailbox from
-
-    std::stringstream temp;
-    temp << "SC " << indexlock <<" "<< indexcv;
-    char *message= (char *) temp.str().c_str();
-
-    outMailHdr.length = strlen(message) +1;
-    printf("Full message contents: %s\n", message);
-
-    //Send request
-    //printf("in create syscall lockname being passed in is: %s\n", buf);
-    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
-    if ( !success ) {
-        printf("The postOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
-        interrupt->Halt();
-    }
-
-    // Wait for message from server -- comes with lock ID
-    postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
-    printf("after receive buffer value: %s", buffer);
-    fflush(stdout);
-    // Retrieve lock ID/index
-    int x;
-    temp.str("");
-    temp << buffer;
-    temp >> x;
-    printf("Returning x: %d\n", x);
-    return x;
-    #else
+#else
 
     // Lock/CV indeces: (1) valid location, (2) defined, (3) belongs to currentThread's process
     if (validatecvindeces(indexcv, indexlock) == -1)
@@ -1248,7 +1211,8 @@ int Signal_Syscall(int indexcv, int indexlock)
     }
 
     return indexcv;
-    #endif
+
+#endif
 }
 
 //----------------------------------------------------------------------
@@ -1266,48 +1230,17 @@ int Signal_Syscall(int indexcv, int indexlock)
 
 int Broadcast_Syscall(int indexcv, int indexlock)
 {
-    #ifdef NETWORK
-    PacketHeader outPktHdr, inPktHdr;
-    MailHeader outMailHdr, inMailHdr;
+#ifdef NETWORK
 
-    //2 bits for client machine 
-    //#/server each, 2 bits for postoficec #
-    // thread #, for client and server, and instruction
-    //for 2 bits
-    char *buffer= new char;
+    stringstream ss;
+    ss << "BC" << " " << indexcv << indexlock;
+    string request = ss.str();
+    SendRequest(request);
+    indexcv = ReceiveResponse();
+    
+    return indexcv;
 
-    outPktHdr.to = 0;  //machine id of server
-    outMailHdr.to = 0; //mailbox to
-    outMailHdr.from = 1; //mailbox from
-
-    std::stringstream temp;
-    temp << "BC " << indexlock << " "<< indexcv;
-    char *message= (char *) temp.str().c_str();
-
-    outMailHdr.length = strlen(message) +1;
-    printf("Full message contents: %s\n", message);
-
-    //Send request
-    //printf("in create syscall lockname being passed in is: %s\n", buf);
-    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
-    if ( !success ) {
-        printf("The postOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
-        interrupt->Halt();
-    }
-
-    // Wait for message from server -- comes with lock ID
-    postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
-    printf("after receive buffer value: %s", buffer);
-    fflush(stdout);
-    // Retrieve lock ID/index
-    int x;
-    temp.str("");
-    temp << buffer;
-    temp >> x;
-    printf("Returning x: %d\n", x);
-    return x;
-
-    #else
+#else
 
     // Lock/CV indeces: (1) valid location, (2) defined, (3) belongs to currentThread's process
     if (validatecvindeces(indexcv, indexlock) == -1)
@@ -1327,7 +1260,8 @@ int Broadcast_Syscall(int indexcv, int indexlock)
     }
 
     return indexcv;
-    #endif
+    
+#endif
 }
 
 //----------------------------------------------------------------------
@@ -1345,47 +1279,17 @@ int Broadcast_Syscall(int indexcv, int indexlock)
 
 int DestroyCV_Syscall(int indexcv)
 {
-    #ifdef NETWORK
-    PacketHeader outPktHdr, inPktHdr;
-    MailHeader outMailHdr, inMailHdr;
+#ifdef NETWORK
 
-    //2 bits for client machine 
-    //#/server each, 2 bits for postoficec #
-    // thread #, for client and server, and instruction
-    //for 2 bits
-    char *buffer= new char;
+    stringstream ss;
+    ss << "DC" << " " << indexcv;
+    string request = ss.str();
+    SendRequest(request);
+    indexcv = ReceiveResponse();
+    
+    return indexcv;
 
-    outPktHdr.to = 0;  //machine id of server
-    outMailHdr.to = 0; //mailbox to
-    outMailHdr.from = 1; //mailbox from
-
-    std::stringstream temp;
-    temp << "DC " << indexcv;
-    char *message= (char *) temp.str().c_str();
-
-    outMailHdr.length = strlen(message) +1;
-    printf("Full message contents: %s\n", message);
-
-    //Send request
-    //printf("in create syscall lockname being passed in is: %s\n", buf);
-    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
-    if ( !success ) {
-        printf("The postOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
-        interrupt->Halt();
-    }
-
-    // Wait for message from server -- comes with lock ID
-    postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
-    printf("after receive buffer value: %s", buffer);
-    fflush(stdout);
-    // Retrieve lock ID/index
-    int x;
-    temp.str("");
-    temp << buffer;
-    temp >> x;
-    printf("Returning x: %d\n", x);
-    return x;
-    #else
+#else
 
     // Lock/CV indeces: (1) valid location, (2) defined, (3) belongs to currentThread's process
     if (indexcv < 0) 
@@ -1433,7 +1337,175 @@ int DestroyCV_Syscall(int indexcv)
     currentKernelCV->toDelete = true;
     conditionsLock->Release();
     return -1;
-    #endif
+
+#endif
+}
+
+//----------------------------------------------------------------------
+// CreateMV_Syscall
+//  Passes a message to a server, creating a Monitor Variable with the
+//  id at "vaddr" and size "mvsize." The client (below) must validate
+//  the name before sending it along to the server.
+//
+//  Returns the index to the Monitor Variable for future access.
+//
+//  "vaddr" -- the virtual address of the MV identifier
+//  "idlength" -- the length of the MV identifier
+//  "mvsize" -- the size of the Monitor Variable array
+//----------------------------------------------------------------------
+
+int CreateMV_Syscall(unsigned int vaddr, int idlength, int mvsize)
+{
+#ifdef NETWORK
+
+    // Validate length is nonzero and positive
+    if (idlength <= 0)
+    {
+        printf("Invalid length for MV identifier\n");
+        return -1;
+    }
+
+    // Validate MV.size > 0
+    if (mvsize <= 0)
+    {
+        printf("%s\n", "Invalid size for MV array.");
+        return -1;
+    }
+
+    char *mvID = new char[idlength + 1];
+
+    // Out of memory
+    if (!mvID)
+    {
+        printf("Error allocating buffer for creating new MV!\n");
+        return -1;
+    }
+
+    // Translation failed; else string copied into buf (!= -1)
+    if (copyin(vaddr, idlength, mvID) == -1)
+    {
+        printf("Bad pointer passed to create new CV\n");
+        delete[] mvID;
+        return -1;
+    }
+
+    stringstream ss;
+    ss << "CM" << " " << mvID << " " << mvsize;
+    string request = ss.str();
+    SendRequest(request);
+    int indexmv = ReceiveResponse();
+    
+    return indexmv;
+
+#endif // NETWORK
+}
+
+//----------------------------------------------------------------------
+// SetMV_Syscall
+//  Passes a message to a server, updating the value at "indexvar" 
+//  inside of the Monitor Variable array at "indexmv" on the server. The
+//  server validates the indeces passed in by the client (below).
+//
+//  "indexmv" -- the index to the MV inside MV server collection
+//  "indexvar" -- the index within the MV that is being updated
+//  "value" -- the updated value
+//----------------------------------------------------------------------
+
+void SetMV_Syscall(int indexmv, int indexvar, int value)
+{
+#ifdef NETWORK
+    // Validate indeces are positive
+    if (indexmv < 0)
+    {
+        printf("Invalid index for MV\n");
+        return;
+    }
+
+    // Validate indeces are positive
+    if (indexvar < 0)
+    {
+        printf("%s\n", "Invalid index inside of MV\n");
+        return;
+    }
+
+    stringstream ss;
+    ss << "SM" << " " << indexmv << " " << indexvar << " " << value;
+    string request = ss.str();
+    SendRequest(request);
+    ReceiveResponse();
+
+    return;
+#endif // NETWORK
+}
+
+//----------------------------------------------------------------------
+// GetMV_Syscall
+//  Passes a message to a server, asking to retrieve the "indexvar" of 
+//  the MV at "indexmv." The server validates the indeces passed in by 
+//  the client (below).
+//
+//  Returns the value at "indexvar" of the Monitor Variable.
+//
+//  "indexmv" -- the index to the MV inside MV server collection
+//  "indexvar" -- the index within the MV that is being retrieved
+//----------------------------------------------------------------------
+
+int GetMV_Syscall(int indexmv, int indexvar)
+{
+#ifdef NETWORK
+    // Validate indeces are positive
+    if (indexmv < 0)
+    {
+        printf("Invalid index for MV\n");
+        return -1;
+    }
+
+    // Validate indeces are positive
+    if (indexvar < 0)
+    {
+        printf("%s\n", "Invalid index inside of MV\n");
+        return -1;
+    }
+
+    stringstream ss;
+    ss << "GM" << " " << indexmv << " " << indexvar;
+    string request = ss.str();
+    SendRequest(request);
+    int value = ReceiveResponse();
+
+    return value;
+
+#endif // NETWORK
+}
+
+//----------------------------------------------------------------------
+// DestroyMV_Syscall
+//  Passes a message to a server, asking to delete the Monitor Variable
+//  at "indexmv." The server validates the indeces passed in by the 
+//  client (below).
+//
+//  "indexmv" -- the index to the MV inside MV server collection
+//----------------------------------------------------------------------
+
+void DestroyMV_Syscall(int indexmv)
+{
+#ifdef NETWORK
+    // Validate indeces are positive
+    if (indexmv < 0)
+    {
+        printf("Invalid index for MV\n");
+        return;
+    }
+
+    stringstream ss;
+    ss << "DM" << " " << indexmv;
+    string request = ss.str();
+    SendRequest(request);
+    ReceiveResponse();
+
+    return;
+
+#endif // NETWORK
 }
 
 //----------------------------------------------------------------------
@@ -1442,20 +1514,6 @@ int DestroyCV_Syscall(int indexcv)
 //  control to another thread, which the scheduler with switch if any
 //  ready.
 //----------------------------------------------------------------------
-void CreateMV(){
-
-}
-
-void DestroyMV(){
-
-} 
-void GetMV(){
-
-}
-
-void SetMV(){
-
-}
 
 void Yield_Syscall() 
 {
@@ -2124,6 +2182,26 @@ void ExceptionHandler(ExceptionType which)
             case SC_Random:
             DEBUG('a', "Random syscall.\n");
             rv = Random_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
+            break;
+
+            case SC_CreateMV:
+            DEBUG('a', "Create Monitor Variable syscall.\n");
+            rv = CreateMV_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
+            break;
+
+            case SC_SetMV:
+            DEBUG('a', "Set Monitor Variable syscall.\n");
+            SetMV_Syscall(machine->ReadRegister(4), machine->ReadRegister(5), machine->ReadRegister(6));
+            break;
+
+            case SC_GetMV:
+            DEBUG('a', "Get Monitor Variable syscall.\n");
+            rv = GetMV_Syscall(machine->ReadRegister(4), machine->ReadRegister(5));
+            break;
+
+            case SC_DestroyMV:
+            DEBUG('a', "Destroy Monitor Variable syscall.\n");
+            DestroyMV_Syscall(machine->ReadRegister(4));
             break;
         }
 

@@ -25,7 +25,6 @@
 void StartProcess(char *filename)
 {
     processLock->Acquire();
-    printf("TEST PRINT");
 
     OpenFile *executable = fileSystem->Open(filename);
     AddrSpace *space;

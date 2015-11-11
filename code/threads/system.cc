@@ -68,7 +68,6 @@ int tlbCounter;
     PostOffice *postOffice;
     vector<int> mvs;
     vector<ServerLock*> slocks;
-    vector<ServerCV*> sconditions;
     vector<Mail*> mailMessages;
 
     ServerLock::ServerLock(char* name, int netname, int box) {
@@ -79,17 +78,6 @@ int tlbCounter;
         mailbox=box;
 
     }
-    ServerCV::ServerCV(char *name, int netname, int mailbox){
-        servercvName= name;
-        toDelete= false;
-        state = 0; //0=free, 1=busy,
-    }
-    // Message::Message(PacketHeader packet, MailHeader mail, char* msg){
-    //     packetheader=packet;
-    //     mailheader=mail;
-    //     message=msg;
-    // }
-
 
 #endif
 

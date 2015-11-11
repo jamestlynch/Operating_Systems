@@ -47,6 +47,10 @@
 #define SC_PrintError	21
 #define SC_PrintfOne	22
 #define SC_PrintfTwo	23
+#define SC_CreateMV		24
+#define SC_SetMV		25
+#define SC_GetMV 		26
+#define SC_DestroyMV	27
 
 #define MAXFILENAME 256
 
@@ -304,6 +308,43 @@ void PrintError(char *buffer, int size);
 /*------------------------------------------------------------------------	*/
 
 int Random(int lower, int upper);
+
+
+/*========================================================================	*/
+/*																			*/
+/* Remote Sharing operations												*/
+/*	Monitor variables allow data sharing between multiple programs remotely	*/
+/*																			*/
+/*========================================================================	*/
+
+/*------------------------------------------------------------------------	*/
+/* CreateMonitor 															*/
+/*	Creates monitor variable array of "arraysize" with "id" for reference	*/
+/*	and returns "indexmv" to MV for future access.							*/
+/*------------------------------------------------------------------------	*/
+
+int CreateMV(char *id, int idlength, int arraysize);
+
+/*------------------------------------------------------------------------	*/
+/* SetMV 																	*/
+/*	Sets "indexvar" variable inside of MV array at "indexmv" to "value."	*/
+/*------------------------------------------------------------------------	*/
+
+void SetMV(int indexmv, int indexvar, int value);
+
+/*------------------------------------------------------------------------	*/
+/* GetMV 																	*/
+/*	Gets "indexvar" variable inside of MV array at "indexmv."				*/
+/*------------------------------------------------------------------------	*/
+
+int GetMV(int indexmv, int indexvar);
+
+/*------------------------------------------------------------------------	*/
+/* DestroyMV 																*/
+/*	Deletes MV Variable array at "indexmv"									*/
+/*------------------------------------------------------------------------	*/
+
+void DestroyMV(int indexmv);
 
 #endif /* IN_ASM */
 

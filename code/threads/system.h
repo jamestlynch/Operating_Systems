@@ -56,25 +56,6 @@ class ServerLock {
         int mailbox;
     };
 
-class ServerCV {
-    public:
-        ServerCV(char *name, int netname, int mailbox);
-        char * servercvName;
-        std::queue<Mail*> sleepqueue;
-        int lockUsed;
-        bool toDelete;
-        int state;
-        int mailbox;
-    };
-// class Message{
-//     public:
-//         Message(PacketHeader packet, MailHeader mail, char* msg);
-//         PacketHeader *packetheader;
-//         MailHeader *mailheader;
-//         char* message;
-// };
-// create server lock vector
-
 
 #ifdef USER_PROGRAM
 
@@ -173,8 +154,7 @@ class ServerCV {
 	extern PostOffice* postOffice;
     extern vector<int> mvs;
     extern vector<ServerLock*> slocks;
-    extern vector<ServerCV*> sconditions;
-
+    
 #endif
 
 #endif // SYSTEM_H
