@@ -272,7 +272,7 @@ AddrSpace::~AddrSpace()
 
 void AddrSpace::LoadIntoMemory(int vpn, int ppn)
 {
-    DEBUG('p', "LoadIntoMemory: CurrentThread = %s\n, VPN = %d", currentThread->getName(), vpn);
+    /*DEBUG('p', "LoadIntoMemory: CurrentThread = %s\n, VPN = %d", currentThread->getName(), vpn);*/
 
     pageTableLock->Acquire();
     if (pageTable[vpn].swapped)
@@ -335,7 +335,7 @@ void AddrSpace::LoadIntoMemory(int vpn, int ppn)
 
 void AddrSpace::RemoveFromMemory(int vpn, int ppn)
 {
-    DEBUG('p', "RemoveFromMemory: CurrentThread = %s\n", currentThread->getName());
+    /*DEBUG('p', "RemoveFromMemory: CurrentThread = %s\n", currentThread->getName());*/
 
     pageTableLock->Acquire();
     if(ipt[ppn].dirty)
@@ -417,7 +417,7 @@ void AddrSpace::SaveState()
     
     // The dirty bit tells us if memory has been written do during its time 
     // in TLB. If it has been, then we need to propogate to the IPT.
-    memLock->Acquire();
+    //memLock->Acquire();
     for (tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
     {
         if (machine->tlb[tlbEntry].valid)
@@ -428,7 +428,7 @@ void AddrSpace::SaveState()
 
         machine->tlb[tlbEntry].valid = false;
     }
-    memLock->Release();
+    //memLock->Release();
     (void) interrupt->SetLevel(oldLevel); // Restore interrupts
 }
 
@@ -527,12 +527,13 @@ void AddrSpace::ReclaimStack(int stackPage)
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
     // (2) Clear physical memory so it can be reused
-    pageTableLock->Acquire();
+    //pageTableLock->Acquire();
+    //memLock->Acquire();
     for (vpn = stackPage; vpn < stackPage + divRoundUp(UserStackSize, PageSize); vpn++)
     {
         if(pageTable[vpn].valid)
         {
-            memLock->Acquire();
+            
             ipt[pageTable[vpn].physicalPage].valid = false;
             for(tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
             {
@@ -543,7 +544,7 @@ void AddrSpace::ReclaimStack(int stackPage)
             }
 
             memBitMap->Clear(pageTable[vpn].physicalPage);
-            memLock->Release();
+            
         }
 
         // check swap file
@@ -561,7 +562,8 @@ void AddrSpace::ReclaimStack(int stackPage)
         pageTable[vpn].dirty = false;
         pageTable[vpn].use = false;
     }
-    pageTableLock->Release();   
+    //memLock->Release();
+    //pageTableLock->Release();   
 
     interrupt->SetLevel(oldLevel); // Restore interrupts
 }
@@ -587,12 +589,13 @@ void AddrSpace::ReclaimPageTable()
     // if the lock is already acquired and we disable interrupts we will get DeadLock
 
     // (2) Clear physical memory so it can be reused
-    pageTableLock->Acquire();
+    //pageTableLock->Acquire();
+    //memLock->Acquire();
     for(vpn = 0; vpn < numPages; vpn++)
     {
         if(pageTable[vpn].valid)
         {
-            memLock->Acquire();
+            
             ipt[pageTable[vpn].physicalPage].valid = false;
             for(tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
             {
@@ -603,7 +606,7 @@ void AddrSpace::ReclaimPageTable()
             }
 
             memBitMap->Clear(pageTable[vpn].physicalPage);
-            memLock->Release();
+            
         }
 
         if(pageTable[vpn].swapped)
@@ -620,7 +623,8 @@ void AddrSpace::ReclaimPageTable()
         pageTable[vpn].dirty = false;
         pageTable[vpn].use = false; 
     }
-    pageTableLock->Release();
+    //memLock->Release();
+    //pageTableLock->Release();
 
     interrupt->SetLevel(oldLevel); // Restore interrupts
 

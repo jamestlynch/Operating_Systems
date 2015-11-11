@@ -1479,6 +1479,7 @@ void PageFault_Handler(unsigned int vaddr)
     // (1) Get Virtual Page from bad vaddr
     int vpn = vaddr / PageSize;
 
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     // (2) Find entry in Main Memory
     int ppn = -1;
     memLock->Acquire();
@@ -1491,7 +1492,7 @@ void PageFault_Handler(unsigned int vaddr)
             break;
         }
     }
-    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
+    
 
     // (3) Handle not in Main Memory
     if (ppn == -1)
