@@ -7,7 +7,6 @@ void ClientTest(){
 	indexcheck1= CreateLock("abc", 3);
 	indexcheck2= AcquireLock(indexcheck1);
 
-	Write("Client test index: %d \n",indexcheck1, 1);
 }
 
 void MVTest()
