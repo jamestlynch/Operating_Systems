@@ -24,7 +24,24 @@
 #include "interrupt.h"
 #include <sstream>
 #include <queue>
+using namespace std;
 
+
+struct MonitorVariable
+{
+    string name;
+    int *values;
+    unsigned int size;
+
+    MonitorVariable(string id, unsigned int arraysize)
+    {
+        name = id;
+        size = arraysize;
+        values = new int[arraysize];
+    }
+};
+
+vector<MonitorVariable*> monitorvariables;
 
 // Test out message delivery, by doing the following:
 //	1. send a message to the machine with ID "farAddr", at mail box #0
@@ -67,21 +84,21 @@ int dovalidatelockindex(int index, PacketHeader inPktHdr)
 
     return 0;
 }
-void doCreateLock(char* name, PacketHeader inPktHdr){
-    ServerLock *sl= new ServerLock(name);
-    sl->machineID= inPktHdr.from;
-    sl->state= 0; //free
-    printf("create lock name: %s\n", name);
-    slocks.push_back(sl);
-}
-void doAcquireLock(int indexlock, PacketHeader inPktHdr){
-    if (slocks.at(indexlock)->state == 1){ //lock is valid but busy so go on wait queue
-            slocks.at(indexlock)->waitqueue.push((char*)inPktHdr.from); //(void*)inPktHdr.from)
-        }
-    else { // lock is valid and available so get the lock
-            slocks.at(indexlock)->state = 1;
-        }
-}
+// void doCreateLock(char* name, PacketHeader inPktHdr){
+//     ServerLock *sl= new ServerLock(name);
+//     sl->machineID= inPktHdr.from;
+//     sl->state= 0; //free
+//     printf("create lock name: %s\n", name);
+//     slocks.push_back(sl);
+// }
+// void doAcquireLock(int indexlock, PacketHeader inPktHdr){
+//     if (slocks.at(indexlock)->state == 1){ //lock is valid but busy so go on wait queue
+//             slocks.at(indexlock)->waitqueue.push((char*)inPktHdr.from); //(void*)inPktHdr.from)
+//         }
+//     else { // lock is valid and available so get the lock
+//             slocks.at(indexlock)->state = 1;
+//         }
+// }
 void doReleaseLock(int indexlock, PacketHeader inPktHdr){
         //check that the machineID trying to release the lock is the correct machine
         //id that owns the lock
@@ -150,15 +167,15 @@ int dovalidatecvindeces(int indexcv, int indexlock, PacketHeader inPktHdr)
 
     return 0;
 }
-void doCreateCV(char* name, PacketHeader inPktHdr){
+// void doCreateCV(char* name, PacketHeader inPktHdr){
 
-    ServerCV *sc= new ServerCV(name);
-    printf("create server name: %s\n", name);
-    //sc->machineID= inPktHdr.from;
-    sc->waitqueue= new List();
-    sc->state= 0; //free
-    sconditions.push_back(sc);
-}
+//     ServerCV *sc= new ServerCV(name);
+//     printf("create server name: %s\n", name);
+//     //sc->machineID= inPktHdr.from;
+//     sc->waitqueue= new List();
+//     sc->state= 0; //free
+//     sconditions.push_back(sc);
+// }
 void doWaitCV(int indexlock, int indexcv){
 
 }
@@ -171,82 +188,218 @@ void doBroadcastCV(int indexlock, int indexcv){
 void doDestroyCV(int indexlock, int indexcv){
 
 }
-void Server(){
-    
-    stringstream ss;
+
+void CreateMV(string mvname, int mvsize, int machineID, int mailboxID)
+{
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
 
-    char buffer[MaxMailSize];
+    outPktHdr.to = machineID; // Server Machine ID
+    outMailHdr.to = mailboxID; // Server Machine ID
+    outMailHdr.from = 0; // Client Mailbox ID
 
-    while (true){
-        printf("Server is started. waiting for message.\n");
-        postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
-        printf("Got \"%s\" from %d, box %d\n",buffer,inPktHdr.from,inMailHdr.from);
+    // Create the message
+    std::stringstream ss;
+
+    // Validate input
+    if (mvsize <= 0)
+    {
+        ss << "400 CM" << " " << "-1";
+    }
+    else
+    {
+        MonitorVariable *mv = new MonitorVariable(mvname, mvsize);
+        monitorvariables.push_back(mv);
+        ss << "201 CM" << " " << monitorvariables.size() - 1;
+    }
+
+    char *message = (char *) ss.str().c_str();
+    outMailHdr.length = strlen(message) + 1;
+
+    DEBUG('n', "Server Sending Message to %d: %s\n", outPktHdr.to, message);
+
+    // Send request
+    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
+    if (!success)
+    {
+        printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+        interrupt->Halt();
+    }
+}
+
+void SetMV(unsigned int indexmv, unsigned int indexvar, int value, int machineID, int mailboxID)
+{
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+
+    outPktHdr.to = machineID; // Server Machine ID
+    outMailHdr.to = mailboxID; // Server Machine ID
+    outMailHdr.from = 0; // Client Mailbox ID
+
+    // Create the message
+    std::stringstream ss;
+
+    // Validate input
+    if (indexmv >= monitorvariables.size())
+    {
+        ss << "400 SM";
+    }
+
+    MonitorVariable *mv = monitorvariables.at(indexmv);
+
+    if (indexvar >= mv->size)
+    {
+        ss << "400 SM";
+    }
+    else if (indexmv < monitorvariables.size() && indexvar < mv->size)
+    {
+        mv->values[indexvar] = value;
+        ss << "200 SM";
+    }
+
+    char *message = (char *) ss.str().c_str();
+    outMailHdr.length = strlen(message) + 1;
+
+    DEBUG('n', "Server Sending Message to %d: %s\n", outPktHdr.to, message);
+
+    // Send request
+    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
+    if (!success)
+    {
+        printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+        interrupt->Halt();
+    }
+}
+
+void GetMV(unsigned int indexmv, unsigned int indexvar, int machineID, int mailboxID)
+{
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+
+    outPktHdr.to = machineID; // Server Machine ID
+    outMailHdr.to = mailboxID; // Server Machine ID
+    outMailHdr.from = 0; // Client Mailbox ID
+
+    // Create the message
+    std::stringstream ss;
+
+    // Validate input
+    if (indexmv >= monitorvariables.size())
+    {
+        ss << "400" << " " << "GM" << " " << "-1";
+    }
+
+    MonitorVariable *mv = monitorvariables.at(indexmv);
+
+    if (indexvar >= mv->size)
+    {
+        ss << "400" << " " << "GM" << " " << "-1";
+    }
+    else if (indexmv < monitorvariables.size() && indexvar < mv->size)
+    {
+        ss << "200" << " " << "GM" << " " << mv->values[indexvar];
+    }
+
+    char *message = (char *) ss.str().c_str();
+    outMailHdr.length = strlen(message) + 1;
+
+    DEBUG('n', "Server Sending Message to %d: %s\n", outPktHdr.to, message);
+
+    // Send request
+    bool success = postOffice->Send(outPktHdr, outMailHdr, message);
+    if (!success)
+    {
+        printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+        interrupt->Halt();
+    }
+}
+
+//========================================================================================================================================
+//
+// Server
+//  Client machines send request, Server handles requests and sends responses.
+//
+//  See also:   exception.cc   client networked system calls
+//
+//========================================================================================================================================
+
+//----------------------------------------------------------------------
+// Server
+//  Handle Client requests by doing the following:
+//  (1) Parse message:
+//      (a) Determine which server method to call
+//      (b) Get corresponding input
+//  (2) Validate input
+//  (3) Call method
+//  (4) (If Machine does not need to wait for resource) Send response
+//----------------------------------------------------------------------
+
+void Server()
+{
+    PacketHeader outPktHdr, inPktHdr;
+    MailHeader outMailHdr, inMailHdr;
+    char request[MaxMailSize];
+
+    DEBUG('n', "Server is started.\n");
+
+    while (true)
+    {
+        DEBUG('n', "Waiting for message.\n");
+        postOffice->Receive(0, &inPktHdr, &inMailHdr, request); // Check Mailbox 0 until Message sent
+        DEBUG('n', "Received \"%s\" from %d, box %d\n", request, inPktHdr.from, inMailHdr.from);
+
+        // Clear stringstream to parse request
+        stringstream ss;
         fflush(stdout);
+        ss.str(request);
 
-
-        ss.str(buffer);
-
-        char* type= new char;
-        char *lockname= new char;
-        char *cvname= new char;
-        char* response="0";
+        char *requestType;
+        char *lockname = new char;
+        char *cvname = new char;
+        char *response = "0";
         int length, lockindex, cvindex;
         bool success;
-        ss >> type;
+        ss >> requestType;
 
-        //----------------------------------------------------------------------
-        // SERVER stuff
-        // get information passed from the client above. read it in and
-        // determine what syscall is being requested. then parse the rest
-        // of the request depending on the data it needs
-        // PARAMETERS:
-        // CREATE LOCK AND CREATE CV NEED: name
-        // DESTROY LOCK AND DESTORY CV NEED: index
-        // ACQUIRE / RELEASE NEED: indexlock
-        // WAIT / SIGNAL / BROADCAST NEED: indexcv and indexlock
-        // 
-        //----------------------------------------------------------------------
-       printf("Type of call: %s\n", type);
+        DEBUG('n', "Type of RPC: %s\n", requestType);
 
-    // (1) index to valid location
+        if (strcmp(requestType, "CL") == 0)
+        {
+            // char *lockname = new char;
+            // int length
 
-       if (strcmp(type, "CL") == 0)
+            // DEBUG('n', "Server received Create Lock request from client.\n");
+            // ss >> lockname;
+            // ss >> length;
+            // if (length <= 0)
+            // {
+            //     printf("%s","Length for locks's identifier name must be nonzero and positive\n");
+            //     response = "-1";
+            //     break;
+            // }
+            // else
+            // {
+            // doCreateLock(lockname, inPktHdr);
+            // printf("After creating the lock\n");
+
+            // }
+        }
+        else if (strcmp(requestType, "AL") == 0) //need to pass index
              {
-                printf("Server received Create Lock request from client.\n");
-                ss >> lockname;
-                ss >> length;
-                if (length <= 0)
-                {
-                    printf("%s","Length for locks's identifier name must be nonzero and positive\n");
-                    response="-1";
-                    break;
-                }
-                else{
-                //printf("lockname is: %d", lockname);
-                printf(inPktHdr.from);
-                doCreateLock(lockname, inPktHdr);
-                printf("After creating the lock\n");
-        
-                }
+                // printf("Server received Acquire Lock request from client.\n");
+                // ss >> lockindex;
+                // int size = slocks.size();
+                // if (dovalidatelockindex(lockindex, inPktHdr)==-1){
+                //     printf("%s","acquire lock: lock index invalid or wrong machine.\n");
+                //     response="-1";
+                //     break;
+                // }
+                // else{
+                //     doAcquireLock(lockindex, inPktHdr);
+                //     printf("After acquiring the lock\n");
+                // }
             }
-        else if (strcmp(type, "AL") == 0) //need to pass index
-             {
-                printf("Server received Acquire Lock request from client.\n");
-                ss >> lockindex;
-                int size = slocks.size();
-                if (dovalidatelockindex(lockindex, inPktHdr)==-1){
-                    printf("%s","acquire lock: lock index invalid or wrong machine.\n");
-                    response="-1";
-                    break;
-                }
-                else{
-                    doAcquireLock(lockindex, inPktHdr);
-                    printf("After acquiring the lock\n");
-                }
-            }
-        else if (strcmp(type, "RL") == 0) //need to pass index
+        else if (strcmp(requestType, "RL") == 0) //need to pass index
              {
                 printf("Server received Release Lock request from client.\n");
                 ss >> lockindex;
@@ -263,7 +416,7 @@ void Server(){
                     printf("After creating the lock\n");
                 }
             }
-        else if (strcmp(type, "DL") == 0)
+        else if (strcmp(requestType, "DL") == 0)
              {
                 printf("Server received Destroy Lock request from client.\n");
                 ss >> lockindex;
@@ -280,70 +433,86 @@ void Server(){
         
                 }
             }
-        else if (strcmp(type, "CC") == 0)
+        else if (strcmp(requestType, "CC") == 0)
              {
-                printf("Server received Create Condition request from client.\n");
+                // printf("Server received Create Condition request from client.\n");
                 
-                ss >> cvname;
-                ss >> length;
-                int locksize = sconditions.size();
-                if (length <= 0)
-                {
-                    printf("%s","Length for cv's identifier name must be nonzero and positive\n");
-                    response="-1";
-                    //bigServerCV->Release();
-                    break;
-                }
-                else{
-                //printf("lockname is: %d", lockname);
-                doCreateCV(lockname, inPktHdr);
-                printf("After creating the cv\n");
-                }
+                // ss >> cvname;
+                // ss >> length;
+                // int locksize = sconditions.size();
+                // if (length <= 0)
+                // {
+                //     printf("%s","Length for cv's identifier name must be nonzero and positive\n");
+                //     response="-1";
+                //     //bigServerCV->Release();
+                //     break;
+                // }
+                // else{
+                // //printf("lockname is: %d", lockname);
+                // doCreateCV(lockname, inPktHdr);
+                // printf("After creating the cv\n");
+                // }
             }
-        else if (strcmp(type, "WC") == 0)
+        else if (strcmp(requestType, "WC") == 0)
              {
                 printf("Inside if else statement\n");
         
             }
-        else if (strcmp(type, "SC") == 0)
+        else if (strcmp(requestType, "SC") == 0)
              {
                 printf("Inside if else statement\n");
         
             }
-        else if (strcmp(type, "BC") == 0)
+        else if (strcmp(requestType, "BC") == 0)
              {
                 printf("Inside if else statement\n");
         
             }
-        else if (strcmp(type, "DC") == 0)
+        else if (strcmp(requestType, "DC") == 0)
              {
                 printf("Inside if else statement\n");
         
             }
-        if(outPktHdr.to != -1) 
-            {
-                outPktHdr.to = 1;
-                outPktHdr.from= 0;      
-                outMailHdr.to = 0;
-                outMailHdr.from = 0;
-                
-                printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
-                outMailHdr.length = strlen(response) + 1;
-                printf("Sending packet.\n");
-                printf("Response: %s", response);
-                //  printf("Data: %s, outPktHdr.to: %d, outMailHrd.to: %d, outPktHdr.from: %d, outMailHdr.length: %d \n", data, outPktHdr.to,outMailHdr.to, outPktHdr.from, outMailHdr.length);
-                success = postOffice->Send(outPktHdr, outMailHdr, response);
-                printf("Sent packet\n");
-                if(!success){
-                    printf("postOffice send failed. Terminating...\n");
-                    interrupt->Halt();
-                }
-        
-            }
+        else if (strcmp(requestType, "CM") == 0)
+        {
+            string mvname;
+            int mvsize;
+
+            ss >> mvname >> mvsize;
+
+            CreateMV(mvname, mvsize, inPktHdr.from, inMailHdr.from);
+        }
+        else if (strcmp(requestType, "SM") == 0)
+        {
+            unsigned int indexmv, indexvar;
+            int value;
+
+            ss >> indexmv >> indexvar >> value;
+
+            SetMV(indexmv, indexvar, value, inPktHdr.from, inMailHdr.from);
+        }
+        else if (strcmp(requestType, "GM") == 0)
+        {
+            unsigned int indexmv, indexvar;
+
+            ss >> indexmv >> indexvar;
+
+            GetMV(indexmv, indexvar, inPktHdr.from, inMailHdr.from);
         }
     }
-void
-MailTest(int farAddr)
+}
+
+
+
+
+//========================================================================================================================================
+//
+// MailTest
+//  Tests simple message passing between a Client and Server Machine
+//
+//========================================================================================================================================
+
+void MailTest(int farAddr)
 {
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
