@@ -267,17 +267,17 @@ PostOffice::Send(PacketHeader pktHdr, MailHeader mailHdr, char* data)
     char* buffer = new char[MaxPacketSize];	// space to hold concatenated
 						// mailHdr + data
 
-    if (DebugIsEnabled('n')) {
-	printf("Post send: ");
-	PrintHeader(pktHdr, mailHdr);
-    }
-
     ASSERT(mailHdr.length <= MaxMailSize);
     ASSERT(0 <= mailHdr.to && mailHdr.to < numBoxes);
     
     // fill in pktHdr, for the Network layer
     pktHdr.from = netAddr;
     pktHdr.length = mailHdr.length + sizeof(MailHeader);
+
+    if (DebugIsEnabled('n')) {
+    printf("Post send: ");
+    PrintHeader(pktHdr, mailHdr);
+    }
 
     // concatenate MailHeader and data
     bcopy((char *) &mailHdr, buffer, sizeof(MailHeader));
