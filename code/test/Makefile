@@ -31,7 +31,7 @@ CPP = $(GCCDIR)cpp
 INCDIR =-I../userprog -I../threads
 CFLAGS = -G 0 -c $(INCDIR)
 
-all: halt matmult sort testfiles locktest clientTest
+all: halt matmult sort testfiles locktest clientTest1 clientTest2 clientTest3
 
 start.o: start.s ../userprog/syscall.h
 	$(CPP) $(CPPFLAGS) start.s > strt.s
@@ -134,11 +134,25 @@ execTest: execTest.o start.o
 	$(LD) $(LDFLAGS) start.o execTest.o -o execTest.coff
 	../bin/coff2noff execTest.coff execTest
 
-clientTest.o: clientTest.c
-	$(CC) $(CFLAGS) -c clientTest.c
-clientTest: clientTest.o start.o
-	$(LD) $(LDFLAGS) start.o clientTest.o -o clientTest.coff
-	../bin/coff2noff clientTest.coff clientTest
+clientTest1.o: clientTest1.c
+	$(CC) $(CFLAGS) -c clientTest1.c
+clientTest1: clientTest1.o start.o
+	$(LD) $(LDFLAGS) start.o clientTest1.o -o clientTest1.coff
+	../bin/coff2noff clientTest1.coff clientTest1
+
+clientTest2.o: clientTest2.c
+	$(CC) $(CFLAGS) -c clientTest2.c
+clientTest2: clientTest2.o start.o
+	$(LD) $(LDFLAGS) start.o clientTest2.o -o clientTest2.coff
+	../bin/coff2noff clientTest2.coff clientTest2
+
+clientTest3.o: clientTest3.c
+	$(CC) $(CFLAGS) -c clientTest3.c
+clientTest3: clientTest3.o start.o
+	$(LD) $(LDFLAGS) start.o clientTest3.o -o clientTest3.coff
+	../bin/coff2noff clientTest3.coff clientTest3
+
+
 
 
 

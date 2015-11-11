@@ -536,8 +536,11 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     char *buffer= new char;
 
     outPktHdr.to = 0;  //machine id of server
+    outPktHdr.from= 1;
     outMailHdr.to = 0; //mailbox to
-    outMailHdr.from = 1; //mailbox from
+    outMailHdr.from = 0; //mailbox from
+
+
 
   std::stringstream temp;
   temp << "CL " << buf << " " << len;
@@ -643,9 +646,9 @@ int AcquireLock_Syscall(int indexlock)
     char *buffer= new char;
 
     outPktHdr.to = 0;  //machine id of server
+    outPktHdr.from= 1;
     outMailHdr.to = 0; //mailbox to
-    outPktHdr.from = 1;  //machine id of server
-    outMailHdr.from = 1; //mailbox from
+    outMailHdr.from = 0; //mailbox from
 
   std::stringstream temp;
   temp << "AL " << indexlock;
