@@ -27,7 +27,7 @@ void MVTest()
 	}
 	else
 	{
-		PrintfOne("Passed [CreateAndUpdateMV]");
+		Write("Passed [CreateAndUpdateMV]", sizeof("Passed [CreateAndUpdateMV]"), 1);
 	}
 }
 
