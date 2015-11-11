@@ -1380,6 +1380,8 @@ int MemoryFull_Handler()
         }   
     }
 
+    DEBUG('p', "Removing page from Memory:\n\tppn\t%d\n\tvpn\t%d\n", ppn, ipt[ppn].virtualPage);
+
     ipt[ppn].space->RemoveFromMemory(ipt[ppn].virtualPage, ppn);
 
     return ppn;

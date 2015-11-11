@@ -269,12 +269,13 @@ AddrSpace::~AddrSpace()
 
 void AddrSpace::LoadIntoMemory(int vpn, int ppn)
 {
-    DEBUG('p', "LoadIntoMemory: CurrentThread = %s\n, VPN = %d", currentThread->getName(), vpn);
+    DEBUG('p', "LoadIntoMemory: CurrentThread = %s, VPN = %d\n", 
+        currentThread->getName(), vpn);
 
     if (pageTable[vpn].swapped)
     {
-        DEBUG('p', "LoadFromSwap: Load vaddr %d into Main Memory:\n \t\n \tvpn\t%d\n \tppn\t%d\n \toffset\t%d\n" ,
-                    (vpn * PageSize), vpn, ppn, pageTable[vpn].offset);
+        DEBUG('p', "LoadFromSwap: Load vaddr %d into Main Memory:\n\tvpn\t%d\n \tppn\t%d\n \toffset\t%d\n",
+            (vpn * PageSize), vpn, ppn, pageTable[vpn].offset);
 
         // TODO: Load from Swap file
         // (2) Load from Swap File into Main Memory
@@ -286,12 +287,11 @@ void AddrSpace::LoadIntoMemory(int vpn, int ppn)
         swapBitMap->Clear(pageTable[vpn].offset / PageSize);
         pageTable[vpn].swapped = false;
         pageTable[vpn].offset = -1;
-
     }
     else if (pageTable[vpn].offset != -1)
     {
-        DEBUG('p', "LoadFromExecutable: Load vaddr %d into Main Memory:\n \t\n \tvpn\t%d\n \tppn\t%d\n \toffset\t%d\n" ,
-                    (vpn * PageSize), vpn, ppn, pageTable[vpn].offset);
+        DEBUG('p', "LoadFromExecutable: Load vaddr %d into Main Memory:\n\tvpn\t%d\n \tppn\t%d\n \toffset\t%d\n" ,
+            (vpn * PageSize), vpn, ppn, pageTable[vpn].offset);
 
         executable->ReadAt(
              &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
