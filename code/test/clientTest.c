@@ -20,14 +20,14 @@ void MVTest()
 
 	if (mvvalue != 4)
 	{
-		PrintfOne("Failed [CreateAndUpdateMV] MV[0] should equal 4. Instead, equals %d",
-			sizeof("Failed [CreateAndUpdateMV] MV[0] should equal 4. Instead, equals %d"),
+		PrintfOne("Failed [CreateAndUpdateMV] MV[0] should equal 4. Instead, MV[0] = %d\n", 
+			sizeof("Failed [CreateAndUpdateMV] MV[0] should equal 4. Instead, MV[0] = %d\n"), 
 			mvvalue);
 		Halt();
 	}
 	else
 	{
-		Write("Passed [CreateAndUpdateMV]", sizeof("Passed [CreateAndUpdateMV]"), 1);
+		Write("Passed [CreateAndUpdateMV]\n", sizeof("Passed [CreateAndUpdateMV]\n"), 1);
 	}
 }
 
