@@ -330,7 +330,7 @@ int CreateMV(char *id, int idlength, int arraysize);
 /*	Sets "indexvar" variable inside of MV array at "indexmv" to "value."	*/
 /*------------------------------------------------------------------------	*/
 
-int SetMV(int indexmv, int indexvar, int value);
+void SetMV(int indexmv, int indexvar, int value);
 
 /*------------------------------------------------------------------------	*/
 /* GetMV 																	*/
@@ -344,7 +344,7 @@ int GetMV(int indexmv, int indexvar);
 /*	Deletes MV Variable array at "indexmv"									*/
 /*------------------------------------------------------------------------	*/
 
-int DestroyMV(int indexmv);
+void DestroyMV(int indexmv);
 
 #endif /* IN_ASM */
 
