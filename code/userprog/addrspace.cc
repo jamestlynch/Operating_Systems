@@ -191,7 +191,6 @@ static void SwapHeader (NoffHeader *noffH)
 
 AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles) 
 {
-    printf("Inside constructor");
     executable = executableFile; //openfile pointer
 
     NoffHeader noffH;
