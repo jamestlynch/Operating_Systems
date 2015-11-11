@@ -52,7 +52,6 @@ int tlbCounter;
     Lock *processLock;
     Lock *conditionsLock;
     Lock *locksLock;
-    
 
     bool isFIFO;
 

@@ -53,6 +53,7 @@ class AddrSpace {
 
     private:
         PageTableEntry *pageTable;
+        Lock *pageTableLock;
 
         unsigned int numPages;		// Number of pages in the virtual 
         				// address space

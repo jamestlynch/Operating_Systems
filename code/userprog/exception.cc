@@ -72,6 +72,7 @@ int copyin(unsigned int vaddr, int len, char *buf)
         while(!result) // FALL 09 CHANGES
         {
            result = machine->ReadMem( vaddr, 1, paddr ); // FALL 09 CHANGES: TO HANDLE PAGE FAULT IN THE ReadMem SYS CALL
+
         }
 
         buf[bytes++] = *paddr; // Update value of buffer to byte read from vaddr (per loop)
@@ -231,7 +232,7 @@ void Write_Syscall(unsigned int vaddr, int len, int id) {
     // Translation failed; else string copied into buf (!= -1)
     if (copyin(vaddr,len,buf) == -1)
     {
-        printf("%s","Bad pointer passed to to write: data not written\n");
+        printf("%s","Bad pointer passed to write: data not written\n");
         delete[] buf;
         return;
     }
@@ -730,11 +731,20 @@ int AcquireLock_Syscall(int indexlock)
     // Don't allow threads to Acquire Locks that have been flagged for deletion
     if (locks.at(indexlock)->toDelete)
     {
-        printf("Cannot acquire lock because it's been marked for deletion.");
+        printf("Cannot acquire lock because it's been marked for deletion.\n");
         return -1;
     }
 
-    // May go to sleep inside Acquire
+    // TODO: CHECK IF BUSY
+    /*if(!locks.at(indexlock)->lock->isAbleToDelete() && !locks.at(indexlock)->lock->isHeldByCurrentThread())
+    {
+        // May go to sleep inside Acquire
+        processLock->Acquire(); // Synchronize process info (interrupts enabled)
+        processInfo.at(currentThread->processID)->numExecutingThreads--;
+        processInfo.at(currentThread->processID)->numSleepingThreads++;
+        processLock->Release();
+    }*/
+
     processLock->Acquire(); // Synchronize process info (interrupts enabled)
     processInfo.at(currentThread->processID)->numExecutingThreads--;
     processInfo.at(currentThread->processID)->numSleepingThreads++;
@@ -836,7 +846,18 @@ int ReleaseLock_Syscall(int indexlock)
     }
 
     KernelLock * currentKernelLock = locks.at(indexlock);
+    bool isHeldByCurrentThread = currentKernelLock->lock->isHeldByCurrentThread();
+
     currentKernelLock->lock->Release();
+
+    /*if(!currentKernelLock->lock->isAbleToDelete() && isHeldByCurrentThread)
+    {
+        // Made it out alive, correct numExecutingThreads
+        processLock->Acquire();
+        processInfo.at(currentThread->processID)->numExecutingThreads++;
+        processInfo.at(currentThread->processID)->numSleepingThreads--;
+        processLock->Release();
+    }*/
 
     // Lock is set to delete and it is free, with no waiting threads: Delete Lock.
     if (currentKernelLock->toDelete && currentKernelLock->lock->isAbleToDelete())
@@ -1126,6 +1147,7 @@ int Wait_Syscall(int indexcv, int indexlock)
         return -1;
     }
 
+    // TODO: CHECK IF BUSY
     // Going to sleep inside Wait, keep process table consistent for Exit
     processLock->Acquire();
     processInfo.at(currentThread->processID)->numExecutingThreads--;
@@ -1198,6 +1220,7 @@ int Signal_Syscall(int indexcv, int indexlock)
         return -1;
     }
 
+    // TODO: RESET NUMEXECUTINGTHREADS
     KernelCV * curKernelCV = conditions.at(indexcv);
     curKernelCV->condition->Signal(locks.at(indexlock)->lock);
 
@@ -1248,8 +1271,13 @@ int Broadcast_Syscall(int indexcv, int indexlock)
         return -1;
     }
 
+
+
+    // TODO: RESET NUMEXECUTINGTHREADS
     KernelCV * curKernelCV = conditions.at(indexcv);
     curKernelCV->condition->Broadcast(locks.at(indexlock)->lock);
+
+
 
     // Just woke up any waiting threads. If marked for deletion, now delete.
     if (curKernelCV->toDelete)
@@ -1534,9 +1562,10 @@ void Yield_Syscall()
 void Exit_Syscall(int status)
 {
     printf("Exit: %d\n", status);
-    printf("File Length: %d\n", swapFile->Length());
-    currentThread->Yield(); // Stop executing thread
+
+    //currentThread->Yield(); // Stop executing thread
     processLock->Acquire();
+    //printf("ProcessID: %d\n", currentThread->processID);
 
     // Other threads running in process: 
     //  (1) Reclaim its stack
@@ -1606,6 +1635,7 @@ void Exit_Syscall(int status)
     printf("Thread is last in process and this is last process. Nachos halting.\n");
     processLock->Release();
 
+
     interrupt->Halt();
 }
 
@@ -1624,7 +1654,6 @@ void runforkedthread(int vaddr)
     // Start thread at passed-in function
     machine->WriteRegister(PCReg, vaddr);
     machine->WriteRegister(NextPCReg, vaddr + 4);
-
     // New PageTable = Old PageTable + 8 pages for new stack
     // Stack starts at bottom of PageTable; Must be 16 bytes above bottom 
     //  of page to avoid overwriting code space of next process 
@@ -1633,9 +1662,14 @@ void runforkedthread(int vaddr)
 
     // Thread keeps track of stack's virtual address so it can translate
     // address and loads in stack on context switch.
+
     currentThread->stackPage = stackPage - divRoundUp(UserStackSize, PageSize);
 
     machine->WriteRegister(StackReg, stackAddr);
+    
+    printf("Spawning thread: %s", currentThread->getName());
+    printf("vAddr: %d, stackPage: %d, stackAddr: %d\n", vaddr, stackPage, stackAddr);
+
 
     machine->Run();
 }
@@ -1654,11 +1688,11 @@ void runforkedthread(int vaddr)
 
 void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
 {
+
     // Validate length is nonzero and positive
     if (len <= 0)
     {
         printf("%s","Length for thread's identifier name must be nonzero and positive\n");
-        processLock->Release();
         return;
     }
 
@@ -1668,7 +1702,6 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
     if (!buf)
     {
         printf("%s","Error allocating kernel buffer for creating new thread!\n");
-        processLock->Release();
         return;
     }
 
@@ -1676,20 +1709,24 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
     if (copyin(vaddr, len, buf) == -1)
     {
         printf("%s","Bad pointer passed to create new thread\n");
-        processLock->Release();
         delete[] buf;
         return;
     }
 
     buf[len] = '\0'; // Add null terminating character to thread name
 
+    processLock->Acquire();
+
     Process * p = processInfo.at(currentThread->processID);
     Thread * t = new Thread(buf);
+
+
 
     t->processID = p->processID;
     t->space = p->space;
 
     p->numExecutingThreads++;
+
 
     // Spawn new thread calling function, allocate thread stack, and let scheduler know thread is ready
     t->Fork((VoidFunctionPtr)runforkedthread, vFuncAddr);
@@ -1727,13 +1764,10 @@ void runnewprocess()
 
 void Exec_Syscall(int vaddr, int len)
 {
-    processLock->Acquire();
-
     // Validate length is nonzero and positive
     if (len <= 0)
     {
         printf("%s","Length for thread's identifier name must be nonzero and positive\n");
-        processLock->Release();
         return;
     }
 
@@ -1743,7 +1777,6 @@ void Exec_Syscall(int vaddr, int len)
     if (!buf)
     {
         printf("%s","Error allocating kernel buffer for creating new thread!\n");
-        processLock->Release();
         return;
     }
 
@@ -1751,12 +1784,13 @@ void Exec_Syscall(int vaddr, int len)
     if (copyin(vaddr, len, buf) == -1)
     {
         printf("%s","Bad pointer passed to create new thread\n");
-        processLock->Release();
         delete[] buf;
         return;
     }
 
     buf[len] = '\0'; // Add null terminating character to thread name
+
+    processLock->Acquire();
 
     // Create new process from Executable by loading into thread's AS
     OpenFile *executable = fileSystem->Open(buf);
@@ -1870,28 +1904,20 @@ int MemoryFull_Handler()
     //  Call eviction strategy based on flag passed into Nachos.
     ppn = GetPageToEvict();
 
-    if(ipt[ppn].valid)
-    {
-        if(ipt[ppn].space == currentThread->space)
-        {
-            for (tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
-            {
-                // Memory has been written to during its time in main memory,
-                // Now that we're discarding the memory we must write it back
-                // to disk.
-                if (machine->tlb[tlbEntry].physicalPage == ppn && machine->tlb[tlbEntry].valid)
-                {
-                    if (machine->tlb[tlbEntry].dirty)
-                    {
-                        ipt[ppn].dirty = true;
-                    }
-                    machine->tlb[tlbEntry].valid = false;
-                }   
-            }
-        }
 
-        ipt[ppn].space->RemoveFromMemory(ipt[ppn].virtualPage, ppn);
+    for (tlbEntry = 0; tlbEntry < TLBSize; tlbEntry++)
+    {
+        // Memory has been written to during its time in main memory,
+        // Now that we're discarding the memory we must write it back
+        // to disk.
+        if (machine->tlb[tlbEntry].physicalPage == ppn && machine->tlb[tlbEntry].valid)
+        {
+            ipt[ppn].dirty = machine->tlb[tlbEntry].dirty;
+            machine->tlb[tlbEntry].valid = false;
+        }   
     }
+
+    ipt[ppn].space->RemoveFromMemory(ipt[ppn].virtualPage, ppn);
 
     return ppn;
 }
@@ -1961,14 +1987,15 @@ int IPTMiss_Handler(int vpn)
 
 void PageFault_Handler(unsigned int vaddr)
 {
-    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
-
     // (1) Get Virtual Page from bad vaddr
     int vpn = vaddr / PageSize;
-    
+
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     // (2) Find entry in Main Memory
     int ppn = -1;
-    for (unsigned int i = 0; i < NumPhysPages; i++)
+
+    memLock->Acquire();
+    for (int i = 0; i < NumPhysPages; i++)
     {
         // Memory entry is valid, belongs to same Process and is for the same Virtual Page
         if (ipt[i].valid && ipt[i].virtualPage == vpn && ipt[i].space == currentThread->space)
@@ -1977,6 +2004,7 @@ void PageFault_Handler(unsigned int vaddr)
             break;
         }
     }
+    
 
     // (3) Handle not in Main Memory
     if (ppn == -1)
@@ -1990,9 +2018,9 @@ void PageFault_Handler(unsigned int vaddr)
     int evictEntry = tlbCounter % TLBSize;
 
     // (5) Propagate changes to Page Table
-    if (machine->tlb[evictEntry].valid && machine->tlb[evictEntry].dirty)
+    if (machine->tlb[evictEntry].valid)
     {
-        ipt[machine->tlb[evictEntry].physicalPage].dirty = true;
+        ipt[machine->tlb[evictEntry].physicalPage].dirty = machine->tlb[evictEntry].dirty;
     }
 
     DEBUG('p', "PageFault: Updating TLB[ %d ]:\n \tvaddr\t%d\n \tvpn\t%d\n \tppn\t%d\n",
@@ -2004,6 +2032,9 @@ void PageFault_Handler(unsigned int vaddr)
     machine->tlb[evictEntry].readOnly = ipt[ppn].readOnly;
     machine->tlb[evictEntry].use = ipt[ppn].use;
     machine->tlb[evictEntry].dirty = ipt[ppn].dirty; 
+
+
+    memLock->Release();
 
     interrupt->SetLevel(oldLevel); // Restore interrupts
 }
