@@ -22,6 +22,7 @@
 // of liability and disclaimer of warranty provisions.
 #include "copyright.h"
 #include "system.h"
+#include "network.h"
 #include "syscall.h"
 #include <stdio.h>
 #include <iostream>
@@ -128,17 +129,6 @@ int copyout(unsigned int vaddr, int len, char *buf) {
 //  "len" -- the length of the file name
 //----------------------------------------------------------------------
 
-/*bool SendtoServer(PacketHeader pktHdr, MailHeader mailHdr, char *data){
-  return true;
-}
-        // Send a message to a mailbox on a remote 
-        // machine.  The fromBox in the MailHeader is 
-        // the return box for ack's.
-    
-void ReceivefromServer(PacketHeader *pktHdr, MailHeader *mailHdr, char *data){
-
-}
-*/
 void Create_Syscall(unsigned int vaddr, int len) {
     char *buf = new char[len + 1]; // Kernel buffer to copy file name into
 
@@ -389,7 +379,7 @@ void PrintfOne_Syscall(unsigned int vaddr, int len, int num1)
     // Translation failed; else string copied into buf (!= -1)
     if (copyin(vaddr,len,buf) == -1) 
     {
-        printf("%s","Bad pointer passed to Create\n");
+        printf("%s","Bad pointer passed to PrintfOne\n");
         delete buf;
         return;
     }
@@ -429,7 +419,7 @@ void PrintfTwo_Syscall(unsigned int vaddr, int len, int num1, int num2)
     // Translation failed; else string copied into buf (!= -1)
     if (copyin(vaddr,len,buf) == -1) 
     {
-        printf("%s","Bad pointer passed to Create\n");
+        printf("%s","Bad pointer passed to PrintfTwo\n");
         delete buf;
         return;
     }
@@ -748,8 +738,6 @@ int ReleaseLock_Syscall(int indexlock)
 
     outPktHdr.to = 0;  //machine id of server
     outMailHdr.to = 0; //mailbox to
-    outPktHdr.from = netname;  //machine id of server
-    outMailHdr.from = 1; //mailbox from
 
     std::stringstream temp;
     temp << "RL " << indexlock;
@@ -1268,8 +1256,10 @@ int DestroyCV_Syscall(int indexcv)
 //  "mvsize" -- the size of the Monitor Variable array
 //----------------------------------------------------------------------
 
-int CreateMV(unsigned int vaddr, int idlength, int mvsize)
+int CreateMV_Syscall(unsigned int vaddr, int idlength, int mvsize)
 {
+#ifdef NETWORK
+
     // Validate length is nonzero and positive
     if (idlength <= 0)
     {
@@ -1307,8 +1297,7 @@ int CreateMV(unsigned int vaddr, int idlength, int mvsize)
 
     outPktHdr.to = 0; // Server Machine ID
     outMailHdr.to = 0; // Server Machine ID
-    outPktHdr.from = netname; // Client Machine ID
-    outMailHdr.from = netname; // Client Machine ID
+    outMailHdr.from = 0; // Client Mailbox ID
 
     // Create the message
     std::stringstream ss;
@@ -1339,6 +1328,7 @@ int CreateMV(unsigned int vaddr, int idlength, int mvsize)
     ss >> indexmv;
     
     return indexmv;
+#endif // NETWORK
 }
 
 //----------------------------------------------------------------------
@@ -1354,18 +1344,19 @@ int CreateMV(unsigned int vaddr, int idlength, int mvsize)
 
 void SetMV_Syscall(int indexmv, int indexvar, int value)
 {
+#ifdef NETWORK
     // Validate indeces are positive
     if (indexmv < 0)
     {
         printf("Invalid index for MV\n");
-        return -1;
+        return;
     }
 
     // Validate indeces are positive
     if (indexvar < 0)
     {
         printf("%s\n", "Invalid index inside of MV\n");
-        return -1;
+        return;
     }
 
     // Set message headers
@@ -1374,8 +1365,7 @@ void SetMV_Syscall(int indexmv, int indexvar, int value)
 
     outPktHdr.to = 0; // Server Machine ID
     outMailHdr.to = 0; // Server Machine ID
-    outPktHdr.from = netname; // Client Machine ID
-    outMailHdr.from = netname; // Client Machine ID
+    outMailHdr.from = 0; // Client Mailbox ID
 
     // Create the message
     std::stringstream ss;
@@ -1398,6 +1388,7 @@ void SetMV_Syscall(int indexmv, int indexvar, int value)
     postOffice->Receive(0, &inPktHdr, &inMailHdr, inMessage);
     
     return;
+#endif // NETWORK
 }
 
 //----------------------------------------------------------------------
@@ -1414,6 +1405,7 @@ void SetMV_Syscall(int indexmv, int indexvar, int value)
 
 int GetMV_Syscall(int indexmv, int indexvar)
 {
+#ifdef NETWORK
     // Validate indeces are positive
     if (indexmv < 0)
     {
@@ -1434,8 +1426,7 @@ int GetMV_Syscall(int indexmv, int indexvar)
 
     outPktHdr.to = 0; // Server Machine ID
     outMailHdr.to = 0; // Server Machine ID
-    outPktHdr.from = netname; // Client Machine ID
-    outMailHdr.from = netname; // Client Machine ID
+    outMailHdr.from = 0; // Client Mailbox ID
 
     // Create the message
     std::stringstream ss;
@@ -1466,6 +1457,7 @@ int GetMV_Syscall(int indexmv, int indexvar)
     ss >> value;
 
     return value;
+#endif // NETWORK
 }
 
 //----------------------------------------------------------------------
@@ -1479,11 +1471,12 @@ int GetMV_Syscall(int indexmv, int indexvar)
 
 void DestroyMV_Syscall(int indexmv)
 {
+#ifdef NETWORK
     // Validate indeces are positive
     if (indexmv < 0)
     {
         printf("Invalid index for MV\n");
-        return -1;
+        return;
     }
 
     // Set message headers
@@ -1492,8 +1485,7 @@ void DestroyMV_Syscall(int indexmv)
 
     outPktHdr.to = 0; // Server Machine ID
     outMailHdr.to = 0; // Server Machine ID
-    outPktHdr.from = netname; // Client Machine ID
-    outMailHdr.from = netname; // Client Machine ID
+    outMailHdr.from = 0; // Client Mailbox ID
 
     // Create the message
     std::stringstream ss;
@@ -1516,7 +1508,8 @@ void DestroyMV_Syscall(int indexmv)
     postOffice->Receive(0, &inPktHdr, &inMailHdr, inMessage);
 
     return;
-} 
+#endif // NETWORK
+}
 
 //----------------------------------------------------------------------
 // Yield_Syscall
