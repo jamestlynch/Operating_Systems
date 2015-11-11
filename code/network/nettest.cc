@@ -1,16 +1,16 @@
 // nettest.cc 
-//	Test out message delivery between two "Nachos" machines,
-//	using the Post Office to coordinate delivery.
+//  Test out message delivery between two "Nachos" machines,
+//  using the Post Office to coordinate delivery.
 //
-//	Two caveats:
-//	  1. Two copies of Nachos must be running, with machine ID's 0 and 1:
-//		./nachos -m 0 -o 1 &
-//		./nachos -m 1 -o 0 &
+//  Two caveats:
+//    1. Two copies of Nachos must be running, with machine ID's 0 and 1:
+//      ./nachos -m 0 -o 1 &
+//      ./nachos -m 1 -o 0 &
 //
-//	  2. You need an implementation of condition variables,
-//	     which is *not* provided as part of the baseline threads 
-//	     implementation.  The Post Office won't work without
-//	     a correct implementation of condition variables.
+//    2. You need an implementation of condition variables,
+//       which is *not* provided as part of the baseline threads 
+//       implementation.  The Post Office won't work without
+//       a correct implementation of condition variables.
 //
 // Copyright (c) 1992-1993 The Regents of the University of California.
 // All rights reserved.  See copyright.h for copyright notice and limitation 
@@ -27,13 +27,13 @@
 
 
 // Test out message delivery, by doing the following:
-//	1. send a message to the machine with ID "farAddr", at mail box #0
-//	2. wait for the other machine's message to arrive (in our mailbox #0)
-//	3. send an acknowledgment for the other machine's message
-//	4. wait for an acknowledgement from the other machine to our 
-//	    original message
+//  1. send a message to the machine with ID "farAddr", at mail box #0
+//  2. wait for the other machine's message to arrive (in our mailbox #0)
+//  3. send an acknowledgment for the other machine's message
+//  4. wait for an acknowledgement from the other machine to our 
+//      original 
 
-int dovalidatelockindex(int index, PacketHeader inPktHdr)
+int dovalidatelockindex(int index, PacketHeader inPktHdr, MailHeader inMailHdr)
 {
     // (1) Index corresponds to valid location
     if (index < 0)
@@ -67,45 +67,117 @@ int dovalidatelockindex(int index, PacketHeader inPktHdr)
 
     return 0;
 }
-void doCreateLock(char* name, PacketHeader inPktHdr){
-    ServerLock *sl= new ServerLock(name);
+void doCreateLock(char *name, PacketHeader inPktHdr, MailHeader inMailHdr){
+    char * response= "CLSUCCESS 0\n";
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = inPktHdr.from;   
+    outMailHdr.to = 0;
+    outMailHdr.from = 0;
+
+    outMailHdr.length = strlen(response) + 1;
+    printf("Response: %s", response);
+    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+
+    ServerLock *sl= new ServerLock(name, inPktHdr.from, 0);
     sl->machineID= inPktHdr.from;
+    sl->mailbox= inMailHdr.from;
     sl->state= 0; //free
-    printf("create lock name: %s\n", name);
     slocks.push_back(sl);
+    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", m->mailHdr.to, m->mailHdr.from, m->pktHdr.to, m->pktHdr.from);
+
+    bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
+    if(!success){
+        printf("postOffice send failed. Terminating...\n");
+        interrupt->Halt();
+        }
 }
-void doAcquireLock(int indexlock, PacketHeader inPktHdr){
+void doAcquireLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
+    char * response= "ALSUCCESS\n";
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = inPktHdr.from;   
+    outMailHdr.to = 0;
+    outMailHdr.from = 0;
+
+    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
+    outMailHdr.length = strlen(response) + 1;
+    printf("Response: %s", response);
+    Mail *m = new Mail(outPktHdr, outMailHdr, response);
     if (slocks.at(indexlock)->state == 1){ //lock is valid but busy so go on wait queue
-            slocks.at(indexlock)->waitqueue.push((char*)inPktHdr.from); //(void*)inPktHdr.from)
+            slocks.at(indexlock)->waitqueue.push(m);
         }
-    else { // lock is valid and available so get the lock
+    else {  // lock is valid and available so get the lock
+            printf("About to acquire the lock");
             slocks.at(indexlock)->state = 1;
+            bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
+            if(!success){
+                printf("postOffice send failed. Terminating...\n");
+                interrupt->Halt();
+            }
         }
 }
-void doReleaseLock(int indexlock, PacketHeader inPktHdr){
-        //check that the machineID trying to release the lock is the correct machine
-        //id that owns the lock
-        //slocks.at(indexlock)->waitqueue.pop_front();
-    if (!slocks.at(indexlock)){
-        printf("This lock index is null\n");
-    }
-    else if (!slocks.at(indexlock)->waitqueue.empty()){ // 
-        //slocks.at(indexlock)->waitqueue.pop_front((char*)inPktHdr.from);
+void doReleaseLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
+    char * response= "RLSUCCESS\n";
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = inPktHdr.from;   
+    outMailHdr.to =  0;
+    outMailHdr.from = 0;
+
+    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
+    outMailHdr.length = strlen(response) + 1;
+    printf("Response: %s", response);
+    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+
+    if (!slocks.at(indexlock)->waitqueue.empty() ){ // 
+            slocks.at(indexlock)->waitqueue.pop();
+
     }
     else{
         slocks.at(indexlock)->state = 0;
+        bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
+            if(!success){
+                printf("postOffice send failed. Terminating...\n");
+                interrupt->Halt();
+            }
     }
     
 }
-void doDestroyLock(int indexlock){
-        if(slocks.at(indexlock)->state == 0 ) // if lock is free and nobody is waiting
+void doDestroyLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
+    char * response= "DLSUCCESS\n";
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = inPktHdr.from;   
+    outMailHdr.to = 0;
+    outMailHdr.from = 0;
+
+    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
+    outMailHdr.length = strlen(response) + 1;
+    printf("Response: %s", response);
+    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+
+    ServerLock * sl = slocks.at(indexlock);
+
+        if(sl->state == 0 &&  sl->waitqueue.empty()) // if lock is free and nobody is waiting
          {
-            ServerLock * sl = slocks.at(indexlock);
             delete sl;
+            bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
+            if(!success){
+                printf("postOffice send failed. Terminating...\n");
+                interrupt->Halt();
+            }
+        }
+        else{
+            sl->toDelete=true;
         }
 
 }
-int dovalidatecvindeces(int indexcv, int indexlock, PacketHeader inPktHdr)
+int dovalidatecvindeces(int indexcv, int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr)
 {
     // (1) index to valid location
     if (indexcv < 0 || indexlock < 0)
@@ -150,48 +222,68 @@ int dovalidatecvindeces(int indexcv, int indexlock, PacketHeader inPktHdr)
 
     return 0;
 }
-void doCreateCV(char* name, PacketHeader inPktHdr){
+void doCreateCV(char* name, PacketHeader inPktHdr, MailHeader inMailHdr){
 
-    ServerCV *sc= new ServerCV(name);
-    printf("create server name: %s\n", name);
-    //sc->machineID= inPktHdr.from;
-    sc->waitqueue= new List();
+    char * response= "CCSUCCESS 0\n";
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = inPktHdr.from;   
+    outMailHdr.to = 0;
+    outMailHdr.from = 0;
+
+    outMailHdr.length = strlen(response) + 1;
+    printf("Response: %s", response);
+    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+
+    ServerCV *sc= new ServerCV(name, inPktHdr.from, 0);
+    sc->mailbox= inMailHdr.from;
     sc->state= 0; //free
     sconditions.push_back(sc);
+    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", m->mailHdr.to, m->mailHdr.from, m->pktHdr.to, m->pktHdr.from);
+
+    bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
+    if(!success){
+        printf("postOffice send failed. Terminating...\n");
+        interrupt->Halt();
+        }
 }
-void doWaitCV(int indexlock, int indexcv){
+void doWaitCV(int indexlock, int indexcv, PacketHeader inPktHdr, MailHeader inMailHdr){
 
 }
-void doSignalCV(int indexlock, int indexcv){
+void doSignalCV(int indexlock, int indexcv, PacketHeader inPktHdr, MailHeader inMailHdr){
 
 }
-void doBroadcastCV(int indexlock, int indexcv){
+void doBroadcastCV(int indexlock, int indexcv, PacketHeader inPktHdr, MailHeader inMailHdr){
 
 }
-void doDestroyCV(int indexlock, int indexcv){
+void doDestroyCV(int indexlock, int indexcv, PacketHeader inPktHdr, MailHeader inMailHdr){
 
 }
 void Server(){
     
-    stringstream ss;
+    
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
 
     char buffer[MaxMailSize];
 
+        
+        char *lockname= new char;
+        char *cvname= new char;
+        char* type= new char;
+        char* response="0";
+
     while (true){
+        stringstream ss;
         printf("Server is started. waiting for message.\n");
         postOffice->Receive(0, &inPktHdr, &inMailHdr, buffer);
         printf("Got \"%s\" from %d, box %d\n",buffer,inPktHdr.from,inMailHdr.from);
         fflush(stdout);
 
-
         ss.str(buffer);
+        
 
-        char* type= new char;
-        char *lockname= new char;
-        char *cvname= new char;
-        char* response="0";
         int length, lockindex, cvindex;
         bool success;
         ss >> type;
@@ -225,10 +317,8 @@ void Server(){
                 }
                 else{
                 //printf("lockname is: %d", lockname);
-                printf(inPktHdr.from);
-                doCreateLock(lockname, inPktHdr);
+                doCreateLock(lockname, inPktHdr, inMailHdr);
                 printf("After creating the lock\n");
-        
                 }
             }
         else if (strcmp(type, "AL") == 0) //need to pass index
@@ -236,13 +326,13 @@ void Server(){
                 printf("Server received Acquire Lock request from client.\n");
                 ss >> lockindex;
                 int size = slocks.size();
-                if (dovalidatelockindex(lockindex, inPktHdr)==-1){
+                if (dovalidatelockindex(lockindex, inPktHdr, inMailHdr)==-1){
                     printf("%s","acquire lock: lock index invalid or wrong machine.\n");
                     response="-1";
                     break;
                 }
                 else{
-                    doAcquireLock(lockindex, inPktHdr);
+                    doAcquireLock(lockindex, inPktHdr, inMailHdr);
                     printf("After acquiring the lock\n");
                 }
             }
@@ -251,7 +341,7 @@ void Server(){
                 printf("Server received Release Lock request from client.\n");
                 ss >> lockindex;
                 int size = slocks.size();
-                if (dovalidatelockindex(lockindex, inPktHdr)==-1){
+                if (dovalidatelockindex(lockindex, inPktHdr, inMailHdr)==-1){
                     printf("%s","release lock: lock index invalid or wrong machine.\n");
                     response="-1";
                     break;
@@ -259,7 +349,7 @@ void Server(){
                 else
                 {
                     //printf("lockname is: %d", lockname);
-                    doReleaseLock(lockindex, inPktHdr);
+                    doReleaseLock(lockindex, inPktHdr, inMailHdr);
                     printf("After creating the lock\n");
                 }
             }
@@ -268,14 +358,14 @@ void Server(){
                 printf("Server received Destroy Lock request from client.\n");
                 ss >> lockindex;
                 int size = slocks.size();
-                if (dovalidatelockindex(lockindex, inPktHdr)==-1){
+                if (dovalidatelockindex(lockindex, inPktHdr, inMailHdr)==-1){
                     printf("%s","destroy lock: lock index invalid or wrong machine.\n");
                     response="-1";
                     break;
                 }
                 else{
                 //printf("lockname is: %d", lockname);
-                doDestroyLock(lockindex);
+                doDestroyLock(lockindex, inPktHdr, inMailHdr);
                 printf("the lock at specified index has been destroyed\n");
         
                 }
@@ -296,49 +386,68 @@ void Server(){
                 }
                 else{
                 //printf("lockname is: %d", lockname);
-                doCreateCV(lockname, inPktHdr);
+                doCreateCV(lockname, inPktHdr, inMailHdr);
                 printf("After creating the cv\n");
                 }
             }
         else if (strcmp(type, "WC") == 0)
              {
-                printf("Inside if else statement\n");
-        
+                if (dovalidatecvindeces(lockindex, cvindex, inPktHdr, inMailHdr)==-1){
+                    printf("%s","Wait condition: incorrect index\n");
+                    response="-1";
+                    //bigServerCV->Release();
+                    break;
+                }
+                printf("Server received Wait Condition request from client.\n");
+                ss >> lockindex;
+                ss >>cvindex;
+                doWaitCV(lockindex, cvindex, inPktHdr, inMailHdr);
+                
             }
         else if (strcmp(type, "SC") == 0)
              {
-                printf("Inside if else statement\n");
-        
+                if (dovalidatecvindeces(lockindex, cvindex, inPktHdr, inMailHdr)==-1){
+                    printf("%s","Wait condition: incorrect index\n");
+                    response="-1";
+                    //bigServerCV->Release();
+                    break;
+                }
+
+                printf("Server received Signal Condition request from client.\n");
+                ss >> lockindex;
+                ss >>cvindex;
+                doSignalCV(lockindex, cvindex, inPktHdr, inMailHdr);
             }
         else if (strcmp(type, "BC") == 0)
              {
-                printf("Inside if else statement\n");
+                if (dovalidatecvindeces(lockindex, cvindex, inPktHdr, inMailHdr)==-1){
+                    printf("%s","Wait condition: incorrect index\n");
+                    response="-1";
+                    //bigServerCV->Release();
+                    break;
+                }
+                 printf("Server received Broadcast Condition request from client.\n");
+                 ss >> lockindex;
+                ss >>cvindex;
+                doBroadcastCV(lockindex, cvindex, inPktHdr, inMailHdr);
         
             }
         else if (strcmp(type, "DC") == 0)
              {
-                printf("Inside if else statement\n");
+                if (dovalidatecvindeces(lockindex, cvindex, inPktHdr, inMailHdr)==-1){
+                    printf("%s","Wait condition: incorrect index\n");
+                    response="-1";
+                    //bigServerCV->Release();
+                    break;
+                }
+                printf("Server received Destroy Condition request from client.\n");
+                ss >> lockindex;
+                ss >>cvindex;
+                doDestroyCV(lockindex, cvindex, inPktHdr, inMailHdr);
         
             }
-        if(outPktHdr.to != -1) 
-            {
-                outPktHdr.to = 1;
-                outPktHdr.from= 0;      
-                outMailHdr.to = 0;
-                outMailHdr.from = 0;
-                
-                printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
-                outMailHdr.length = strlen(response) + 1;
-                printf("Sending packet.\n");
-                printf("Response: %s", response);
-                //  printf("Data: %s, outPktHdr.to: %d, outMailHrd.to: %d, outPktHdr.from: %d, outMailHdr.length: %d \n", data, outPktHdr.to,outMailHdr.to, outPktHdr.from, outMailHdr.length);
-                success = postOffice->Send(outPktHdr, outMailHdr, response);
-                printf("Sent packet\n");
-                if(!success){
-                    printf("postOffice send failed. Terminating...\n");
-                    interrupt->Halt();
-                }
-        
+        else{
+            
             }
         }
     }
@@ -356,7 +465,7 @@ MailTest(int farAddr)
     // construct packet, mail header for original message
     // To: destination machine, mailbox 0
     // From: our machine, reply to: mailbox 1
-    outPktHdr.to = farAddr;		
+    outPktHdr.to = farAddr;     
     outMailHdr.to = 0;
     outMailHdr.from = 1;
     outMailHdr.length = strlen(data) + 1;

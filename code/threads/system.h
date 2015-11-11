@@ -64,6 +64,7 @@ class ServerCV {
         int lockUsed;
         bool toDelete;
         int state;
+        int mailbox;
     };
 // class Message{
 //     public:
@@ -173,7 +174,6 @@ class ServerCV {
     extern vector<int> mvs;
     extern vector<ServerLock*> slocks;
     extern vector<ServerCV*> sconditions;
-    extern vector<Mail*> mailMessages;
 
 #endif
 
