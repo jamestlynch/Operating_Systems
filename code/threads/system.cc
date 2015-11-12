@@ -193,7 +193,6 @@ Initialize(int argc, char **argv)
     if(fileSystem->Create("SwapFile", 8000))
     {
         swapFile = fileSystem->Open("SwapFile");
-        printf("File Length: %d\n", swapFile->Length());
     }
     swapBitMap = new BitMap(divRoundUp(8000, PageSize));
 
