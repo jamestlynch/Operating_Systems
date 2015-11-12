@@ -208,6 +208,7 @@ Lock::Release()
 {
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
     
+    //printf("lockOwner: %s", lockOwner->getName());
     // Thread trying to Release a lock it does not own
     if (!isHeldByCurrentThread())
     {
