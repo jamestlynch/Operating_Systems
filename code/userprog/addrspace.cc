@@ -551,7 +551,11 @@ void AddrSpace::ReclaimStack(int stackPage)
                     machine->tlb[tlbEntry].valid = false;
                 }
             }
-
+            
+            if(isFIFO)
+            {
+                memFIFO.remove(pageTable[vpn].physicalPage);
+            }
             memBitMap->Clear(pageTable[vpn].physicalPage);
             
         }
@@ -618,6 +622,10 @@ void AddrSpace::ReclaimPageTable()
                 }
             }
 
+            if(isFIFO)
+            {
+                memFIFO.remove(pageTable[vpn].physicalPage);
+            }
             memBitMap->Clear(pageTable[vpn].physicalPage);
             
         }

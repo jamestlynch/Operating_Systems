@@ -1875,7 +1875,7 @@ unsigned int GetPageToEvict()
     if(isFIFO)
     {
         ppn = memFIFO.front();
-        memFIFO.pop();
+        memFIFO.pop_front();
     }
     else
     {
@@ -1954,7 +1954,7 @@ int IPTMiss_Handler(int vpn)
 
     if(isFIFO)
     {
-        memFIFO.push(ppn); // Maintain order of Adding to Memory for FIFO Eviction
+        memFIFO.push_back(ppn); // Maintain order of Adding to Memory for FIFO Eviction
     }
 
     // (3) Look up where Page located

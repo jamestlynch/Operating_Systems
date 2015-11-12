@@ -52,16 +52,39 @@ We then loop through the TLB, checking if the physical page we are about to evic
 This function decides which page to evict depending on what eviction scheme is being used.  If the FIFO memory eviction scheme is being used, we pop a physical page number from the front of the queue.  If the random memory eviction scheme is being used, we randomly choose a physical page to evict.  In either case we return the physical page number to be evicted.
 
 /*** ADDRSPACE ***/
-AddrSpace(OpenFile* executable): This function has bene greatly edited We edited this function slightly for multiprogramming.  Before allocating the pageTable, we acquire the memLock.  We then loop through the pageTable, setting each page's physicalPage to a location in physicalMemory allocated by our memBitMap.  If the memBitMap is incapabable of finding an empty location, we print an error and halt the machine (No more physical memory available). We then read a chunk of information from the executable's starting location, offset by our current (virtualPage * PageSize), into the spot in Physical Memory given to us by the memBitMap.
+AddrSpace(OpenFile* executable): This function has been changed greatly since Project 2.  We create the pageTableLock, which protects the address space's page table while it is being edited.  We then save the executable to a pointer within the address space (as opposed to deleting it, as was done previously).  We acquire the pageTableLock and create a new pageTable.  The pageTable has enough pages for the code, init data, and uninit data from the executable, as well as one userStack for the first thread in the process.  We loop through the pageTable, initializing any pages that came from the executable with their offset (virtual page's address within the executable) and VPN.  We then loop through the pages in the userStack, setting their VPN but purposely not setting their offset as they do not exist in the executable (they're blank pages).  Finally, we release the pageTableLock.
 
-InitRegisters(): Edited this function to return an integer.  This integer is the stack address of the UserStack.  This function is only called when a process is Executed, so the process will only have 1 function with 1 stack.  We return the stack address so that the currentThread knows where it's stack is located.  When the currentThread ends, we will know what pages to deallocate from the pageTable.
+LoadIntoMemory(int vpn, int ppn): This function is new for Project 3.  In this function, we load a virtual page from disk or swap file into main memory.  This function is only ever called upon a PageFaultException.  Therefore, we do not worry about acquiring the memLock because it has been acquired by the calling function.
 
-NewPageTable(): This creates a new pageTable with size numPages + (UserStackSize / PageSize).  We then copy all of the information from the previous pageTable into the new pageTable.  We initialize the new pages, similarly to the AddrSpace constructor.  We find a place in physical memory for the new pages, using the memBitMap.  We then set the pageTable, numPages, and call RestoreState().  This is all protected by the memLock.  We return numPages, which is the new stack's page position.  This is used by currentThread, so that it will know what pages to deallocate from the pageTable.
+First, we acquire the pageTableLock as we will be modifying information in the pageTable.  There are 3 possibilities for loading:
 
-ReclaimStack(int stackPage): This deallocates a UserStack from the pageTable.  It takes in a stackPage position and loops through (UserStackSize / PageSize) pages, clearing the memBitMap.  This opens up space in the physical memory for use elsewhere.  We also set each page to valid = FALSE.  This is protected by the memLock.
+	Swapped: If the virtual page has been swapped, we read pageSize bytes in from the swapFile where the virtual page's offset is.  We then clear the swapBitMap of that page, so that the space in the swapFile can be used by other data.  We set the swapped flag to false, the offset to -1, and the physical page's dirty bit to true (because this page is modified data).
 
-ReclaimPageTable(): This deallocates the entire pageTable.  We loop through all of the pages, clearing the memBitMap.  This opens up space in the physical memory for use elsewhere.  We also set all pages to valid = FALSE.  This is protected by the memLock.
+	Executable: If the virtual page is in the executable, we read pageSize bytes in from the executable where the virtual page's offset is.  We then set the physical page's dirty bit to false because we are loading unmodified code or data.
 
+	Neither: The page can exist in neither the swap file nor the executable if the page is a blank userStack page.  In this case, we just set the physical page's dirty bit to false because the page has yet to be modified.
+
+Following all cases, we copy the virtual page's information into the corresponding index in the IPT.  We also set the virtual page's physical page number to its new PPN and set its valid bit to true (because it is in main memory).
+
+RemoveFromMemory(int vpn, int ppn): This function is new for Project 3.  In this function, we update the address space's pageTable to reflect that the virtual page has been removed from memory.  If the physical page is dirty, we save it to a swap file.
+
+First, we acquire the pageTableLock.  If the physical page is dirty, we find a location in the swapFile to save it to (using the swapBitMap).  We then write pageSize bytes from the physical page's location in main memory to the allocated location in the swapFile.  We save the virtual page's offset as the 'swapPage' * PageSize and set the swapped flag to true.  Regardless of whether or not the physical page is dirty, we reset the virtual page's physical page number and set its valid bit to false (because it is no longer in main memory).  Finally, we release the pageTableLock.
+
+InitRegisters(): This function has barely changed.  We acquire the pageTableLock at the beginning of this function because we will be using the numPages to calculate the StackReg address and do not want it to be modified by a new thread if a context switch occurs.
+
+SaveState(): This function has been modified.  On a context switch, we want to invalidate the TLB.  Whenever dealing with the TLB, we turn off interrupts.  We loop through the TLB, and if a TLB entry is valid, we propogate it's dirty bit.  We set all TLB enetries to invalid.
+
+NewUserStack(): This function has a new name (used to be NewPageTable) and also initializes the new fields in pageTableEntry (offset & swapped).
+
+ReclaimStack(int stackPage):  We disable interrupts for this function because it will modify the TLB.  We loop through a thread's userStack (stackPage + (UserStackSize / PageSize)) checking if any of its virtual page's are in main memory.
+
+If they are, we invalidate the entry in the IPT and check the TLB.  If the physical page is also in the TLB (and it is valid), we invalidate it.  Finally, we clear the memBitMap of the physical page so it can be used by other processes.  If using the FIFO memory management scheme, we remove the physical page number from the queue.
+
+We also check if the page has been swapped, if so we clear the swapBitMap of the virtual page so that it can be used by other processess.
+
+Finally, we reset all of the virtual page's information and disable interrupts.
+
+ReclaimPageTable():  ReclaimPageTable is identical to ReclaimStack except we loop through the entire pageTable instead of a single userStack.
 
 IV. Implementation:
 + Files Modified: 
@@ -69,73 +92,61 @@ IV. Implementation:
 	System.cc
 	Syscall.h
 	exception.cc
+	addrspace.h
 	addrspace.cc
-	start.s
-	thread.cc - added int processID & int stackPage
 	progtest.cc
+	start.s
 
 + Files added:
-	passporttest.cc
-	test1.c
-	test2.c
-	test3.c
-	test4.c
-	test5.c
-	test6.c
-	test7.c
+	execTest.c
+	forkTest.c
 
 + Data Structures added/modified
 
-    Machine *machine;
-    BitMap *memBitMap;
-    vector<KernelLock*> locks;
-    vector<KernelCV*> conditions;
-    vector<Process*> processInfo;
-    Lock *memLock;
-    Lock *processLock;
-    Lock *conditionsLock;
-    Lock *locksLock;
-
-   	struct KernelLock
+	/*** SYSTEM ***/
+    class IPTEntry : public TranslationEntry
     {
-        Lock *lock;
-        AddrSpace *space;
-        bool toDelete;      
+        public:
+            AddrSpace * space; // Process memory belongs to
     };
 
-    // KernelCV extra info for cleaning up and guaranteeing process CV ownership
-    struct KernelCV
-    {
-        Condition *condition;
-        AddrSpace *space;
-        bool toDelete;
-    };  
+    IPTEntry *ipt;
+    OpenFile *swapFile;
+    BitMap *swapBitMap;
+    bool isFIFO;
+    list<int> memFIFO;
+    int tlbCounter;
 
-    struct Process
-    {
-    	AddrSpace *space;
-    	int numSleepingThreads;
-    	int numExecutingThreads;
-    	int processID;
-    };
+    /*** ADDRSPACE ***/
+    class PageTableEntry : public TranslationEntry
+	{
+	    public:
+	        PageTableEntry(); // Initialize a Page Table Entry
+	        ~PageTableEntry(); // De-allocate Page Table Entry
+	        bool swapped; // In swap file? If !swapped && !valid, then load from executable
+	        int offset; // The last bits of virtual address for access within Page
+	};
+
+	Lock *pageTableLock;
+	OpenFile *executable;
 
 + Functions added and in which file.
 
+addrspace.cc
+	PageTableEntry::PageTableEntry()
+	void AddrSpace::LoadIntoMemory(int vpn, int ppn)
+	void AddrSpace::RemoveFromMemory(int vpn, int ppn)
+	int AddrSpace::NewUserStack()
+
 exception.cc
-	void Kernel_Thread(int vaddr)
-	void WriteInt_Syscall(int integer)
-	void WriteError_Syscall(unsigned int vaddr, int len)
-	int checkLockErrors(int index)
+	unsigned int GetPageToEvict()
+	int MemoryFull_Handler()
+	int IPTMiss_Handler(int vpn)
+	void PageFault_Handler(unsigned int vaddr)
+	void ExceptionHandler(ExceptionType which)
 
--- Functions to test simulation:
 
-test1();
-test2();
-test3();
-test4();
-test5();
-test6();
-test7();
+
 
 + Functions modified and in which file.
 progtest
@@ -172,7 +183,8 @@ system.cc/system.h
 addrspace.cc/addrspace.h
 	Addrspace()
 	int InitRegisters()
-	int NewPageTable()
+	void SaveState()
+	int NewUserStack()
 	void ReclaimStack(int stackPage)
 	void ReclaimPageTable()
 
@@ -209,107 +221,22 @@ exception.cc
 V. Testing:  (For each test case, you must show)
 + How to test
 
-To test the lock and cv syscalls, go to userprog and type the following:
-run lock and condition tests = 
-	'nachos -x ../test/test1’
-	'nachos -x ../test/test2'
-	'nachos -x ../test/test3’
-	'nachos -x ../test/test4’
-	'nachos -x ../test/test5’
-	'nachos -x ../test/test6’
-	'nachos -x ../test/test7’
-
-run passport office = 'nachos -x ../test/passporttest'
+/*** PARTS 1 & 2 ***/
+nachos -x ../test/matmult
+	// This runs matmult once and finishes correctly
+nachos -x ../test/sort
+	// This runs sort once and finishes correctly
+nachos -x ../test/execTest
+	// This execs 2 matmults, the main thread and 2 process threads finish correctly
+nachos -x ../test/forkTest
+	// This forks matmult once and finishes correctly
 
 + Test Output
-
-/*** LOCK & CV SYSCALL TESTS ***/
-- Our output will say pass/fail for validation tests 1-4. For test 5, it shows we support mutual exclusion and lock functionality is in place with syscalls by acquiring and releasig lock 1, then lock 2, then lock 3. There should not be any overlap since they are all acquiring the same lock. Test 6 is showing how broadcast works by waiting on a condition variable and then being woken up by the thread who acquired the lock and called broadcast, and then printing out to console when things are woken up. 
-
-test1-
-	output should say pass or fail
-test2-
-	output should say pass or fail
-test3-
-	output should say pass or fail
-test4-
-	output should say pass or fail
-test5-
-	Passed if acquired GREEN printed acquired/released numbers are in increasing order/non overlapping. This means people are properly acquiring and releasing locks. This tests all lock functions.
-test6-
-	Passed if FINISHED green numbers are in increasing order. This means that things were executing in the proper order and the broadcast woke every thread up and then they acquired and released the threads according to the order in which they were forked. This tests signal and broadcast and shows that wait works as well, since threads are waiting to be broadcasted.
-test7- 
-	This test we added console output within the code to walk through what was happening. The order of what happens should be the following: 
-		-Thread 1 forked
-		-Thread 2 forked
-		-Thread 3 forked
-		-Thread 1 acquires a lock and immediately Waits on the cv and lock. 
-		-Thread 2 acquires the lock and then tries to destroy the CV but cannot because thread 1 is waiting on it so the sleepqueue is not empty, so 
-		-^this sets toDelete to true.
-		-Thread 2 waits on the same cv and lock
-		-Thread 3 acquires the lock
-		-Thread 3 broadcasts 
-		-Thread 1 and 2 wake up, respectively
-		-ToDelete was set to true, the condition is deleted.
-		-Thread 3 releases the lock.
-		done
-
-/*** EXEC/FORK/EXIT SYSCALL TESTS ***/
-ExecTest: First, we try to execute a file that has a name with length -1.  This will print an error ("Invalid length for thread identifier."), but allow the user program to continue.  Then we try to execute a file that does not exist.  This will also print an error, but allow the user program to continue ("Unable to open file test"). This executes the user program sort twice.  Beware, it takes a while to finish... but it shows that we do not have any trouble executing two large (and slow) processes at once.
-
-nachos -x ../test/execTest
-
-The Lock/CV tests listed above test Fork and Exit well.  They fork multiple threads and end multiple threads.  If they don't behave as expected, we know there is a problem with either Fork or Exit (and we used these tests to help solve those problems).
+matmult: Exit: 7220
+sort: Exit: 1023
+execTest: Exit: 0 \n Exit: 7220 \n Exit: 7220
+forkTest: Exit: 0 \n Exit: 7220
 
 VI. Discussion:
 
-All of the syscalls work 100% properly, including FORK/EXEC/EXIT. We did not design our tests to run with -rs values. Our tests display proper functionality for the syscalls, fork exec and exit and the simulation works.
-
-
-/*** REQUIREMENTS -- PART 3 ***/
-
-I. Requirements:
-
-The requirement is to write a c user program that implements a passport office simulation. This user program can no longer access lock and condition variables on their own, they have to now request to the OS that they want them and then the OS has to provide them.
-
-II. Passport Assumptions:
-
--there is a random chance of customers going to an application line vs a picture line first.
--filing an application and picture take a random time, between 20 and 100 yields.
--being punished takes 100-1000 yields
--customers sometimes go to the passport and cashier lines too early, in which case they are punished and go to the back of the passport line (They can now decide again which passport line is shortest).
--Manager will wake up an additional clerk when there are three people in any line, if not all are currently awake. People only get in a line that is active. If everyone is on break, the manager will wake up a clerk when a customer goes into their line
--money values of 100 600 1100 and 1600 are randomly distributed.
--the user can enter invalid input. must test for that.
--the customer ALWAYS bribes the clerk, if they have the money to do so. 
--you pick the shortest line based on the normal line. Then if you have the money to bribe, you get in the bribe line for that line.
--manager’s thread gets put to sleep when all of the customers have left the passport building and nobody else is working.
--only one senator at a time can be in the passport office. There are no senator bribe lines.
--simulation ends when all customers are processed and there are no more customers coming into the passport line.
--each type of clerk has their own money ‘pool,' the manager goes and reads each type of clerks money pool rather than the manager going to each individual clerk and getting the money.
--manager only prints out the money when there is a change in the amount of money that is collected.
-
-
-III. Design Changes:
-
-Our design was to implement it as close to possible as original. We converted all classes to structs, use enums for state, arrays for locks on lines and desks, structs for clerks. Every decision that has to be made by a customer or a clerk requires its own method. This includes GetBackInLine, MakePhotoDecision, ChooseLine, etc. We are using writeOutput to print to the screen just as we did for sys calls. once all of the booleans in the customer struct are true, ( bool turnedInApplication; bool acceptedPassport; bool gotPassport; bool applicationFiled;bool pictureFiled; bool passportCertified; bool passportRecorded; ) the customer is done with the interaction and can leave the passport office. Same for senators. In addition to a customer struct we create a clerk struct to hold its state, current line length, and the boolean customer information that it needs to know. And we hold a clerk group struct which holds data about the current customer, its line, the lock on its counter, and its money. This information is all pertinent to how its behavior works.  We have an initialize method for each type of clerk and for the customer. They set all of the values for the structs to be equal to the value of the CreateCV sys call. Decide clerk was similar to the first implementation but accessing different data structures in order to get information. The customer still decides the line to get on but passes the information via changing array values and booleans. He has functions to get back in line, make photo decision, pay for passport, punish too soon, etc. Output- The clerk, manager, and customer has its own section of switch statements since they are all having different interactions. In order to write output we created a giant switch statement with nested cases of the person interaction happening, the clerk type, cases of the type of clerk,and finally if it is a senator or a customer. We are making the create acquire wait signal and broadcast calls as system calls instead of making the calls to the operating system.
-
-IV. Methods:
-
-void InitializePictureClerkData ()
-void InitializePassportClerkData ()
-void InitializeCashierData ()
-int DecideClerk (int ssn, enum persontype clerkType)
-void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
-void GetBackInLine (int ssn, enum persontype clerkType)
-void PayForPassport (int ssn, int clerkID)
-void PunishTooSoon (int ssn, int clerkID, enum persontype clerkType)
-void CustomerInteraction (int ssn, int clerkID, enum persontype clerkType)
-void AcceptBribe (int clerkID, enum persontype clerkType)
-void TakeBreak (int clerkID, enum persontype clerkType) 
-void ResetSystemJob (int jobID)
-void ClerkInteraction (int clerkID, enum persontype clerkType)
-enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
-void Clerk(int ssn)
-void InitializeData
 
