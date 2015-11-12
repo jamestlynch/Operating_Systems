@@ -69,7 +69,7 @@ int tlbCounter;
     vector<ServerLock*> slocks;
     vector<Mail*> mailMessages;
 
-    ServerLock::ServerLock(char* name, int netname, int box) {
+    ServerLock::ServerLock(string name, int netname, int box) {
         serverlockName= name;
         toDelete= false;
         state = 0; //0=free, 1=busy

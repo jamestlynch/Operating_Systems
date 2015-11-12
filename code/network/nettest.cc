@@ -24,6 +24,7 @@
 #include "interrupt.h"
 #include <sstream>
 #include <queue>
+
 using namespace std;
 
 struct ServerCV
@@ -82,178 +83,173 @@ void SendResponse(string response, int machineID, int mailboxID)
     }
 }
 
-int dovalidatelockindex(int index, PacketHeader inPktHdr, MailHeader inMailHdr)
+int dovalidatelockindex(unsigned int indexlock, int machineID, int mailboxID)
 {
-    // (1) Index corresponds to valid location
-    if (index < 0)
+    std::stringstream ss;
+    bool error = false;
+
+    // Validate input
+    if (indexlock >= slocks.size() || indexlock < 0)
     {
-        printf("%s","Invalid lock table index, negative.\n");
-        return -1;
+        ss << "400" << " " << "valid" << " " << indexlock;
+        error = true;
     }
-
-    int size = slocks.size();
-
-    // (1) Index corresponds to valid location
-    if (index > size - 1)
+    // Get the Condition and Wait
+    ServerLock *lock = slocks.at(indexlock);
+    
+    if (machineID != lock->machineID)
     {
-        printf("%s","Invalid lock table index, bigger than size.\n");
-        return -1;
+        ss << "400" << " " << "WC" << " " << indexlock;
+        error = true;
     }
-
-    ServerLock * currentServerLock = slocks.at(index);
-
-    // (2) Defined lock
-    if (!currentServerLock)
+    if (!lock)
     {
-        printf("Lock %d is NULL.\n", index);
-        return -1;
+        ss << "400" << " " << "WC" << " " << indexlock;
+        error = true;
     }
-    if (inPktHdr.to <0 || inPktHdr.from <0 || inMailHdr.from < 0 || inMailHdr.to < 0 ){
-        printf("Invalid. inmailhdr.to= %d, inmailhdr.from= %d, inPktHdr.to=%d, inPktHdr.from=%d\n", inMailHdr.to, inMailHdr.from, inPktHdr.to, inPktHdr.from);
+
+    if (error)
+    {
+        string response = ss.str();
+        SendResponse(response, machineID, mailboxID);
         return -1;
     }
 
-    return 0;
+
 }
 
-void doCreateLock(char *name, PacketHeader inPktHdr, MailHeader inMailHdr){
+void doCreateLock(string lockname, int machineID, int mailboxID){
+    // Create the message
     std::stringstream ss;
-    //char *response = new char;
-    int x= slocks.size();
-    ss << "CLSUCCESS " <<  x;
-    //ss >> response;
-    //printf("response: %s", response);
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
 
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
+    // Create Lock
+    ServerLock *lock = new ServerLock(lockname, machineID, mailboxID);
+    slocks.push_back(lock);
 
-    outMailHdr.length = ss.str().length() + 1;
-    //printf("Response: %s", response);
-    char *response = const_cast<char*>( ss.str().c_str());
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
-
-    ServerLock *sl= new ServerLock(name, inPktHdr.from, 0);
-    sl->machineID= inPktHdr.from;
-    sl->mailbox= inMailHdr.from;
-    sl->state= 0; //free
-    slocks.push_back(sl);
-    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", m->mailHdr.to, m->mailHdr.from, m->pktHdr.to, m->pktHdr.from);
-
-    bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-    if(!success){
-        printf("postOffice send failed. Terminating...\n");
-        interrupt->Halt();
-        }
+    // Create Response and Send
+    ss << "201" << " " << "CL" << " " << slocks.size() - 1;
+    string response = ss.str();
+    SendResponse(response, machineID, mailboxID);
 }
 
-void doAcquireLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
+void doAcquireLock(int indexlock, int machineID, int mailboxID){
     std::stringstream ss;
-    //char *response = new char;
-    int x= slocks.size()-1;
-    ss << "ALSUCCESS " << x;
-    //ss >> response;
-    //printf("response: %s", response);
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
-
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
-
-    outMailHdr.length = ss.str().length() + 1;
-    //printf("Response: %s", response);
-    char *response = const_cast<char*>( ss.str().c_str());
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+    if (dovalidatelockindex(indexlock, machineID, mailboxID) == -1 )
+    {
+        return;
+    }
+    ServerLock *lock = slocks.at(indexlock);
+    if (lock->toDelete==true){ //if set to be deleted, send error message cannot acq
+        std::stringstream ss;
+        ss << "400" << " " << "tobeDeleted" << " " << indexlock;
+        string response = ss.str();
+        SendResponse(response, machineID, mailboxID);
+        return;
+    }
+    else
+    {
+        ss << "200" << " " << "AL" << " " << indexlock;
+    }
+    string acquireResponse = ss.str();
 
     if (slocks.at(indexlock)->state == 1){ //lock busy so go on wait queue
-            slocks.at(indexlock)->waitqueue.push(m);
-        }
+        PacketHeader outPktHdr, inPktHdr;
+        MailHeader outMailHdr, inMailHdr;
+        outPktHdr.to = machineID; // Server Machine ID
+        outMailHdr.to = mailboxID; // Server Machine ID
+        outMailHdr.from = 0; // Client Mailbox ID
+        char *response = (char *) ss.str().c_str();
+        outMailHdr.length = strlen(response) + 1;
+
+        Mail *queuedMessage = new Mail(outPktHdr, outMailHdr, response);
+        slocks.at(indexlock)->waitqueue.push(queuedMessage);
+    }
     else {  // lock is valid and available so get the lock
-            printf("About to acquire the lock\n");
             slocks.at(indexlock)->state = 1;
-            bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-            printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
-            if(!success){
-                printf("postOffice send failed. Terminating...\n");
-                interrupt->Halt();
-            }
-        }
+            SendResponse(acquireResponse, machineID, mailboxID);            
+            // DEBUG("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
+            
+    }
 }
 
-void doReleaseLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
+void doReleaseLock(int indexlock, int machineID, int mailboxID){
     std::stringstream ss;
-    //char *response = new char;
-    int x= slocks.size()-1;
-    ss << "RLSUCCESS " <<  x;
-    //ss >> response;
-    //printf("response: %s", response);
+    if (dovalidatelockindex(indexlock, machineID, mailboxID) == -1)
+    {
+        return;
+    }
+    else{
+        ss << "200" << " " << "RL" << " " << indexlock;
+    }
+    ServerLock *lock = slocks.at(indexlock);
+
+    // Prepare Message to send when Signal is called
     PacketHeader outPktHdr;
     MailHeader outMailHdr;
 
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
+    outPktHdr.to = machineID; // Server Machine ID
+    outMailHdr.to = mailboxID; // Server Machine ID
+    outMailHdr.from = 0; // Client Mailbox ID
 
-    outMailHdr.length = ss.str().length() + 1;
-    //printf("Response: %s", response);
-    char *response = const_cast<char*>( ss.str().c_str());
-
-    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
-    outMailHdr.length = strlen(response) + 1;
-    printf("Response: %s", response);
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+    char *acquireResponse = (char *) ss.str().c_str();
+    outMailHdr.length = strlen(acquireResponse) + 1;
 
     if (!slocks.at(indexlock)->waitqueue.empty()){ // 
             Mail *temp = slocks.at(indexlock)->waitqueue.front();
-            bool success = postOffice->Send(temp->pktHdr, temp->mailHdr, temp->data);
             slocks.at(indexlock)->waitqueue.pop();
+            bool success = postOffice->Send(temp->pktHdr, temp->mailHdr, temp->data);
     }
     else{
-        slocks.at(indexlock)->state = 0;
+            slocks.at(indexlock)->state = 0;
         }
-        bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-        if(!success){
-            printf("postOffice send failed. Terminating...\n");
-            interrupt->Halt();
-        }
+        SendResponse(acquireResponse, machineID, mailboxID);
+}
+void DeleteLock(unsigned int indexlock)
+{
+    ServerLock *lock = slocks.at(indexlock);
+
+    delete lock;
+    locks.at(indexlock) = NULL;
+
+    DEBUG('n', "Lock %d was successfully deleted.\n", indexlock);
 }
 
-void doDestroyLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
-    char * response= "DLSUCCESS\n";
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
+void doDestroyLock(int indexlock, int machineID, int mailboxID){
+// Create the message
+    std::stringstream ss;
+    bool error = false;
 
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
+    // Validate input
+    if (indexlock >= slocks.size() || indexlock < 0)
+    {
+        ss << "400" << " " << "DC" << " " << indexlock;
+        error = true;
+    }
 
-    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
-    outMailHdr.length = strlen(response) + 1;
-    printf("Response: %s", response);
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+    // Get the lock
+    ServerLock *lock = slocks.at(indexlock);
+    
+    if (machineID != lock->machineID)
+    {
+        ss << "400" << " " << "DC" << " " << indexlock;
+        error = true;
+    }
 
-    ServerLock * sl = slocks.at(indexlock);
-
-        if(sl->state == 0 &&  sl->waitqueue.empty()) // if lock is free and nobody is waiting
-         {
-            delete sl;
-            bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-            if(!success){
-                printf("postOffice send failed. Terminating...\n");
-                interrupt->Halt();
-            }
+    // Valid lock index, delete or mark for deletion
+    if (!error)
+    {
+        // No waiting threads when Destroy called, delete
+        if (lock->waitqueue.empty() && lock->state==0 && lock->toDelete==true)
+        {
+            DeleteLock(indexlock);
         }
-        else{
-            sl->toDelete=true;
-        }
 
+        ss << "200" << " " << "DC" << " " << indexlock;
+        lock->toDelete = true;
+    }
+    // Send Response
+    string response = ss.str();
+    SendResponse(response, machineID, mailboxID);
 }
 
 int validatecvindeces(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
@@ -617,7 +613,6 @@ void Server()
         char *requestType;
         char *lockname = new char;
         char *response = "0";
-        int length, lockindex, cvindex;
         bool success;
         ss >> requestType;
 
@@ -625,104 +620,32 @@ void Server()
 
        if (strcmp(requestType, "CL") == 0)
              {
+                string lockname;
                 printf("Server received Create Lock request from client.\n");
                 ss >> lockname;
-                ss >> length;
-                if (length <= 0 || length > 24)
-                {
-                    printf("%s","Length for locks's identifier is invalid.\n");
-                    ss << "CL_FAILURE " <<  "-1";
+                doCreateLock(lockname, inPktHdr.from, inMailHdr.from);
 
-                    outPktHdr.to = inPktHdr.from; 
-                    outPktHdr.from= inPktHdr.to;  
-                    outMailHdr.to = inMailHdr.from;
-                    outMailHdr.from = 0;
-
-                    outMailHdr.length = ss.str().length() + 1;
-                    //printf("Response: %s", response);
-                    response = const_cast<char*>( ss.str().c_str());
-                    success = postOffice->Send(outPktHdr, outMailHdr, response);
-                    break;
-                }
-                else{
-                    printf("inmailhdr.to= %d, inmailhdr.from= %d, inPktHdr.to=%d, inPktHdr.from=%d\n", inMailHdr.to, inMailHdr.from, inPktHdr.to, inPktHdr.from);
-                    doCreateLock(lockname, inPktHdr, inMailHdr);
-                    printf("After creating the lock\n");
-                }
             }
         else if (strcmp(requestType, "AL") == 0) //need to pass index
              {
-                stringstream xx;
-                printf("Server received Acquire Lock request from client.\n");
-                xx >> lockindex;
-                int size = slocks.size();
-                if (dovalidatelockindex(lockindex, inPktHdr, inMailHdr)==-1){
-                    printf("%s","invalid index\n");
-                    xx << "ALFAILURE " <<  -1;
-                    outPktHdr.to = inPktHdr.from; 
-                    outPktHdr.from= inPktHdr.to;  
-                    outMailHdr.to = inMailHdr.from;
-                    outMailHdr.from = 0;
-                    outMailHdr.length = xx.str().length() + 1;
-                    response = const_cast<char*>( xx.str().c_str());
-                    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
-
-                    success = postOffice->Send(outPktHdr, outMailHdr, response);
-                    break;
-                }
-                else{
-                    doAcquireLock(lockindex, inPktHdr, inMailHdr);
-                    printf("After acquiring the lock\n");
-                }
+                unsigned int indexlock;
+                ss >> indexlock;
+                doAcquireLock(indexlock, inPktHdr.from, inMailHdr.from);
+                
             }
         else if (strcmp(requestType, "RL") == 0) //need to pass index
              {
-                printf("Server received Release Lock request from client.\n");
-                ss >> lockindex;
-                int size = slocks.size();
-                if (dovalidatelockindex(lockindex, inPktHdr, inMailHdr)==-1){
-                    printf("%s","invalid index.\n");
-                    ss << "RLFAILURE " <<  "-1";
-                    outPktHdr.to = inPktHdr.from; 
-                    outPktHdr.from= inPktHdr.to;  
-                    outMailHdr.to = inMailHdr.from;
-                    outMailHdr.from = 0;
-
-                    outMailHdr.length = ss.str().length() + 1;
-                    response = const_cast<char*>(ss.str().c_str());
-                    success = postOffice->Send(outPktHdr, outMailHdr, response);
-                    break;
-                }
-                else
-                {
-                    doReleaseLock(lockindex, inPktHdr, inMailHdr);
-                    printf("After releasing the lock\n");
-                }
+                unsigned int indexlock;
+                ss >> indexlock;
+                doReleaseLock(indexlock, inPktHdr.from, inMailHdr.from);
+                
             }
         else if (strcmp(requestType, "DL") == 0)
              {
-                printf("Server received Destroy Lock request from client.\n");
-                ss >> lockindex;
-                int size = slocks.size();
-                if (dovalidatelockindex(lockindex, inPktHdr, inMailHdr)==-1){
-                    printf("%s","invalid index.\n");
-                    ss << "DLFAILURE " <<  "-1";
-                    outPktHdr.to = inPktHdr.from; 
-                    outPktHdr.from= inPktHdr.to;  
-                    outMailHdr.to = inMailHdr.from;
-                    outMailHdr.from = 0;
-                    outMailHdr.length = ss.str().length() + 1;
-                    response = const_cast<char*>( ss.str().c_str());
-                    success = postOffice->Send(outPktHdr, outMailHdr, response);
-                    break;
-                }
-                else
-                {
-                //printf("lockname is: %d", lockname);
-                doDestroyLock(lockindex, inPktHdr, inMailHdr);
-                printf("the lock at specified index has been destroyed\n");
-        
-                }
+                unsigned int indexlock;
+                ss >> indexlock;
+                doDestroyLock(indexlock, inPktHdr.from, inMailHdr.from);
+                
             }
         else if (strcmp(requestType, "CC") == 0)
         {

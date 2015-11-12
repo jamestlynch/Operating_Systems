@@ -44,11 +44,11 @@ class Mail;
 
 class ServerLock {
     public:
-        ServerLock(char *name, int netname, int box);
+        ServerLock(string name, int netname, int box);
         //who owns the lock
         //what is the name of the lock
         //queue of who is waiting for the lock
-        char *serverlockName;
+        string serverlockName;
         std::queue<Mail*> waitqueue;
         bool toDelete;
         bool state;
