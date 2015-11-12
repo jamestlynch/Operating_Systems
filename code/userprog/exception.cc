@@ -1124,7 +1124,7 @@ int Wait_Syscall(int indexcv, int indexlock)
 #ifdef NETWORK
     
     stringstream ss;
-    ss << "WC" << " " << indexcv << indexlock;
+    ss << "WC" << " " << indexcv << " " << indexlock;
     string request = ss.str();
     SendRequest(request);
     indexcv = ReceiveResponse();
@@ -1204,7 +1204,7 @@ int Signal_Syscall(int indexcv, int indexlock)
 #ifdef NETWORK
     
     stringstream ss;
-    ss << "SC" << " " << indexcv << indexlock;
+    ss << "SC" << " " << indexcv << " " << indexlock;
     string request = ss.str();
     SendRequest(request);
     indexcv = ReceiveResponse();
@@ -1255,7 +1255,7 @@ int Broadcast_Syscall(int indexcv, int indexlock)
 #ifdef NETWORK
 
     stringstream ss;
-    ss << "BC" << " " << indexcv << indexlock;
+    ss << "BC" << " " << indexcv << " " << indexlock;
     string request = ss.str();
     SendRequest(request);
     indexcv = ReceiveResponse();

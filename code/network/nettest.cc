@@ -176,6 +176,8 @@ void doAcquireLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
     else {  // lock is valid and available so get the lock
             printf("About to acquire the lock\n");
             slocks.at(indexlock)->state = 1;
+            slocks.at(indexlock)->machineID = inPktHdr.from;
+            slocks.at(indexlock)->mailbox = inMailHdr.from;
             bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
             if(!success){
                 printf("postOffice send failed. Terminating...\n");
@@ -212,6 +214,9 @@ void doReleaseLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
             Mail *temp = slocks.at(indexlock)->waitqueue.front();
             bool success = postOffice->Send(temp->pktHdr, temp->mailHdr, temp->data);
             slocks.at(indexlock)->waitqueue.pop();
+
+            slocks.at(indexlock)->machineID = inPktHdr.from;
+            slocks.at(indexlock)->mailbox = inMailHdr.from;
     }
     else{
         slocks.at(indexlock)->state = 0;
@@ -264,22 +269,28 @@ int validatecvindeces(unsigned int indexcv, unsigned int indexlock, int machineI
     // Validate input
     if (indexcv >= serverconditions.size() || indexcv < 0)
     {
-        ss << "400" << " " << "WC" << " " << indexcv;
+        ss << "401" << " " << "WC" << " " << indexcv;
         error = true;
     }
 
     if (indexlock >= slocks.size() || indexlock < 0)
     {
-        ss << "400" << " " << "WC" << " " << indexcv;
+        ss << "402" << " " << "WC" << " " << indexcv;
         error = true;
     }
 
     // Get the Condition and Wait
     ServerCV *condition = serverconditions.at(indexcv);
-    
+
+    // Condition Lock has not been set
+    if (condition->conditionlock < 0)
+    {
+        condition->conditionlock = indexlock;
+    }
+
     if (machineID != slocks.at(condition->conditionlock)->machineID)
     {
-        ss << "400" << " " << "WC" << " " << indexcv;
+        ss << "403" << " " << "WC" << " " << indexcv;
         error = true;
     }
 
@@ -340,6 +351,29 @@ void WaitCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mai
 
     Mail *queuedMessage = new Mail(outPktHdr, outMailHdr, response);
 
+    // Release the Lock before going to sleep: 
+    //  Wake up one thread waiting for lock
+    if (!slocks.at(indexlock)->waitqueue.empty())
+    { 
+        Mail *waitingLock = slocks.at(indexlock)->waitqueue.front();
+        slocks.at(indexlock)->waitqueue.pop();
+
+        slocks.at(indexlock)->state = 1; // Set Lock to Busy
+        slocks.at(indexlock)->machineID = waitingLock->pktHdr.to;
+        slocks.at(indexlock)->mailbox = waitingLock->mailHdr.to;
+
+        bool success = postOffice->Send(waitingLock->pktHdr, waitingLock->mailHdr, waitingLock->data);
+        if(!success)
+        {
+            printf("postOffice send failed. Terminating...\n");
+            interrupt->Halt();
+        }
+    }
+    else
+    {
+        slocks.at(indexlock)->state = 0; // Set Lock to Free
+    }
+
     condition->waitqueue.push(queuedMessage);
 }
 
@@ -371,12 +405,26 @@ void SignalCV(unsigned int indexcv, unsigned int indexlock, int machineID, int m
     Mail *response = condition->waitqueue.front();
     condition->waitqueue.pop();
 
-    // Send request
-    bool success = postOffice->Send(response->pktHdr, response->mailHdr, response->data);
-    if (!success)
+    // Reaquire the Lock when you are woken back up
+    // Lock is busy so go on wait queue
+    if (slocks.at(indexlock)->state == 1)
     {
-        printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
-        interrupt->Halt();
+        slocks.at(indexlock)->waitqueue.push(response);
+    }
+    // Lock is valid and available so get the lock
+    else
+    {
+        printf("About to acquire the lock\n");
+        slocks.at(indexlock)->state = 1; // Make Lock Busy
+        slocks.at(indexlock)->machineID = response->pktHdr.to;
+        slocks.at(indexlock)->mailbox = response->mailHdr.to;
+        // Send response
+        bool success = postOffice->Send(response->pktHdr, response->mailHdr, response->data);
+        if (!success)
+        {
+            printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+            interrupt->Halt();
+        }
     }
 
     // Marked for deletion and no waiting threads, delete
@@ -410,12 +458,26 @@ void BroadcastCV(unsigned int indexcv, unsigned int indexlock, int machineID, in
         Mail *response = condition->waitqueue.front();
         condition->waitqueue.pop();
 
-        // Send response
-        bool success = postOffice->Send(response->pktHdr, response->mailHdr, response->data);
-        if (!success)
+        // Reaquire the Lock when you are woken back up
+        // Lock is busy so go on wait queue
+        if (slocks.at(indexlock)->state == 1)
         {
-            printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
-            interrupt->Halt();
+            slocks.at(indexlock)->waitqueue.push(response);
+        }
+        // Lock is valid and available so get the lock
+        else
+        {
+            printf("About to acquire the lock\n");
+            slocks.at(indexlock)->state = 1; // Make Lock Busy
+            slocks.at(indexlock)->machineID = response->pktHdr.to;
+            slocks.at(indexlock)->mailbox = response->mailHdr.to;
+            // Send response
+            bool success = postOffice->Send(response->pktHdr, response->mailHdr, response->data);
+            if (!success)
+            {
+                printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+                interrupt->Halt();
+            }
         }
     }
 
