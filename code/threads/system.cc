@@ -39,7 +39,7 @@ int tlbCounter;
     Machine *machine;
 
     IPTEntry *ipt;
-    queue<int> memFIFO;
+    list<int> memFIFO;
     BitMap *memBitMap;
     Lock *memLock;
     OpenFile *swapFile;

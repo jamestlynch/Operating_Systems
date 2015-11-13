@@ -19,6 +19,7 @@
 #include "synchlist.h"
 //#include "filesys.h"
 #include <vector>
+#include <list>
 #include <queue>
 #include <string>
 using namespace std;
@@ -129,7 +130,7 @@ class ServerLock {
     //  allocated for FIFO eviction.
 
     extern bool isFIFO;
-    extern std::queue<int> memFIFO;
+    extern list<int> memFIFO;
 
 #endif
 
