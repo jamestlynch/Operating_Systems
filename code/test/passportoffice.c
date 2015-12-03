@@ -1202,7 +1202,9 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 	int clerkLock;
 	int workCV;
 	int bribeCV;
+//clerkgroups def inside create.h
 
+	//linelock= getMV(picclerkGroup, lineLock);
 	lineLock = clerkGroups[clerkType].lineLock;
 	lineCV = clerkGroups[clerkType].lineCVs[clerkID];
 	bribeLineCV = clerkGroups[clerkType].bribeLineCVs[clerkID];
@@ -1468,7 +1470,6 @@ void Leave (int ssn)
 
 void Customer ()
 {
-
 	int ssn;
 	struct Person customer;
 	int applicationFirst;

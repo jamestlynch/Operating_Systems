@@ -24,6 +24,7 @@ void MVTest()
 	{
 		Write("Passed [CreateAndUpdateMV]\n", sizeof("Passed [CreateAndUpdateMV]\n"), 1);
 	}
+}
 
 void ClientTest3()
 {

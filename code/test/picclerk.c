@@ -597,130 +597,335 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 	}
 }
 
-int CollectMoney (enum persontype clerkType)
+void TakeBreak (int clerkID, enum persontype clerkType) 
 {
-	int moneyLock;
-	int groupMoney;
+	int lineLock;
+	int breakCV;
 
-	moneyLock = clerkGroups[clerkType].moneyLock;
-	groupMoney = 0;
+	lineLock = clerkGroups[clerkType].lineLock;
+	breakCV = clerkGroups[clerkType].breakCVs[clerkID];
 
-	AcquireLock(moneyLock);
-	groupMoney = clerkGroups[clerkType].groupMoney;
-	ReleaseLock(moneyLock);	
-
-	return groupMoney;
+	WriteOutput(Clerk_GoingOnBreak, clerkType, clerkType, -1, clerkID);
+	Wait(breakCV, lineLock); /* Waiting on breakCV = "going on break" */
+	WriteOutput(Clerk_ComingOffBreak, clerkType, clerkType, -1, clerkID);
 }
 
-void TakeClerksOffBreak (enum persontype clerkType)
+int CreateSystemJob (int ssn, int clerkID, enum persontype clerkType)
 {
-	int clerkID;
-	int numClerks;
-	int wakeUpClerk;
-	int clerksOnBreak;
-	int lineLock;
+	int jobID;
 
-	numClerks = clerkGroups[clerkType].numClerks;
-	wakeUpClerk = 0;
-	clerksOnBreak = 0;
-	lineLock = clerkGroups[clerkType].lineLock;
+	AcquireLock(systemJobFindLock);
 
-	for (clerkID = 0; clerkID < numClerks; clerkID++)
+	/* Find free system job */
+	for (jobID = 0; jobID < numSystemJobs; jobID++)
 	{
-		/* If I have more than 3 people in my line, need to wake up another clerk. */
-		if (clerkGroups[clerkType].clerks[clerkID].lineLength >= 3 && clerkGroups[clerkType].clerks[clerkID].state != ONBREAK)
+		if (jobs[jobID].ssn == -1 && jobs[jobID].clerkID == -1 && jobs[jobID].type == CUSTOMER)
 		{
-			wakeUpClerk++;
-		}
-
-		/* Keep track of how many clerks are on break. */
-		if (clerkGroups[clerkType].clerks[clerkID].state == ONBREAK)
-		{
-			clerksOnBreak++;
+			jobs[jobID].ssn = ssn;
+			jobs[jobID].clerkID = clerkID;
+			jobs[jobID].type = clerkType;
+			return jobID;
 		}
 	}
 
-	for (clerkID = 0; clerkID < numClerks; clerkID++)
+	ReleaseLock(systemJobFindLock);
+
+	return -1;
+}
+
+void ResetSystemJob (int jobID)
+{
+	AcquireLock(systemJobFindLock);
+
+	/* Reset job so other System Jobs can use. */
+	jobs[jobID].ssn = -1;
+	jobs[jobID].clerkID = -1;
+	jobs[jobID].type = CUSTOMER;
+
+	ReleaseLock(systemJobFindLock);
+}
+
+void RunSystemJob ()
+{
+	int jobID;
+	int systemLock;
+	int filingTime;
+	int elapsedTime;
+	int ssn;
+
+	jobID = threadParam;
+	ReleaseLock(paramLock);
+
+	ssn = jobs[jobID].ssn;
+
+	switch (jobs[jobID].type)
 	{
-		/* If all clerks are on break, but they have people in their line, wake up that clerk. */
-		if (clerksOnBreak == numClerks && clerkGroups[clerkType].clerks[clerkID].lineLength > 0)
-		{
-			clerkGroups[clerkType].clerks[clerkID].state = BUSY;
-
-			Signal(clerkGroups[clerkType].breakCVs[clerkID], lineLock);
-			WriteOutput(Manager_WokeUpClerk, clerkType, MANAGER, clerkID, clerkID);
-			continue;
-		}
-
-		/* If a clerk is on break, and another clerk has 3+ people in their line, wake up that clerk. */
-		if (clerkGroups[clerkType].clerks[clerkID].state == ONBREAK && wakeUpClerk > 0)
-		{
-			wakeUpClerk--;
-
-			clerkGroups[clerkType].clerks[clerkID].state = BUSY;
-			Signal(clerkGroups[clerkType].breakCVs[clerkID], lineLock);
-			WriteOutput(Manager_WokeUpClerk, clerkType, MANAGER, clerkID, clerkID);
-		}
+		case APPLICATION:
+			systemLock = filingApplicationLock;
+			break;
+		case PICTURE:
+			systemLock = filingPictureLock;
+			break;
+		case PASSPORT:
+			systemLock = certifyingPassportLock;
+			break;
+		case CASHIER:
+			break; /* Casier not responsible for filing anything in the system */
 	}
-}
 
-int ManageClerk (enum persontype clerkType)
-{
-	int lineLock;
-	int numClerks;
-	int groupMoney;
+	/* TODO: Random syscall. See above. */
+	/* 	filingTime = Random(20, 100); */
+	filingTime = 20;
 
-	lineLock = clerkGroups[clerkType].lineLock;
-
-	AcquireLock(lineLock);
-
-	groupMoney = CollectMoney(clerkType);
-
-	TakeClerksOffBreak(clerkType);
-
-	ReleaseLock(lineLock);
-
-	return groupMoney;
-}
-
-void Manager ()
-{
-	int previousTotal;
-
-	WriteOutput(Manager_CountedMoneyForClerk, APPLICATION, MANAGER, manager.appclerkMoney, -1);
-	WriteOutput(Manager_CountedMoneyForClerk, PICTURE, MANAGER, manager.picclerkMoney, -1);
-	WriteOutput(Manager_CountedMoneyForClerk, PASSPORT, MANAGER, manager.passportclerkMoney, -1);
-	WriteOutput(Manager_CountedMoneyForClerk, CASHIER, MANAGER, manager.cashierMoney, -1);
-	WriteOutput(Manager_CountedTotalMoney, MANAGER, MANAGER, manager.totalMoney, -1);
-
-	do
+	for (elapsedTime = 0; elapsedTime < filingTime; elapsedTime++)
 	{
-		previousTotal = manager.totalMoney;
-
-		manager.appclerkMoney = ManageClerk(APPLICATION);
-		manager.picclerkMoney = ManageClerk(PICTURE);
-		manager.passportclerkMoney = ManageClerk(PASSPORT);
-		manager.cashierMoney = ManageClerk(CASHIER);
-
-		manager.totalMoney = manager.appclerkMoney + manager.picclerkMoney + manager.passportclerkMoney + manager.cashierMoney;
-
-		if (previousTotal != manager.totalMoney || numCustomersFinished == (numCustomers + numSenators))
-		{
-			WriteOutput(Manager_CountedMoneyForClerk, APPLICATION, MANAGER, manager.appclerkMoney, -1);
-			WriteOutput(Manager_CountedMoneyForClerk, PICTURE, MANAGER, manager.picclerkMoney, -1);
-			WriteOutput(Manager_CountedMoneyForClerk, PASSPORT, MANAGER, manager.passportclerkMoney, -1);
-			WriteOutput(Manager_CountedMoneyForClerk, CASHIER, MANAGER, manager.cashierMoney, -1);
-			WriteOutput(Manager_CountedTotalMoney, MANAGER, MANAGER, manager.totalMoney, -1);
-		}
-
 		Yield();
-	} while (numCustomersFinished < (numCustomers + numSenators));
+	}
+
+	AcquireLock(systemLock);
+
+	switch (jobs[jobID].type)
+	{
+		case APPLICATION:
+			customers[ssn].applicationFiled = true;
+			break;
+		case PICTURE:
+			customers[ssn].pictureFiled = true;
+			break;
+		case PASSPORT:
+			customers[ssn].passportCertified = true;
+			break;
+		case CASHIER:
+			break; /* Casier not responsible for filing anything in the system */
+	}
+
+	WriteOutput(Clerk_SystemJobComplete, jobs[jobID].type, people[ssn].type, ssn, jobs[jobID].clerkID);
+	ReleaseLock(systemLock);
+
+	ResetSystemJob(jobID);
 
 	Exit(0);
 }
-int main() 
+
+void ClerkInteraction (int clerkID, enum persontype clerkType)
 {
-	doCreate();
-	InitializeManager();
-	Manager();
+	int lineLock;
+	int clerkLock;
+	int workCV;
+
+	int customerSSN;
+
+	int jobID;
+
+	lineLock = clerkGroups[clerkType].lineLock;
+	clerkLock = clerkGroups[clerkType].clerkLocks[clerkID];
+	workCV = clerkGroups[clerkType].workCVs[clerkID];
+
+	customerSSN = clerkGroups[clerkType].clerks[clerkID].currentCustomer;
+
+	AcquireLock(clerkLock);
+	ReleaseLock(lineLock);
+	Wait(workCV, clerkLock);
+	Yield(); /* Simulate work */
+
+	switch (clerkType) 
+	{
+		case APPLICATION:
+			break; /* Below: File application. */
+		case PICTURE:
+			break; /* Below: Take picture with Signal, File if Customer liked picture. */
+		case PASSPORT:
+			AcquireLock(filingApplicationLock);
+			AcquireLock(filingPictureLock);
+			if (customers[customerSSN].applicationFiled == false || customers[customerSSN].pictureFiled == false)
+			{
+				clerkGroups[clerkType].clerks[clerkID].customerAppReadyToCertify = false;
+				WriteOutput(Clerk_DeterminedAppAndPicNotCompleted, clerkType, people[customerSSN].type, customerSSN, clerkID);
+			}
+			else
+			{
+				clerkGroups[clerkType].clerks[clerkID].customerAppReadyToCertify = true;
+				WriteOutput(Clerk_DeterminedAppAndPicCompleted, clerkType, people[customerSSN].type, customerSSN, clerkID);
+				
+				/* Certify Passport in the system */
+				jobID = CreateSystemJob(customerSSN, clerkID, clerkType);
+				AcquireLock(paramLock);
+				threadParam = jobID;
+				Fork("CertifyPassportJob", sizeof("CertifyPassportJob"), RunSystemJob);
+			}
+			ReleaseLock(filingApplicationLock);
+			ReleaseLock(filingPictureLock);
+			break;
+		case CASHIER:
+			AcquireLock(certifyingPassportLock);
+			if (customers[customerSSN].passportCertified == false)
+			{
+				clerkGroups[clerkType].clerks[clerkID].customerAppReadyForPayment = false;
+			}
+			else
+			{
+				clerkGroups[clerkType].clerks[clerkID].customerAppReadyForPayment = true;
+				Signal(workCV, clerkLock);
+				Wait(workCV, clerkLock);
+
+				AcquireLock(clerkGroups[clerkType].moneyLock);
+				clerkGroups[clerkType].groupMoney += 100;
+				WriteOutput(Clerk_ReceivedPayment, clerkType, people[customerSSN].type, customerSSN, clerkID);
+				ReleaseLock(clerkGroups[clerkType].moneyLock);
+
+				customers[customerSSN].gotPassport = true;
+			}
+			ReleaseLock(certifyingPassportLock);
+			break;
+	}
+
+	Signal(workCV, clerkLock);
+	Wait(workCV, clerkLock);
+
+	switch (clerkType)
+	{
+		case APPLICATION:
+			/* File Application in the system */
+			jobID = CreateSystemJob(customerSSN, clerkID, clerkType);
+			AcquireLock(paramLock);
+			threadParam = jobID;
+			Fork("ApplicationFilingJob", sizeof("ApplicationFilingJob"), RunSystemJob);
+			break; /* Application Clerk already did work */
+		case PICTURE:
+			if (clerkGroups[clerkType].clerks[clerkID].customerLikedPhoto == true)
+			{
+				/* File Photo in the system */
+				jobID = CreateSystemJob(customerSSN, clerkID, clerkType);
+				AcquireLock(paramLock);
+				threadParam = jobID;
+				Fork("PictureFilingJob", sizeof("PictureFilingJob"), RunSystemJob);
+			}
+			clerkGroups[clerkType].clerks[clerkID].customerLikedPhoto = false; /* Done checking if Customer liked photo; "forget" so ready for next Customer. */
+			break;
+		case PASSPORT:
+			clerkGroups[clerkType].clerks[clerkID].customerAppReadyToCertify = false; /* Done checking if Customer App/Picture filed; "forget" so ready for next Customer. */
+			break;
+		case CASHIER:
+			clerkGroups[clerkType].clerks[clerkID].customerAppReadyForPayment = false; /* Done checking if Customer can pay for passport; "forget" so ready for next Customer. */
+			break;
+	}
+
+	/* Done with Customer, reset so we're ready for next Customer. */
+	clerkGroups[clerkType].clerks[clerkID].currentCustomer = -1;
+
+	ReleaseLock(clerkLock);
+}
+
+enum clerkinteraction DecideInteraction (int clerkID, enum persontype clerkType)
+{
+	int lineLock;
+	int lineCV;
+	int bribeLineCV;
+	int senatorLineCV;
+	int breakCV;
+
+	lineLock = clerkGroups[clerkType].lineLock;
+	lineCV = clerkGroups[clerkType].lineCVs[clerkID];
+	bribeLineCV = clerkGroups[clerkType].bribeLineCVs[clerkID];
+	senatorLineCV = clerkGroups[clerkType].senatorLineCVs[clerkID];
+	breakCV = clerkGroups[clerkType].breakCVs[clerkID];
+
+	AcquireLock(lineLock); /* Synchronize line checks (no customers can join while scanning lines). */
+	
+	AcquireLock(senatorIndoorLock); /* Synchronize senator present check */
+	if (isSenatorPresent)
+	{
+		/* If senator is present, customers need to be woken up so they can "go outside." */
+		ReleaseLock(senatorIndoorLock); /* Done checking if senator is present. (Release ASAP for other clerks) */
+		
+		if (clerkGroups[clerkType].clerks[clerkID].lineLength > 0)
+		{
+			Broadcast(lineCV, lineLock);
+		}
+		
+		if (clerkGroups[clerkType].clerks[clerkID].bribeLineLength > 0)
+		{
+			Broadcast(bribeLineCV, lineLock);
+		}
+
+		/* Now that all customers "went outside," handle senator(s). */
+		if (clerkGroups[clerkType].clerks[clerkID].senatorLineLength > 0)
+		{
+			/* WriteOutput(Clerk_SignalledCustomer, clerkType, SENATOR, -1, clerkID); */
+			Signal(senatorLineCV, lineLock); /* Let first waiting senator know she can come to counter. */
+			clerkGroups[clerkType].clerks[clerkID].state = BUSY;
+			return DOINTERACTION;
+		}
+	}
+	ReleaseLock(senatorIndoorLock); /* Done checking if senator is present. */
+
+	/* Next priority: Take care of customers trying to bribe me. */
+	if (clerkGroups[clerkType].clerks[clerkID].numCustomersBribing > 0)
+	{
+		return ACCEPTBRIBE;
+	}
+
+	/* Nobody is actively trying to bribe, but past bribers are waiting. */
+	else if (clerkGroups[clerkType].clerks[clerkID].bribeLineLength > 0)
+	{
+		WriteOutput(Clerk_SignalledCustomer, clerkType, CUSTOMER, -1, clerkID);
+		Signal(bribeLineCV, lineLock); /* Let first waiting briber know she can come to counter. */
+		clerkGroups[clerkType].clerks[clerkID].state = BUSY;
+		return DOINTERACTION;
+	}
+
+	/* No bribers, take care of normal customers (if there are any). */
+	else if (clerkGroups[clerkType].clerks[clerkID].lineLength > 0)
+	{
+		WriteOutput(Clerk_SignalledCustomer, clerkType, CUSTOMER, -1, clerkID);
+		Signal(lineCV, lineLock); /* Let first waiting customer know she can come to counter. */
+		clerkGroups[clerkType].clerks[clerkID].state = BUSY;
+		return DOINTERACTION;
+	}
+
+	/* No customers to take care of, go on break until manager wakes me up. */
+	else
+	{
+		clerkGroups[clerkType].clerks[clerkID].state = ONBREAK;
+		return TAKEBREAK;	
+	}
+}
+
+void Clerk()
+{
+
+	int ssn;
+	struct Person clerk;
+	enum clerkinteraction interaction;
+	AcquireLock(paramLock);
+
+	ssn = threadParam;
+	ReleaseLock(paramLock);
+
+	clerk = people[ssn];
+
+	while (numCustomersFinished < (numCustomers + numSenators))
+	{
+		interaction = DecideInteraction (clerk.id, clerk.type);
+
+		switch(interaction) 
+		{
+			case ACCEPTBRIBE:
+				AcceptBribe(clerk.id, clerk.type);
+				break;
+			case DOINTERACTION:
+				ClerkInteraction(clerk.id, clerk.type);
+				break;
+			case TAKEBREAK:
+				TakeBreak(clerk.id, clerk.type);
+		}
+	}
+
+	Exit(0);
+}
+int main()
+{
+	Write("Inside application clerk", sizeof("Inside application clerk"), 1);
+
+	Exit(0);
 }
