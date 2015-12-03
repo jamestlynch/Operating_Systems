@@ -26,22 +26,682 @@
 #include <queue>
 using namespace std;
 
+void SendResponse(string response, int machineID, int mailboxID);
+
+struct PendingRequest
+{
+    int machineID;
+    int mailboxID;
+    string requestType;
+
+    int indexcv;
+    int indexlock;
+    int indexmv;
+    int indexvar;
+    int mvvalue;
+    string name;
+
+    bool fulfilled;
+    int noCount;
+
+    PendingRequest(string type, int machine, int mailbox)
+    {
+        requestType = type;
+        machineID = machine;
+        mailboxID = mailbox;
+        fulfilled = false;
+        noCount = 0;
+    }
+};
+
+vector<PendingRequest*> pending = new vector<PendingRequest>();
+
+
+//========================================================================================================================================
+//
+// Locks
+//  A condition variable does not have a value, but threads may be queued, 
+//  waiting on the variable. All operations on a condition variable must 
+//  be made while the requesting machine has acquired a lock. Mutual exclusion
+//  must be enforced among machines calling the condition variable operations.
+//
+//========================================================================================================================================
+
+//----------------------------------------------------------------------
+// ServerLock
+//  Server locks differ from traditional locks in that we do not have a
+//  notion of threads, since execution of user programs is done remotely
+//  Instead, we hold lock ownership with machineID and mailbox 
+//  (corresponding to IP Addresses and Port Numbers), and hold a queue
+//  of Messages to put a remote user program to sleep, since programs
+//  pause execution until receiving a response.
+//----------------------------------------------------------------------
+
+enum lockstate { FREE, BUSY };
+
+struct ServerLock
+{
+    string name;
+    lockstate state;
+    int machineID;
+    int mailbox;
+    bool toDelete;
+
+    ServerLock(string lockname, int netname, int box)
+    {
+        name = lockname;
+        machineID = netname;
+        mailbox = box;
+        state = FREE;
+        toDelete = false;
+    }
+};
+
+ServerLock* serverlocks[100];
+
+BitMap LockMap(100);
+
+//----------------------------------------------------------------------
+// ValidateLockIndex
+//  Verifies the input passed in to Lock RPCs (1) correspond to valid
+//  lock locations (positive and inbounds) and (2) the lock exists. If 
+//  any errors occur, the Server sends a corresponding error code and 
+//  the RPC should not continue.
+//
+//  Returns -1 if an error occured, 0 otherwise.
+//
+//  "indexlock" -- the index passed in to the Lock RPC being validated
+//  "requestType" -- the RPC two-letter code
+//  "machineID" -- the requesting machine's netname, used for responses
+//  "mailboxID" -- the requesting mailbox number, used for responses
+//----------------------------------------------------------------------
+
+int ValidateLockIndex(int indexlock, string requestType, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+    bool error = false;
+
+    // (1) Index corresponds to valid location: 400
+    if (indexlock >= 100 || indexlock < 0)
+    {
+        ss << "400" << " " << requestType << " " << indexlock;
+        error = true;
+    }
+
+    ServerLock *lock = serverlocks[indexlock];
+
+    // (2) Lock not found: 404
+    if (!lock)
+    {
+        ss << "404" << " " << requestType << " " << indexlock;
+        error = true;
+    }
+
+    // Errors: Send response and wrap up RPC
+    if (error)
+    {
+        string response = ss.str();
+        SendResponse(response, machineID, mailboxID);
+        return -1;
+    }
+
+    // No errors
+    return 0;
+}
+
+//----------------------------------------------------------------------
+// CreateLock
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void CreateLock(char *name, PacketHeader inPktHdr, MailHeader inMailHdr)
+{
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = inPktHdr.from; 
+    outPktHdr.from= inPktHdr.to;  
+    outMailHdr.to = inMailHdr.from;
+    outMailHdr.from = 0;
+
+    ServerLock *sl= new ServerLock(name, inPktHdr.from, 0);
+    sl->machineID= inPktHdr.from;
+    sl->mailbox= inMailHdr.from;
+    sl->state= 0; //free
+
+    int indexlock = LockMap.find();
+    serverlocks[indexlock] = sl;
+
+    std::stringstream ss;
+    ss << "CLSUCCESS " <<  indexlock;
+
+    outMailHdr.length = ss.str().length() + 1;
+    //printf("Response: %s", response);
+    char *response = const_cast<char*>( ss.str().c_str());
+
+    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+
+    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", m->mailHdr.to, m->mailHdr.from, m->pktHdr.to, m->pktHdr.from);
+
+    bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
+    if(!success){
+        printf("postOffice send failed. Terminating...\n");
+        interrupt->Halt();
+        }
+}
+
+//----------------------------------------------------------------------
+// AcquireLock
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void AcquireLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr)
+{
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = inPktHdr.from; 
+    outPktHdr.from= inPktHdr.to;  
+    outMailHdr.to = inMailHdr.from;
+    outMailHdr.from = 0;
+
+    std::stringstream ss;
+    ss << "ALSUCCESS " << indexlock;
+
+    outMailHdr.length = ss.str().length() + 1;
+    //printf("Response: %s", response);
+    char *response = const_cast<char*>( ss.str().c_str());
+    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+
+    if (serverlocks[indexlock]->state == 1)
+    { //lock busy so go on wait queue
+        serverlocks[indexlock]->waitqueue.push(m);
+    }
+    else 
+    {  // lock is valid and available so get the lock
+        printf("About to acquire the lock\n");
+        serverlocks[indexlock]->state = 1;
+        serverlocks[indexlock]->machineID = inPktHdr.from;
+        serverlocks[indexlock]->mailbox = inMailHdr.from;
+
+            bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
+            if(!success){
+                printf("postOffice send failed. Terminating...\n");
+                interrupt->Halt();
+            }
+        }
+}
+
+//----------------------------------------------------------------------
+// ReleaseLock
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void ReleaseLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr)
+{
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = inPktHdr.from; 
+    outPktHdr.from= inPktHdr.to;  
+    outMailHdr.to = inMailHdr.from;
+    outMailHdr.from = 0;
+
+    std::stringstream ss;
+
+    if (serverlocks[indexlock]->machineID != inPktHdr.from || serverlocks[indexlock]->mailbox != inMailHdr.from)
+    {
+        ss << "404" << " " << requestType << " " << indexlock;
+    }
+    else
+    {
+        ss << "RLSUCCESS " <<  indexlock;
+
+        if (!serverlocks[indexlock]->waitqueue.empty())
+        { // 
+            char *response = const_cast<char*>( ss.str().c_str());
+            
+            Mail *temp = serverlocks[indexlock]->waitqueue.front();
+            bool success = postOffice->Send(temp->pktHdr, temp->mailHdr, temp->data);
+            serverlocks[indexlock]->waitqueue.pop();
+
+            serverlocks[indexlock]->machineID = inPktHdr.from;
+            serverlocks[indexlock]->mailbox = inMailHdr.from;
+        }
+        else
+        {
+            serverlocks[indexlock]->state = 0;
+
+            if (serverlocks[indexlock]->toDelete)
+            {
+                delete serverlocks[indexlock];
+                LockMap.clear(indexlock);
+                serverlocks[indexlock] = NULL;
+            }
+        }
+    }
+        
+    char *response = const_cast<char*>( ss.str().c_str());
+
+    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
+    outMailHdr.length = strlen(response) + 1;
+    printf("Response: %s", response);
+    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+
+    bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
+        
+    if (!success)
+    {
+        printf("postOffice send failed. Terminating...\n");
+        interrupt->Halt();
+    }
+}
+
+//----------------------------------------------------------------------
+// DestroyLock
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void DestroyLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
+    char * response= "DLSUCCESS\n";
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = inPktHdr.from; 
+    outPktHdr.from= inPktHdr.to;  
+    outMailHdr.to = inMailHdr.from;
+    outMailHdr.from = 0;
+
+    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
+    outMailHdr.length = strlen(response) + 1;
+    printf("Response: %s", response);
+    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+
+    ServerLock * sl = serverlocks[indexlock];
+
+        if(sl->state == 0 &&  sl->waitqueue.empty()) // if lock is free and nobody is waiting
+         {
+            delete sl;
+            LockMap.clear(indexlock);
+            serverlocks[indexlock] = NULL;
+
+            bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
+            if(!success){
+                printf("postOffice send failed. Terminating...\n");
+                interrupt->Halt();
+            }
+        }
+        else{
+            sl->toDelete=true;
+        }
+
+}
+
+//========================================================================================================================================
+//
+// Condition Variables
+//  A condition variable does not have a value, but threads may be queued, 
+//  waiting on the variable. All operations on a condition variable must 
+//  be made while the requesting machine has acquired a lock. Mutual exclusion
+//  must be enforced among machines calling the condition variable operations.
+//
+//========================================================================================================================================
+
 struct ServerCV
 {
     string name;
     bool toDelete;
     int conditionlock;
+    bool cvlockSet;
     std::queue<Mail*> waitqueue;
 
     ServerCV(string cvname)
     {
         name = cvname;
         toDelete = false;
+        cvlockSet = false;
     }
 };
 
-vector<ServerCV*> serverconditions;
+ServerCV* serverconditions[100];
 
+BitMap CVMap(100);
+
+//----------------------------------------------------------------------
+// ValidateCVIndeces
+//  Verifies the input passed in to CV RPCs (1) correspond to valid CV,
+//  (2) the CV exists, (3) the lock is valid and exists, and (4) the 
+//  machine owns the Lock corresponding to the CV's critical section. If 
+//  any errors occur, the Server sends a corresponding error code and 
+//  the RPC should not continue.
+//
+//  Returns -1 if an error occured, 0 otherwise.
+//
+//  "indexcv" -- CV index passed in to the CV RPC being validated
+//  "indexlock" -- Lock index passed in to the CV RPC being validated
+//  "requestType" -- the RPC two-letter code
+//  "machineID" -- the requesting machine's netname, used for responses
+//  "mailboxID" -- the requesting mailbox number, used for responses
+//----------------------------------------------------------------------
+
+int ValidateCVIndeces(unsigned int indexcv, unsigned int indexlock, string requestType, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+    bool error = false;
+
+    // (1) Corresponds to valid condition location: 400
+    if (indexcv >= 100 || indexcv < 0)
+    {
+        ss << "400" << " " << requestType << " " << indexcv;
+        error = true;
+    }
+
+    // Get the Condition and Wait
+    ServerCV *condition = serverconditions[indexcv];
+
+    // (2) Condition exists: 404
+    if (!condition)
+    {
+        ss << "404" << " " << requestType << " " << indexcv;
+        error = true;
+    }
+    else
+    {
+        // If lock passed in belongs to CV's C.S.
+        if (condition->cvlockSet && condition->conditionlock != indexlock)
+        {
+            ss << "407" << " " << requestType << " " << indexcv;
+            error = true;  
+        }
+    
+        // If CV has no corresponding lock, set its lock
+        if (!condition->cvlockSet)
+        {
+            condition->conditionlock = indexlock;
+            condition->cvlockSet = true;
+        }
+    }
+
+
+    if (error)
+    {
+        string response = ss.str();
+        SendResponse(response, machineID, mailboxID);
+        return -1;
+    }
+
+    // No errors
+    return 0;
+}
+
+//----------------------------------------------------------------------
+// DeleteCondition
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void DeleteCondition(unsigned int indexcv)
+{
+    ServerCV *condition = serverconditions[indexcv];
+
+    delete condition;
+
+    serverconditions[indexcv] = NULL;
+    CVMap.clear(indexcv);
+
+    DEBUG('n', "Condition %d was successfully deleted.\n", indexcv);
+}
+
+//----------------------------------------------------------------------
+// CreateCV
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void CreateCV(string cvname, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+
+    // Create Condition
+    ServerCV *condition = new ServerCV(cvname);
+    int indexcv = CVMap.find();
+    serverconditions[indexcv] = condition;
+
+    // Create Response and Send
+    ss << "201" << " " << "CC" << " " << indexcv;
+    string response = ss.str();
+    SendResponse(response, machineID, mailboxID);
+}
+
+//----------------------------------------------------------------------
+// WaitCV
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void WaitCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+
+    // Validate input
+    if (ValidateCVIndeces(indexcv, indexlock, machineID, mailboxID) == -1)
+    {
+        return;
+    }
+    else
+    {
+        ss << "200" << " " << "WC" << " " << indexcv;
+    }
+
+    // Get the Condition and Wait
+    ServerCV *condition = serverconditions[indexcv];
+
+    // Prepare Message to send when Signal is called
+    PacketHeader outPktHdr;
+    MailHeader outMailHdr;
+
+    outPktHdr.to = machineID; // Server Machine ID
+    outMailHdr.to = mailboxID; // Server Machine ID
+    outMailHdr.from = 0; // Client Mailbox ID
+    char *response = (char *) ss.str().c_str();
+    outMailHdr.length = strlen(response) + 1;
+
+    Mail *queuedMessage = new Mail(outPktHdr, outMailHdr, response);
+
+    // Release the Lock before going to sleep: 
+    //  Wake up one thread waiting for lock
+    // ^ ReleaseLock should be own method
+    if (!serverlocks[indexlock]->waitqueue.empty())
+    { 
+        Mail *waitingLock = serverlocks[indexlock]->waitqueue.front();
+        serverlocks[indexlock]->waitqueue.pop();
+
+        serverlocks[indexlock]->state = 1; // Set Lock to Busy
+        serverlocks[indexlock]->machineID = waitingLock->pktHdr.to;
+        serverlocks[indexlock]->mailbox = waitingLock->mailHdr.to;
+
+        bool success = postOffice->Send(waitingLock->pktHdr, waitingLock->mailHdr, waitingLock->data);
+        if(!success)
+        {
+            printf("postOffice send failed. Terminating...\n");
+            interrupt->Halt();
+        }
+    }
+    else
+    {
+        serverlocks[indexlock]->state = 0; // Set Lock to Free
+    }
+
+    condition->waitqueue.push(queuedMessage);
+}
+
+//----------------------------------------------------------------------
+// SignalCV
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void SignalCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+
+    // Validate input
+    if (ValidateCVIndeces(indexcv, indexlock, machineID, mailboxID) == -1)
+    {
+        return;
+    }
+
+    // Get the Condition and Signal
+    ServerCV *condition = serverconditions[indexcv];
+
+    // "Wake up" One Sleeping Machine
+    Mail *response = condition->waitqueue.front();
+    condition->waitqueue.pop();
+
+    // Need to Forward Message to machine with Lock
+    ForwardMessage(task = "AL", indexlock, response); // Client Machine ID, Mailbox ID, Request Code/Status 
+
+        {
+                // Add Client Machine ID/Mailbox ID to request
+                ss << task; // Task to Perform
+                ss << response.outPktHdr.to; // Client Machine ID
+                ss << response.outMailHdr.to; // Client Mailbox ID 
+                ss << response.data; // TODO: How do you load a char[] into a ss? <-- Response to Original Request (i.e. asking to AcquireLock, but originally called Wait)
+
+                // Put in Resource Mailbox
+                PacketHeader outPktHdr;
+                MailHeader outMailHdr;
+
+                outPktHdr.to = ;// Server Machine ID
+                outMailHdr.to = 1; // Put in Resource Mailbox
+                outMailHdr.from = 0;
+                return;
+        }
+
+    // Marked for deletion and no waiting threads, delete
+    if (condition->toDelete && condition->waitqueue.empty())
+    {
+        DeleteCondition(indexcv);
+    }
+
+    // Send response to Signaling machine
+    ss << "200" << " " << "SC" << " " << indexcv;
+    string signalResponse = ss.str();
+    SendResponse(signalResponse, machineID, mailboxID);
+}
+
+//----------------------------------------------------------------------
+// BroadcastCV
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void BroadcastCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+
+    // Validate input
+    if (ValidateCVIndeces(indexcv, indexlock, machineID, mailboxID) == -1)
+    {
+        return;
+    }
+
+    // Get the Condition and Wait
+    ServerCV *condition = serverconditions[indexcv];
+
+    // "Wake up" ALL Sleeping Machines
+    while (!condition->waitqueue.empty())
+    {
+        Mail *response = condition->waitqueue.front();
+        condition->waitqueue.pop();
+
+        // Reaquire the Lock when you are woken back up
+        // Lock is busy so go on wait queue
+        if (serverlocks[indexlock]->state == 1)
+        {
+            serverlocks[indexlock]->waitqueue.push(response);
+        }
+        // Lock is valid and available so get the lock
+        else
+        {
+            printf("About to acquire the lock\n");
+            serverlocks[indexlock]->state = 1; // Make Lock Busy
+            serverlocks[indexlock]->machineID = response->pktHdr.to;
+            serverlocks[indexlock]->mailbox = response->mailHdr.to;
+            // Send response
+            bool success = postOffice->Send(response->pktHdr, response->mailHdr, response->data);
+            if (!success)
+            {
+                printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
+                interrupt->Halt();
+            }
+        }
+    }
+
+    // Marked for deletion and no waiting threads, delete
+    if (condition->toDelete && condition->waitqueue.empty())
+    {
+        DeleteCondition(indexcv);
+    }
+
+    // Send response to Signaling machine
+    ss << "200" << " " << "BC" << " " << "100";
+    string signalResponse = ss.str();
+    SendResponse(signalResponse, machineID, mailboxID);
+}
+
+//----------------------------------------------------------------------
+// DestroyCV
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void DestroyCV(unsigned int indexcv, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+    bool error = false;
+
+    // Validate input
+    if (indexcv >= 100 || indexcv < 0)
+    {
+        ss << "400" << " " << "DC" << " " << indexcv;
+        error = true;
+    }
+
+    // Get the Condition and Wait
+    ServerCV *condition = serverconditions[indexcv];
+    
+    // if (machineID != serverlocks.at(condition->conditionlock)->machineID)
+    // {
+    //     ss << "400" << " " << "DC" << " " << indexcv;
+    //     error = true;
+    // }
+
+    // Valid CV index, delete or mark for deletion
+    if (!error)
+    {
+        // No waiting threads when Destroy called, delete
+        if (condition->waitqueue.empty())
+        {
+            DeleteCondition(indexcv);
+        }
+
+        ss << "200" << " " << "DC" << " " << indexcv;
+        condition->toDelete = true;
+    }
+
+    // Send Response
+    string response = ss.str();
+    SendResponse(response, machineID, mailboxID);
+}
+
+//========================================================================================================================================
+//
+// Monitor Variables
+//  Monitor Variables are shared data used by remote user programs.
+//
+//========================================================================================================================================
 
 struct MonitorVariable
 {
@@ -57,7 +717,143 @@ struct MonitorVariable
     }
 };
 
-vector<MonitorVariable*> monitorvariables;
+MonitorVariable* monitorvariables[100];
+
+BitMap MVMap(100);
+
+//----------------------------------------------------------------------
+// CreateMV
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void CreateMV(string mvname, int mvsize, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+
+    // Validate input
+    if (mvsize <= 0)
+    {
+        ss << "400 CM" << " " << "-1";
+    }
+    else
+    {
+        MonitorVariable *mv = new MonitorVariable(mvname, mvsize);
+        int indexmv = MVMap.find();
+        monitorvariables[indexmv] = mv;
+        ss << "201 CM" << " " << indexmv;
+    }
+
+    string response = ss.str();
+    SendResponse(response, machineID, mailboxID);
+}
+
+//----------------------------------------------------------------------
+// SetMV
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void SetMV(unsigned int indexmv, unsigned int indexvar, int value, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+
+    // Validate input
+    if (indexmv >= 100 && indexmv < 0)
+    {
+        ss << "400 SM" << " " << indexmv;
+    }
+
+    MonitorVariable *mv = monitorvariables[indexmv];
+
+    if (indexvar >= mv->size)
+    {
+        ss << "400 SM" << " " << indexmv;
+    }
+    else if (indexmv < 100 && indexvar < mv->size)
+    {
+        mv->values[indexvar] = value;
+        ss << "200 SM" << " " << indexmv;
+    }
+
+    string response = ss.str();
+    SendResponse(response, machineID, mailboxID);
+}
+
+//----------------------------------------------------------------------
+// GetMV
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void GetMV(unsigned int indexmv, unsigned int indexvar, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+
+    // Validate input
+    if (indexmv >= 100 && indexmv < 0)
+    {
+        ss << "400" << " " << "GM" << " " << "-1";
+    }
+
+    MonitorVariable *mv = monitorvariables[indexmv];
+
+    if (indexvar >= mv->size)
+    {
+        ss << "400" << " " << "GM" << " " << "-1";
+    }
+    else if (indexmv < 100 && indexvar < mv->size)
+    {
+        ss << "200" << " " << "GM" << " " << mv->values[indexvar];
+    }
+
+    string response = ss.str();
+    SendResponse(response, machineID, mailboxID);
+}
+
+//----------------------------------------------------------------------
+// DestroyMV
+//  TODO: Description
+//----------------------------------------------------------------------
+
+void DestroyMV(unsigned int indexmv, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+
+    // Validate input
+    if (indexmv >= 100 && indexmv < 0)
+    {
+        ss << "400" << " " << "GM" << " " << indexmv;
+    }
+    // Destroy MV
+    else
+    {
+        MonitorVariable *mv = monitorvariables[indexmv];
+        delete mv->values;
+        MVMap.clear(indexmv);
+        monitorvariables[indexmv] = NULL;
+        ss << "200" << " " << "DM" << " " << indexmv;
+    }
+
+    // Send Request
+    string response = ss.str();
+    SendResponse(response, machineID, mailboxID);
+}
+
+//========================================================================================================================================
+//
+// Server
+//  Client machines send request, Server handles requests and sends responses.
+//
+//  See also:   exception.cc   client networked system calls
+//
+//========================================================================================================================================
+
+//----------------------------------------------------------------------
+// SendResponse
+//  TODO: Description
+//----------------------------------------------------------------------
 
 void SendResponse(string response, int machineID, int mailboxID)
 {
@@ -82,563 +878,175 @@ void SendResponse(string response, int machineID, int mailboxID)
     }
 }
 
-int dovalidatelockindex(int index, PacketHeader inPktHdr, MailHeader inMailHdr)
+void ForwardRequest (char *request, int machineID, int mailboxID)
 {
-    // (1) Index corresponds to valid location
-    if (index < 0)
+    PendingRequest pendingRequest = new PendingRequest(request, machineID, mailboxID);
+
+    pending.push_back(pendingRequest);
+
+    stringstream ss;
+    ss << (pending.size() - 1) << " ";
+    ss << machineID << " ";
+    ss << mailboxID << " ";
+    ss << request;
+
+    for (int indexserver = 0; indexserver < 5; indexserver++)
     {
-        printf("%s","Invalid lock table index, negative.\n");
-        return -1;
-    }
-
-    int size = slocks.size();
-
-    // (1) Index corresponds to valid location
-    if (index > size - 1)
-    {
-        printf("%s","Invalid lock table index, bigger than size.\n");
-        return -1;
-    }
-
-    ServerLock * currentServerLock = slocks.at(index);
-
-    // (2) Defined lock
-    if (!currentServerLock)
-    {
-        printf("Lock %d is NULL.\n", index);
-        return -1;
-    }
-    if (inPktHdr.to <0 || inPktHdr.from <0 || inMailHdr.from < 0 || inMailHdr.to < 0 ){
-        printf("Invalid. inmailhdr.to= %d, inmailhdr.from= %d, inPktHdr.to=%d, inPktHdr.from=%d\n", inMailHdr.to, inMailHdr.from, inPktHdr.to, inPktHdr.from);
-        return -1;
-    }
-
-    return 0;
-}
-
-void doCreateLock(char *name, PacketHeader inPktHdr, MailHeader inMailHdr){
-    std::stringstream ss;
-    //char *response = new char;
-    int x= slocks.size();
-    ss << "CLSUCCESS " <<  x;
-    //ss >> response;
-    //printf("response: %s", response);
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
-
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
-
-    outMailHdr.length = ss.str().length() + 1;
-    //printf("Response: %s", response);
-    char *response = const_cast<char*>( ss.str().c_str());
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
-
-    ServerLock *sl= new ServerLock(name, inPktHdr.from, 0);
-    sl->machineID= inPktHdr.from;
-    sl->mailbox= inMailHdr.from;
-    sl->state= 0; //free
-    slocks.push_back(sl);
-    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", m->mailHdr.to, m->mailHdr.from, m->pktHdr.to, m->pktHdr.from);
-
-    bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-    if(!success){
-        printf("postOffice send failed. Terminating...\n");
-        interrupt->Halt();
-        }
-}
-
-void doAcquireLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
-    std::stringstream ss;
-    //char *response = new char;
-    int x= slocks.size()-1;
-    ss << "ALSUCCESS " <<  x;
-    //ss >> response;
-    //printf("response: %s", response);
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
-
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
-
-    outMailHdr.length = ss.str().length() + 1;
-    //printf("Response: %s", response);
-    char *response = const_cast<char*>( ss.str().c_str());
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
-
-    if (slocks.at(indexlock)->state == 1){ //lock busy so go on wait queue
-            slocks.at(indexlock)->waitqueue.push(m);
-        }
-    else {  // lock is valid and available so get the lock
-            printf("About to acquire the lock\n");
-            slocks.at(indexlock)->state = 1;
-            slocks.at(indexlock)->machineID = inPktHdr.from;
-            slocks.at(indexlock)->mailbox = inMailHdr.from;
-            bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-            if(!success){
-                printf("postOffice send failed. Terminating...\n");
-                interrupt->Halt();
-            }
-        }
-}
-
-void doReleaseLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
-    std::stringstream ss;
-    //char *response = new char;
-    int x= slocks.size()-1;
-    ss << "RLSUCCESS " <<  x;
-    //ss >> response;
-    //printf("response: %s", response);
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
-
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
-
-    outMailHdr.length = ss.str().length() + 1;
-    //printf("Response: %s", response);
-    char *response = const_cast<char*>( ss.str().c_str());
-
-    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
-    outMailHdr.length = strlen(response) + 1;
-    printf("Response: %s", response);
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
-
-    if (!slocks.at(indexlock)->waitqueue.empty()){ // 
-            Mail *temp = slocks.at(indexlock)->waitqueue.front();
-            bool success = postOffice->Send(temp->pktHdr, temp->mailHdr, temp->data);
-            slocks.at(indexlock)->waitqueue.pop();
-
-            slocks.at(indexlock)->machineID = inPktHdr.from;
-            slocks.at(indexlock)->mailbox = inMailHdr.from;
-    }
-    else{
-        slocks.at(indexlock)->state = 0;
-        }
-        bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-        if(!success){
-            printf("postOffice send failed. Terminating...\n");
-            interrupt->Halt();
-    }
-}
-
-void doDestroyLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
-    char * response= "DLSUCCESS\n";
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
-
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
-
-    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
-    outMailHdr.length = strlen(response) + 1;
-    printf("Response: %s", response);
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
-
-    ServerLock * sl = slocks.at(indexlock);
-
-        if(sl->state == 0 &&  sl->waitqueue.empty()) // if lock is free and nobody is waiting
-         {
-            delete sl;
-            bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-            if(!success){
-                printf("postOffice send failed. Terminating...\n");
-                interrupt->Halt();
-            }
-        }
-        else{
-            sl->toDelete=true;
+        if (indexserver == netname)
+        {
+            continue;
         }
 
-}
-
-int validatecvindeces(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-    bool error = false;
-
-    // Validate input
-    if (indexcv >= serverconditions.size() || indexcv < 0)
-    {
-        ss << "401" << " " << "WC" << " " << indexcv;
-        error = true;
-    }
-
-    if (indexlock >= slocks.size() || indexlock < 0)
-    {
-        ss << "402" << " " << "WC" << " " << indexcv;
-        error = true;
-    }
-
-    // Get the Condition and Wait
-    ServerCV *condition = serverconditions.at(indexcv);
-
-    // Condition Lock has not been set
-    if (condition->conditionlock < 0)
-    {
-        condition->conditionlock = indexlock;
-    }
-
-    if (machineID != slocks.at(condition->conditionlock)->machineID)
-    {
-        ss << "403" << " " << "WC" << " " << indexcv;
-        error = true;
-    }
-
-    if (error)
-    {
         string response = ss.str();
-        SendResponse(response, machineID, mailboxID);
-        return -1;
-    }
 
-    // No errors
-    return 0;
+        SendResponse(response, indexserver, 1);
+    }
 }
 
-
-void CreateCV(string cvname, int machineID, int mailboxID)
+bool LookupResource (char *request, int machineID, int mailboxID)
 {
-    // Create the message
-    std::stringstream ss;
+    stringstream ss;
+    ss.str(request);
 
-    // Create Condition
-    ServerCV *condition = new ServerCV(cvname);
-    serverconditions.push_back(condition);
+    string requestType;
 
-    // Create Response and Send
-    ss << "201" << " " << "CC" << " " << serverconditions.size() - 1;
-    string response = ss.str();
-    SendResponse(response, machineID, mailboxID);
-}
+    ss >> requestType;
 
-void WaitCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-
-    // Validate input
-    if (validatecvindeces(indexcv, indexlock, machineID, mailboxID) == -1)
+    if (requestType == "CL")
     {
-        return;
-    }
-    else
-    {
-        ss << "200" << " " << "WC" << " " << indexcv;
-    }
+        string lockname;
+        ss >> lockname;
 
-    // Get the Condition and Wait
-    ServerCV *condition = serverconditions.at(indexcv);
-
-    // Prepare Message to send when Signal is called
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
-
-    outPktHdr.to = machineID; // Server Machine ID
-    outMailHdr.to = mailboxID; // Server Machine ID
-    outMailHdr.from = 0; // Client Mailbox ID
-    char *response = (char *) ss.str().c_str();
-    outMailHdr.length = strlen(response) + 1;
-
-    Mail *queuedMessage = new Mail(outPktHdr, outMailHdr, response);
-
-    // Release the Lock before going to sleep: 
-    //  Wake up one thread waiting for lock
-    if (!slocks.at(indexlock)->waitqueue.empty())
-    { 
-        Mail *waitingLock = slocks.at(indexlock)->waitqueue.front();
-        slocks.at(indexlock)->waitqueue.pop();
-
-        slocks.at(indexlock)->state = 1; // Set Lock to Busy
-        slocks.at(indexlock)->machineID = waitingLock->pktHdr.to;
-        slocks.at(indexlock)->mailbox = waitingLock->mailHdr.to;
-
-        bool success = postOffice->Send(waitingLock->pktHdr, waitingLock->mailHdr, waitingLock->data);
-        if(!success)
+        for (int indexlock = 0; indexlock < 100; indexlock++)
         {
-            printf("postOffice send failed. Terminating...\n");
-            interrupt->Halt();
-        }
-    }
-    else
-    {
-        slocks.at(indexlock)->state = 0; // Set Lock to Free
-    }
-
-    condition->waitqueue.push(queuedMessage);
-}
-
-void DeleteCondition(unsigned int indexcv)
-{
-    ServerCV *condition = serverconditions.at(indexcv);
-
-    delete condition;
-    conditions.at(indexcv) = NULL;
-
-    DEBUG('n', "Condition %d was successfully deleted.\n", indexcv);
-}
-
-void SignalCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-
-    // Validate input
-    if (validatecvindeces(indexcv, indexlock, machineID, mailboxID) == -1)
-    {
-        return;
-    }
-
-    // Get the Condition and Wait
-    ServerCV *condition = serverconditions.at(indexcv);
-
-    // "Wake up" One Sleeping Machine
-    Mail *response = condition->waitqueue.front();
-    condition->waitqueue.pop();
-
-    // Reaquire the Lock when you are woken back up
-    // Lock is busy so go on wait queue
-    if (slocks.at(indexlock)->state == 1)
-    {
-        slocks.at(indexlock)->waitqueue.push(response);
-    }
-    // Lock is valid and available so get the lock
-    else
-    {
-        printf("About to acquire the lock\n");
-        slocks.at(indexlock)->state = 1; // Make Lock Busy
-        slocks.at(indexlock)->machineID = response->pktHdr.to;
-        slocks.at(indexlock)->mailbox = response->mailHdr.to;
-        // Send response
-        bool success = postOffice->Send(response->pktHdr, response->mailHdr, response->data);
-        if (!success)
-        {
-            printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
-            interrupt->Halt();
-        }
-    }
-
-    // Marked for deletion and no waiting threads, delete
-    if (condition->toDelete && condition->waitqueue.empty())
-    {
-        DeleteCondition(indexcv);
-    }
-
-    // Send response to Signaling machine
-    ss << "200" << " " << "SC" << " " << indexcv;
-    string signalResponse = ss.str();
-    SendResponse(signalResponse, machineID, mailboxID);
-}
-void BroadcastCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-
-    // Validate input
-    if (validatecvindeces(indexcv, indexlock, machineID, mailboxID) == -1)
-    {
-        return;
-    }
-
-    // Get the Condition and Wait
-    ServerCV *condition = serverconditions.at(indexcv);
-
-    // "Wake up" ALL Sleeping Machines
-    while (!condition->waitqueue.empty())
-    {
-        Mail *response = condition->waitqueue.front();
-        condition->waitqueue.pop();
-
-        // Reaquire the Lock when you are woken back up
-        // Lock is busy so go on wait queue
-        if (slocks.at(indexlock)->state == 1)
-        {
-            slocks.at(indexlock)->waitqueue.push(response);
-        }
-        // Lock is valid and available so get the lock
-        else
-        {
-            printf("About to acquire the lock\n");
-            slocks.at(indexlock)->state = 1; // Make Lock Busy
-            slocks.at(indexlock)->machineID = response->pktHdr.to;
-            slocks.at(indexlock)->mailbox = response->mailHdr.to;
-            // Send response
-            bool success = postOffice->Send(response->pktHdr, response->mailHdr, response->data);
-            if (!success)
+            if (serverlocks[indexlock])
             {
-                printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
-                interrupt->Halt();
+                if (serverlocks[indexlock]->name == lockname)
+                {
+                    // Create the message
+                    std::stringstream ss;
+                    ss << "200" << " " << "CL" << " " << indexlock;
+                    string response = ss.str();
+                    SendResponse(response, machineID, mailboxID);
+                    
+                    break;
+                }
             }
         }
+
+        return false;
     }
 
-    // Marked for deletion and no waiting threads, delete
-    if (condition->toDelete && condition->waitqueue.empty())
+    if (requestType == "CC")
     {
-        DeleteCondition(indexcv);
-    }
+        string cvname;
+        ss >> cvname;
 
-    // Send response to Signaling machine
-    ss << "200" << " " << "BC" << " " << serverconditions.size() - 1;
-    string signalResponse = ss.str();
-    SendResponse(signalResponse, machineID, mailboxID);
-}
-void DestroyCV(unsigned int indexcv, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-    bool error = false;
-
-    // Validate input
-    if (indexcv >= serverconditions.size() || indexcv < 0)
-    {
-        ss << "400" << " " << "DC" << " " << indexcv;
-        error = true;
-    }
-
-    // Get the Condition and Wait
-    ServerCV *condition = serverconditions.at(indexcv);
-    
-    if (machineID != slocks.at(condition->conditionlock)->machineID)
-    {
-        ss << "400" << " " << "DC" << " " << indexcv;
-        error = true;
-    }
-
-    // Valid CV index, delete or mark for deletion
-    if (!error)
-    {
-        // No waiting threads when Destroy called, delete
-        if (condition->waitqueue.empty())
+        for (int indexcv = 0; indexcv < 100; indexcv++)
         {
-            DeleteCondition(indexcv);
+            if (serverconditions[indexcv])
+            {
+                if (serverconditions[indexcv]->name == cvname)
+                {
+                    // Create the message
+                    std::stringstream ss;
+                    ss << "200" << " " << "CC" << " " << indexcv;
+                    string response = ss.str();
+                    SendResponse(response, machineID, mailboxID);
+                    
+                    break;
+                }
+            }
         }
 
-        ss << "200" << " " << "DC" << " " << indexcv;
-        condition->toDelete = true;
+        return false;
     }
 
-    // Send Response
-    string response = ss.str();
-    SendResponse(response, machineID, mailboxID);
-}
-
-void CreateMV(string mvname, int mvsize, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-
-    // Validate input
-    if (mvsize <= 0)
+    if (requestType == "CM")
     {
-        ss << "400 CM" << " " << "-1";
+        string mvname;
+        ss >> mvname;
+
+        for (int indexmv = 0; indexmv < 100; indexmv++)
+        {
+            if (serverlocks[indexmv])
+            {
+                if (serverlocks[indexmv]->name == mvname)
+                {
+                    // Create the message
+                    std::stringstream ss;
+                    ss << "200" << " " << "CL" << " " << indexmv;
+                    string response = ss.str();
+                    SendResponse(response, machineID, mailboxID);
+                    
+                    break;
+                }
+            }
+        }
+
+        return false;
     }
-    else
+
+    if (requestType == "AL" || requestType == "RL" || requestType == "DL")
     {
-        MonitorVariable *mv = new MonitorVariable(mvname, mvsize);
-        monitorvariables.push_back(mv);
-        ss << "201 CM" << " " << monitorvariables.size() - 1;
+        unsigned int indexlock;
+        ss >> indexlock;
+
+        indexlock = indexlock % (netname * 100);
+
+        if (indexlock > 100)
+        {
+            return false;
+        }
+
+        if (!serverlocks[indexlock])
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    string response = ss.str();
-    SendResponse(response, machineID, mailboxID);
-}
-
-void SetMV(unsigned int indexmv, unsigned int indexvar, int value, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-
-    // Validate input
-    if (indexmv >= monitorvariables.size())
+    if (requestType == "WC" || requestType == "SC" || requestType == "BC" || requestType == "DC")
     {
-        ss << "400 SM" << " " << indexmv;
+        unsigned int indexcv;
+        ss >> indexcv;
+
+        indexcv = indexcv % (netname * 100);
+
+        if (indexcv > 100)
+        {
+            return false;
+        }
+
+        if (!serverconditions[indexcv])
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    MonitorVariable *mv = monitorvariables.at(indexmv);
-
-    if (indexvar >= mv->size)
+    if (requestType == "GM" || requestType == "SM" || requestType == "DM")
     {
-        ss << "400 SM" << " " << indexmv;
+        unsigned int indexmv;
+        ss >> indexmv;
+
+        indexmv = indexmv % (netname * 100);
+
+        if (indexmv > 100)
+        {
+            return false;
+        }
+
+        if (!monitorvariables[indexmv])
+        {
+            return false;
+        }
+
+        return true;
     }
-    else if (indexmv < monitorvariables.size() && indexvar < mv->size)
-    {
-        mv->values[indexvar] = value;
-        ss << "200 SM" << " " << indexmv;
-    }
-
-    string response = ss.str();
-    SendResponse(response, machineID, mailboxID);
-}
-
-void GetMV(unsigned int indexmv, unsigned int indexvar, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-
-    // Validate input
-    if (indexmv >= monitorvariables.size())
-    {
-        ss << "400" << " " << "GM" << " " << "-1";
-    }
-
-    MonitorVariable *mv = monitorvariables.at(indexmv);
-
-    if (indexvar >= mv->size)
-    {
-        ss << "400" << " " << "GM" << " " << "-1";
-    }
-    else if (indexmv < monitorvariables.size() && indexvar < mv->size)
-    {
-        ss << "200" << " " << "GM" << " " << mv->values[indexvar];
-    }
-
-    string response = ss.str();
-    SendResponse(response, machineID, mailboxID);
-}
-
-
-void DestroyMV(unsigned int indexmv, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-
-    // Validate input
-    if (indexmv >= monitorvariables.size())
-    {
-        ss << "400" << " " << "GM" << " " << indexmv;
-    }
-    // Destroy MV
-    else
-    {
-        MonitorVariable *mv = monitorvariables.at(indexmv);
-        delete mv->values;
-        monitorvariables.at(indexmv) = NULL;
-        ss << "200" << " " << "DM" << " " << indexmv;
-    }
-
-    // Send Request
-    string response = ss.str();
-    SendResponse(response, machineID, mailboxID);
-}
-
-//========================================================================================================================================
-//
-// Server
-//  Client machines send request, Server handles requests and sends responses.
-//
-//  See also:   exception.cc   client networked system calls
-//
-//========================================================================================================================================
+} 
 
 //----------------------------------------------------------------------
 // Server
@@ -651,7 +1059,7 @@ void DestroyMV(unsigned int indexmv, int machineID, int mailboxID)
 //  (4) (If Machine does not need to wait for resource) Send response
 //----------------------------------------------------------------------
 
-void Server()
+void ClientToServer()
 {
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
@@ -663,6 +1071,13 @@ void Server()
     char* type= new char;
     char* response= new char;
     DEBUG('n', "Server is started.\n");
+
+    for (int i = 0; i < 100; i++)
+    {
+        serverlocks[i] = NULL;
+        serverconditions[i] = NULL;
+        monitorvariables[i] = NULL;
+    }
 
     while (true)
     {
@@ -683,6 +1098,12 @@ void Server()
         ss >> requestType;
 
         DEBUG('n', "Type of RPC: %s\n", requestType);
+
+        if (!LookupResource(request, inPktHdr.from, inMailHdr.from))
+        {
+            ForwardRequest(request, inPktHdr.from, inMailHdr.from);
+            continue;
+        }
 
        if (strcmp(requestType, "CL") == 0)
              {
@@ -707,7 +1128,7 @@ void Server()
                 }
                 else{
                     printf("inmailhdr.to= %d, inmailhdr.from= %d, inPktHdr.to=%d, inPktHdr.from=%d\n", inMailHdr.to, inMailHdr.from, inPktHdr.to, inPktHdr.from);
-                    doCreateLock(lockname, inPktHdr, inMailHdr);
+                    CreateLock(lockname, inPktHdr, inMailHdr);
                     printf("After creating the lock\n");
                 }
             }
@@ -715,8 +1136,7 @@ void Server()
              {
                 printf("Server received Acquire Lock request from client.\n");
                 ss >> lockindex;
-                int size = slocks.size();
-                if (dovalidatelockindex(lockindex, inPktHdr, inMailHdr)==-1){
+                if (ValidateLockIndex(lockindex, inPktHdr, inMailHdr)==-1){
                     printf("%s","invalid index or wrong machine.\n");
                     ss << "AL_FAILURE " <<  "-1";
 
@@ -731,7 +1151,7 @@ void Server()
                     break;
                 }
                 else{
-                    doAcquireLock(lockindex, inPktHdr, inMailHdr);
+                    AcquireLock(lockindex, inPktHdr, inMailHdr);
                     printf("After acquiring the lock\n");
                 }
             }
@@ -739,8 +1159,7 @@ void Server()
              {
                 printf("Server received Release Lock request from client.\n");
                 ss >> lockindex;
-                int size = slocks.size();
-                if (dovalidatelockindex(lockindex, inPktHdr, inMailHdr)==-1){
+                if (ValidateLockIndex(lockindex, inPktHdr, inMailHdr)==-1){
                     printf("%s","invalid index or wrong machine.\n");
                     ss << "RL_FAILURE " <<  "-1";
                     outPktHdr.to = inPktHdr.from; 
@@ -755,7 +1174,7 @@ void Server()
                 }
                 else
                 {
-                    doReleaseLock(lockindex, inPktHdr, inMailHdr);
+                    ReleaseLock(lockindex, inPktHdr, inMailHdr);
                     printf("After releasing the lock\n");
                 }
             }
@@ -763,8 +1182,7 @@ void Server()
              {
                 printf("Server received Destroy Lock request from client.\n");
                 ss >> lockindex;
-                int size = slocks.size();
-                if (dovalidatelockindex(lockindex, inPktHdr, inMailHdr)==-1){
+                if (ValidateLockIndex(lockindex, inPktHdr, inMailHdr)==-1){
                     printf("%s","invalid index or wrong machine.\n");
                     ss << "DL_FAILURE " <<  "-1";
                     outPktHdr.to = inPktHdr.from; 
@@ -779,7 +1197,7 @@ void Server()
                 else
                 {
                 //printf("lockname is: %d", lockname);
-                doDestroyLock(lockindex, inPktHdr, inMailHdr);
+                DestroyLock(lockindex, inPktHdr, inMailHdr);
                 printf("the lock at specified index has been destroyed\n");
         
                 }
@@ -802,6 +1220,8 @@ void Server()
         {
             unsigned int indexcv, indexlock;
             ss >> indexcv >> indexlock;
+
+        4
             
             SignalCV(indexcv, indexlock, inPktHdr.from, inMailHdr.from);
         }
@@ -852,6 +1272,194 @@ void Server()
     }
 }
 
+
+
+
+void ServerToServer ()
+{
+    PacketHeader inPktHdr;
+    MailHeader inMailHdr;
+    char request[MaxMailSize];
+
+    char buffer[MaxMailSize];
+    char *lockname= new char;
+    char *cvname= new char;
+    char* type= new char;
+    char* response= new char;
+    DEBUG('n', "Server is started.\n");
+
+    while (true)
+    {
+        DEBUG('n', "Waiting for message.\n");
+        postOffice->Receive(1, &inPktHdr, &inMailHdr, request); // Check Mailbox 0 until Message sent
+        DEBUG('n', "Received \"%s\" from %d, box %d\n", request, inPktHdr.from, inMailHdr.from);
+
+        // Clear stringstream to parse request
+        stringstream ss;
+        fflush(stdout);
+        ss.str(request);
+
+        char *requestType;
+        char *lockname = new char;
+        char *response = "0";
+        int length, lockindex, cvindex;
+        bool success;
+        ss >> requestType;
+
+        DEBUG('n', "Type of RPC: %s\n", requestType);
+
+        if (strcmp(requestType, "SCL") == 0)
+        {
+            if (response == "NO")
+            {
+                pending.at(indexrequest)->noCount++;
+            }
+
+            if (response == "YES")
+            {
+                pending.at(indexrequest)->fulfilled = true;
+            }
+
+            if (pending.at(indexrequest)->numResponse == numServers && !pending.at(indexrequest)->fulfilled)
+            {
+                bool foundLock = false;
+
+                for (int indexlock = 0; indexlock < 100; indexlock++)
+                {
+                    if (serverlocks[indexlock]->name == lockname)
+                    {
+                        // Create the message
+                        std::stringstream ss;
+                        ss << "200" << " " << "CL" << " " << indexlock;
+                        string response = ss.str();
+                        SendResponse(response, machineID, mailboxID);
+                        foundLock = true;
+                        break;
+                    }
+                }
+
+                if (!foundLock)
+                {
+                    CreateLock();
+                }
+
+                pending.at(indexrequest)->fulfilled = true;
+            }
+        }
+
+        if (strcmp(requestType, "SCC") == 0)
+        {
+            if (response == "NO")
+            {
+                pending.at(indexrequest)->noCount++;
+            }
+
+            if (response == "YES")
+            {
+                pending.at(indexrequest)->fulfilled = true;
+            }
+
+            if (pending.at(indexrequest)->numResponse == numServers && !pending.at(indexrequest)->fulfilled)
+            {
+                bool foundLock = false;
+
+                for (int indexcv = 0; indexcv < 100; indexcv++)
+                {
+                    if (serverconditions[indexcv]->name == lockname)
+                    {
+                        // Create the message
+                        std::stringstream ss;
+                        ss << "200" << " " << "CC" << " " << indexcv;
+                        string response = ss.str();
+                        SendResponse(response, machineID, mailboxID);
+                        foundLock = true;
+                        break;
+                    }
+                }
+
+                if (!foundLock)
+                {
+                    CreateCV();
+                }
+
+                pending.at(indexrequest)->fulfilled = true;
+            }
+        }
+
+        if (strcmp(requestType, "SCM") == 0)
+        {
+            if (response == "NO")
+            {
+                pending.at(indexrequest)->noCount++;
+            }
+
+            if (response == "YES")
+            {
+                pending.at(indexrequest)->fulfilled = true;
+            }
+
+            if (pending.at(indexrequest)->numResponse == numServers && !pending.at(indexrequest)->fulfilled)
+            {
+                bool foundLock = false;
+
+                for (int indexmv = 0; indexmv < 100; indexmv++)
+                {
+                    if (monitorvariables[indexmv]->name == mvname)
+                    {
+                        // Create the message
+                        std::stringstream ss;
+                        ss << "200" << " " << "CM" << " " << indexmv;
+                        string response = ss.str();
+                        SendResponse(response, machineID, mailboxID);
+                        foundLock = true;
+                        break;
+                    }
+                }
+
+                if (!foundLock)
+                {
+                    CreateMV();
+                }
+
+                pending.at(indexrequest)->fulfilled = true;
+            }
+        }
+
+        if (requestType == "SAL" || requestType == "SRL" || requestType == "SDL" 
+            || requestType == "SWC" || requestType == "SSC" || requestType == "SBC" || requestType == "SDC"
+            || requestType == "SGM" || requestType == "SSM" || requestType == "SDM")
+        {
+            if (response == "NO")
+            {
+                pending.at(indexrequest).noCount++;
+            }
+
+            if (response == "YES")
+            {
+                pending.at(indexrequest).fulfilled = true;
+            }
+
+            if (pending.at(indexrequest).noCount == numServers && !pending.at(indexrequest).fulfilled)
+            {
+                std::stringstream ss;
+                ss << "400" << " " << requestType << " " << indexresource;
+                string response = ss.str();
+                SendResponse(response, machineID, mailboxID);
+                pending.at(indexrequest).fulfilled = true;
+            }
+        }
+
+        
+
+
+
+        if (pendingRequest.at(indexrequest)->fulfilled)
+        {
+            delete pending.at(indexpending);
+            pending.at(indexpending) = NULL;
+        }
+    }
+}
 
 
 
