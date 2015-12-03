@@ -43,21 +43,6 @@ class Machine;
 class AddrSpace;
 class Mail;
 
-class ServerLock {
-    public:
-        ServerLock(char *name, int netname, int box);
-        //who owns the lock
-        //what is the name of the lock
-        //queue of who is waiting for the lock
-        char *serverlockName;
-        std::queue<Mail*> waitqueue;
-        bool toDelete;
-        bool state;
-        int machineID;
-        int mailbox;
-    };
-
-
 #ifdef USER_PROGRAM
 
     // Machine exectures user programs
@@ -153,8 +138,7 @@ class ServerLock {
 
 	#include "post.h"
 	extern PostOffice* postOffice;
-    extern vector<int> mvs;
-    extern vector<ServerLock*> slocks;
+    extern int netname;
     
 #endif
 

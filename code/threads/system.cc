@@ -64,19 +64,9 @@ int tlbCounter;
 
 
 #ifdef NETWORK
+
     PostOffice *postOffice;
-    vector<int> mvs;
-    vector<ServerLock*> slocks;
-    vector<Mail*> mailMessages;
-
-    ServerLock::ServerLock(char* name, int netname, int box) {
-        serverlockName= name;
-        toDelete= false;
-        state = 0; //0=free, 1=busy
-        machineID= netname;
-        mailbox=box;
-
-    }
+    int netname;
 
 #endif
 
@@ -134,7 +124,7 @@ Initialize(int argc, char **argv)
 #endif
 #ifdef NETWORK
     double rely = 1;		// network reliability
-    int netname = 0;		// UNIX socket name
+    netname = 0;		// UNIX socket name
 #endif
     
     for (argc--, argv++; argc > 0; argc -= argCount, argv += argCount) {
@@ -168,7 +158,7 @@ Initialize(int argc, char **argv)
 	    argCount = 2;
 	} else if (!strcmp(*argv, "-m")) {
 	    ASSERT(argc > 1);
-	    netname = atoi(*(argv + 1)); //GET THIS NETNAME INTO MACHINE ID OF SERVERLOCK
+	    netname = atoi(*(argv + 1));
 	    argCount = 2;
 	}
 #endif
