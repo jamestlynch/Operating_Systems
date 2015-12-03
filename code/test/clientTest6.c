@@ -4,16 +4,17 @@
 int indexlock, indexcv;
 
 
-void ClientTest4()
+void ClientTest6()
 {
 	indexlock = 0; /* Another machine created lock at index 0 */
 	indexcv = 0; /* Another machine created cv at index 0 */
 	AcquireLock(indexlock);
 	Signal(indexcv, indexlock);
-	Wait(indexcv, indexlock);
+	DestroyLock(indexlock);
+	DestroyCV(indexcv);
 }
 
 int main() 
 {
-    ClientTest4();
+    ClientTest6();
 }
