@@ -86,6 +86,7 @@ class Mail;
     };
 
     extern vector<Process*> processInfo;
+    extern int processCount;
     extern Lock *processLock; // Synchronize Process table
 
     // Memory Management
@@ -139,7 +140,7 @@ class Mail;
 	#include "post.h"
 	extern PostOffice* postOffice;
     extern int netname;
-    
+
 #endif
 
 #endif // SYSTEM_H

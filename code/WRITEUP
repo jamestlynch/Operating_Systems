@@ -251,13 +251,13 @@ nachos -x ../test/sort
 nachos -x ../test/execTest
 	// This execs 2 matmults, the main thread and 2 process threads finish correctly
 nachos -x ../test/forkTest
-	// This forks matmult once and finishes correctly
+	// This forks matmult twice and finishes correctly
 
 + Test Output
 matmult: Exit: 7220
 sort: Exit: 1023
 execTest: Exit: 0 \n Exit: 7220 \n Exit: 7220
-forkTest: Exit: 0 \n Exit: 7220
+forkTest: Exit: 0 \n Exit: 7220 \n Exit: 7220
 
 /*** LOCK & CV RPCS ***/
 Go to network directory and type the following:

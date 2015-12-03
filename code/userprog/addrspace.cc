@@ -487,14 +487,14 @@ int AddrSpace::NewUserStack()
     for (vpn = numPages; vpn < numPages + divRoundUp(UserStackSize, PageSize); vpn++)
     {
         // If Stack Reg not in Memory, starts out nowhere until demanded
-        pageTable[vpn].virtualPage = vpn;
-        pageTable[vpn].physicalPage = -1;
-        pageTable[vpn].offset = -1;
-        pageTable[vpn].readOnly = false;
-        pageTable[vpn].valid = false;
-        pageTable[vpn].swapped = false;
-        pageTable[vpn].dirty = false;
-        pageTable[vpn].use = false;
+        newPT[vpn].virtualPage = vpn;
+        newPT[vpn].physicalPage = -1;
+        newPT[vpn].offset = -1;
+        newPT[vpn].readOnly = false;
+        newPT[vpn].valid = false;
+        newPT[vpn].swapped = false;
+        newPT[vpn].dirty = false;
+        newPT[vpn].use = false;
     }
 
     delete pageTable;

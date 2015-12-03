@@ -62,6 +62,6 @@ void matmult2()
 int main()
 {
 	Fork("matmult1", sizeof("matmult1"), matmult1);
-	/*Fork("matmult2", sizeof("matmult2"), matmult2);*/
+	Fork("matmult2", sizeof("matmult2"), matmult2);
 
 }
