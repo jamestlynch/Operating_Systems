@@ -156,7 +156,6 @@ class ServerLock {
 	extern PostOffice* postOffice;
     extern vector<int> mvs;
     extern vector<ServerLock*> slocks;
-    
 #endif
 
 #endif // SYSTEM_H
