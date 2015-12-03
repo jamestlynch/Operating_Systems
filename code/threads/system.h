@@ -101,6 +101,7 @@ class ServerLock {
     };
 
     extern vector<Process*> processInfo;
+    extern int processCount;
     extern Lock *processLock; // Synchronize Process table
 
     // Memory Management

@@ -1564,7 +1564,6 @@ void Exit_Syscall(int status)
 
     //currentThread->Yield(); // Stop executing thread
     processLock->Acquire();
-    printf("ProcessID: %d\n", currentThread->processID);
 
     // Other threads running in process: 
     //  (1) Reclaim its stack
@@ -1586,7 +1585,7 @@ void Exit_Syscall(int status)
     //  (2) Reclaim process' memory
     //  (3) Delete from process table
     //  (4) Finish this thread
-    else if (processInfo.size() > 1)
+    else if (processCount > 1)
     {
         printf("Thread is last in process. Cleaning up process.\n");
         
@@ -1624,6 +1623,7 @@ void Exit_Syscall(int status)
         delete p->space;
         delete p;
         processInfo.at(currentThread->processID) = NULL;
+        processCount--;
 
         processLock->Release();
         currentThread->Finish();
@@ -1665,10 +1665,6 @@ void runforkedthread(int vaddr)
     currentThread->stackPage = stackPage - divRoundUp(UserStackSize, PageSize);
 
     machine->WriteRegister(StackReg, stackAddr);
-    
-    printf("Spawning thread: %s", currentThread->getName());
-    printf("vAddr: %d, stackPage: %d, stackAddr: %d\n", vaddr, stackPage, stackAddr);
-
 
     machine->Run();
 }
@@ -1719,12 +1715,11 @@ void Fork_Syscall(unsigned int vaddr, int len, unsigned int vFuncAddr)
     Process * p = processInfo.at(currentThread->processID);
     Thread * t = new Thread(buf);
 
-
-
     t->processID = p->processID;
     t->space = p->space;
 
     p->numExecutingThreads++;
+
 
 
     // Spawn new thread calling function, allocate thread stack, and let scheduler know thread is ready
@@ -1813,6 +1808,7 @@ void Exec_Syscall(int vaddr, int len)
     p->space = space;
     p->numExecutingThreads = 1;
     p->numSleepingThreads = 0;
+    processCount++;
     
     // Thread needs to be able to restore itself on context switches (AS) and handling Exits (processID)
     Thread * t = new Thread(buf);
@@ -1937,9 +1933,7 @@ int MemoryFull_Handler()
 
 int IPTMiss_Handler(int vpn)
 {
-    // (1) Find free page of mainMem
-    // TODO: Disable Interrupts or Lock?
-    
+    // (1) Find free page of mainMem    
     
     //DEBUG('p', "FIFO Append works.\n");
     int ppn = memBitMap->Find();
@@ -1989,10 +1983,11 @@ void PageFault_Handler(unsigned int vaddr)
     // (1) Get Virtual Page from bad vaddr
     int vpn = vaddr / PageSize;
 
-    IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
+    // Disable interrupts
     // (2) Find entry in Main Memory
     int ppn = -1;
 
+    IntStatus oldLevel = interrupt->SetLevel(IntOff); 
     memLock->Acquire();
     for (int i = 0; i < NumPhysPages; i++)
     {
@@ -2004,7 +1999,7 @@ void PageFault_Handler(unsigned int vaddr)
         }
     }
     
-
+    memLock->Release();
     // (3) Handle not in Main Memory
     if (ppn == -1)
     {
@@ -2032,7 +2027,7 @@ void PageFault_Handler(unsigned int vaddr)
     machine->tlb[evictEntry].use = ipt[ppn].use;
     machine->tlb[evictEntry].dirty = ipt[ppn].dirty; 
 
-    memLock->Release();
+    
 
     interrupt->SetLevel(oldLevel); // Restore interrupts
 }

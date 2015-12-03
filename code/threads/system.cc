@@ -48,6 +48,7 @@ int tlbCounter;
     vector<KernelLock*> locks;
     vector<KernelCV*> conditions;
     vector<Process*> processInfo;
+    int processCount;
 
     Lock *processLock;
     Lock *conditionsLock;
@@ -204,7 +205,7 @@ Initialize(int argc, char **argv)
     conditionsLock = new Lock("KernelCVLock");
     locksLock = new Lock("KernelLocksLock");
     processLock = new Lock("ProcessLock");
-
+    processCount = 0;
 
     if(fileSystem->Create("SwapFile", 8000))
     {
@@ -280,7 +281,6 @@ Cleanup()
         }
     }
 
-    //delete memFIFO;
     delete ipt;
 
     

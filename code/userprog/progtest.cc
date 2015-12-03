@@ -45,6 +45,7 @@ void StartProcess(char *filename)
     p->space = space;
     p->numExecutingThreads = 1;
     p->numSleepingThreads = 0;
+    processCount++;
 
     currentThread->processID = p->processID;
     currentThread->space = space;
