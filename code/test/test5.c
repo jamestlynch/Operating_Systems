@@ -24,7 +24,8 @@ void t5_t3(){
     Write("3 released\n", sizeof("3 released\n"), 1);
     Exit(0);
 }
-void t5_t4(){
+void t5_t4()
+{
     test=AcquireLock(LockIndex1);
     Write("4 acquired\n", sizeof("3 acquired\n"), 1);
     test=ReleaseLock(LockIndex1);
@@ -32,8 +33,10 @@ void t5_t4(){
     Write("Passed: acquired GREEN numbers are increasing order/non overlapping.\n", sizeof("Passed: acquired GREEN numbers are increasing order/non overlapping.\n"), 1);
     Exit(0);
 }
-int main(){
-    Write("Test 5 start. Multiple threads try to acquire the same lock. Should not overlap.\n", sizeof("Test 5 start. Multiple threads try to acquire the same lock. Should not overlap.\n"), 1);
+
+int main()
+{
+    Write("Test 5 start. Multiple threads try to acquire the same lock. Should not overlap.", sizeof("Test 5 start. Multiple threads try to acquire the same lock. Should not overlap."),1);
     LockIndex1=CreateLock("abc", 3);
     Fork("thread1", 7, t5_t1);
     Fork("thread2", 7, t5_t2);

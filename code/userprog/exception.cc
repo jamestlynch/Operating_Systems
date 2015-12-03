@@ -72,8 +72,7 @@ int copyin(unsigned int vaddr, int len, char *buf)
 
         while(!result) // FALL 09 CHANGES
         {
-           result = machine->ReadMem( vaddr, 1, paddr ); // FALL 09 CHANGES: TO HANDLE PAGE FAULT IN THE ReadMem SYS CALL
-
+            result = machine->ReadMem( vaddr, 1, paddr ); // FALL 09 CHANGES: TO HANDLE PAGE FAULT IN THE ReadMem SYS CALL
         }
 
         buf[bytes++] = *paddr; // Update value of buffer to byte read from vaddr (per loop)
@@ -1065,7 +1064,7 @@ int Wait_Syscall(int indexcv, int indexlock)
 #ifdef NETWORK
     
     stringstream ss;
-    ss << "WC" << " " << indexcv << indexlock;
+    ss << "WC" << " " << indexcv << " " << indexlock;
     string request = ss.str();
     SendRequest(request);
     indexcv = ReceiveResponse();
@@ -1145,7 +1144,7 @@ int Signal_Syscall(int indexcv, int indexlock)
 #ifdef NETWORK
     
     stringstream ss;
-    ss << "SC" << " " << indexcv << indexlock;
+    ss << "SC" << " " << indexcv << " " << indexlock;
     string request = ss.str();
     SendRequest(request);
     indexcv = ReceiveResponse();
@@ -1196,7 +1195,7 @@ int Broadcast_Syscall(int indexcv, int indexlock)
 #ifdef NETWORK
 
     stringstream ss;
-    ss << "BC" << " " << indexcv << indexlock;
+    ss << "BC" << " " << indexcv << " " << indexlock;
     string request = ss.str();
     SendRequest(request);
     indexcv = ReceiveResponse();
@@ -1505,7 +1504,7 @@ void Exit_Syscall(int status)
 
     //currentThread->Yield(); // Stop executing thread
     processLock->Acquire();
-    //printf("ProcessID: %d\n", currentThread->processID);
+    printf("ProcessID: %d\n", currentThread->processID);
 
     // Other threads running in process: 
     //  (1) Reclaim its stack
@@ -1815,7 +1814,7 @@ unsigned int GetPageToEvict()
     if(isFIFO)
     {
         ppn = memFIFO.front();
-        memFIFO.pop();
+        memFIFO.pop_front();
     }
     else
     {
@@ -1894,7 +1893,7 @@ int IPTMiss_Handler(int vpn)
 
     if(isFIFO)
     {
-        memFIFO.push(ppn); // Maintain order of Adding to Memory for FIFO Eviction
+        memFIFO.push_back(ppn); // Maintain order of Adding to Memory for FIFO Eviction
     }
 
     // (3) Look up where Page located
@@ -1972,7 +1971,6 @@ void PageFault_Handler(unsigned int vaddr)
     machine->tlb[evictEntry].readOnly = ipt[ppn].readOnly;
     machine->tlb[evictEntry].use = ipt[ppn].use;
     machine->tlb[evictEntry].dirty = ipt[ppn].dirty; 
-
 
     memLock->Release();
 

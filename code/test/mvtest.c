@@ -1,10 +1,5 @@
 #include "syscall.h"
 
-
-int indexlock, indexcv;
-
-
-
 void MVTest()
 {
 	int indexmv, mvvalue;
@@ -24,18 +19,10 @@ void MVTest()
 	{
 		Write("Passed [CreateAndUpdateMV]\n", sizeof("Passed [CreateAndUpdateMV]\n"), 1);
 	}
-
-void ClientTest3()
-{
-	indexlock = CreateLock("def", 3);
-	indexlock = AcquireLock(indexlock);
-	indexcv = CreateCV("testcv", sizeof("testcv"));
-	Wait(indexcv, indexlock);
-	Signal(indexcv, indexlock);
-	ReleaseLock(indexlock);
 }
 
 int main() 
 {
-    ClientTest3();
+    /*ClientTest();*/
+    MVTest();
 }

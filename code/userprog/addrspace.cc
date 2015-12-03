@@ -235,7 +235,6 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
         pageTable[vpn].use = false;
     }
 
-
     for(vpn = numPages - divRoundUp(UserStackSize, PageSize); vpn < numPages; vpn++)
     {
         pageTable[vpn].virtualPage = vpn;
@@ -248,7 +247,6 @@ AddrSpace::AddrSpace(OpenFile *executableFile) : fileTable(MaxOpenFiles)
         pageTable[vpn].use = false;
     }
     pageTableLock->Release();
-
 }
 
 //----------------------------------------------------------------------
@@ -275,15 +273,14 @@ AddrSpace::~AddrSpace()
 
 void AddrSpace::LoadIntoMemory(int vpn, int ppn)
 {
-
-    DEBUG('p', "LoadIntoMemory: CurrentThread = %s\n, VPN = %d", currentThread->getName(), vpn);
-
+    // DEBUG('p', "LoadIntoMemory: CurrentThread = %s, VPN = %d\n", 
+    //     currentThread->getName(), vpn);
 
     pageTableLock->Acquire();
     if (pageTable[vpn].swapped)
     {
-        DEBUG('p', "LoadFromSwap: Load vaddr %d into Main Memory:\n \t\n \tvpn\t%d\n \tppn\t%d\n \toffset\t%d\n" ,
-                    (vpn * PageSize), vpn, ppn, pageTable[vpn].offset);
+        DEBUG('p', "LoadFromSwap: Load vaddr %d into Main Memory:\n\tvpn\t%d\n \tppn\t%d\n \toffset\t%d\n",
+            (vpn * PageSize), vpn, ppn, pageTable[vpn].offset);
 
         // TODO: Load from Swap file
         // (2) Load from Swap File into Main Memory
@@ -295,21 +292,20 @@ void AddrSpace::LoadIntoMemory(int vpn, int ppn)
         swapBitMap->Clear(pageTable[vpn].offset / PageSize);
         pageTable[vpn].swapped = false;
         pageTable[vpn].offset = -1;
-
+        
         ipt[ppn].dirty = true;
-
     }
     else if (pageTable[vpn].offset != -1)
     {
-        DEBUG('p', "LoadFromExecutable: Load vaddr %d into Main Memory:\n \t\n \tvpn\t%d\n \tppn\t%d\n \toffset\t%d\n" ,
-                    (vpn * PageSize), vpn, ppn, pageTable[vpn].offset);
+        DEBUG('p', "LoadFromExecutable: Load vaddr %d into Main Memory:\n\tvpn\t%d\n \tppn\t%d\n \toffset\t%d\n" ,
+            (vpn * PageSize), vpn, ppn, pageTable[vpn].offset);
 
         executable->ReadAt(
              &(machine->mainMemory[ppn * PageSize]), // Store into mainMemory at physical page
              PageSize, // Read 128 bytes
              pageTable[vpn].offset); // From this position in executable
-        ipt[ppn].dirty = false;
 
+        ipt[ppn].dirty = false;
     }
     // Offset should be -1 only when neither in Executable nor Swap (offset = vaddr in file)
     // This is the case for unused Stack Pages
@@ -336,11 +332,11 @@ void AddrSpace::LoadIntoMemory(int vpn, int ppn)
     ipt[ppn].use = pageTable[vpn].use;
 
     pageTableLock->Release();
-
 }
 
 void AddrSpace::RemoveFromMemory(int vpn, int ppn)
 {
+    /*DEBUG('p', "RemoveFromMemory: CurrentThread = %s\n", currentThread->getName());*/
 
     pageTableLock->Acquire();
     if(ipt[ppn].dirty)
@@ -402,12 +398,10 @@ int AddrSpace::InitRegisters()
 
     DEBUG('a', "Initializing stack register to %x\n", numPages * PageSize - 16);
 
-
     int stackPage = numPages - divRoundUp(UserStackSize, PageSize); 
     pageTableLock->Release();
 
     return stackPage;
-
 }
 
 //----------------------------------------------------------------------
@@ -534,9 +528,7 @@ void AddrSpace::ReclaimStack(int stackPage)
     IntStatus oldLevel = interrupt->SetLevel(IntOff); // Disable interrupts
 
     // (2) Clear physical memory so it can be reused
-
     //pageTableLock->Acquire();
-
     //memLock->Acquire();
     for (vpn = stackPage; vpn < stackPage + divRoundUp(UserStackSize, PageSize); vpn++)
     {
@@ -551,7 +543,11 @@ void AddrSpace::ReclaimStack(int stackPage)
                     machine->tlb[tlbEntry].valid = false;
                 }
             }
-
+            
+            if(isFIFO)
+            {
+                memFIFO.remove(pageTable[vpn].physicalPage);
+            }
             memBitMap->Clear(pageTable[vpn].physicalPage);
             
         }
@@ -572,9 +568,7 @@ void AddrSpace::ReclaimStack(int stackPage)
         pageTable[vpn].use = false;
     }
     //memLock->Release();
-
     //pageTableLock->Release();   
-
 
     interrupt->SetLevel(oldLevel); // Restore interrupts
 }
@@ -600,9 +594,7 @@ void AddrSpace::ReclaimPageTable()
     // if the lock is already acquired and we disable interrupts we will get DeadLock
 
     // (2) Clear physical memory so it can be reused
-
     //pageTableLock->Acquire();
-
     //memLock->Acquire();
     for(vpn = 0; vpn < numPages; vpn++)
     {
@@ -618,6 +610,10 @@ void AddrSpace::ReclaimPageTable()
                 }
             }
 
+            if(isFIFO)
+            {
+                memFIFO.remove(pageTable[vpn].physicalPage);
+            }
             memBitMap->Clear(pageTable[vpn].physicalPage);
             
         }
@@ -637,7 +633,6 @@ void AddrSpace::ReclaimPageTable()
         pageTable[vpn].use = false; 
     }
     //memLock->Release();
-
     //pageTableLock->Release();
 
     interrupt->SetLevel(oldLevel); // Restore interrupts
