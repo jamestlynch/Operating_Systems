@@ -619,7 +619,7 @@ int DecideClerk (int ssn, enum persontype clerkType)
 
 	clerkGroups[clerkType].clerks[i]
 
-	
+
 	clerkGroups[clerkType].clerks
 
 
@@ -633,20 +633,28 @@ int DecideClerk (int ssn, enum persontype clerkType)
 	/* Check if the senator is present, and if so, "go outside" by waiting on the CV. */
 	/* 	By placing this here, we ensure line order remains consistent, conveniently. */
 
-	AcquireLock(senatorIndoorLock);
+	/*AcquireLock(senatorIndoorLock);
 	if (isSenatorPresent && people[ssn].type != SENATOR)
 	{
 		WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
 		Wait(senatorIndoorCV, senatorIndoorLock);
 	}
-	ReleaseLock(senatorIndoorLock);
+	ReleaseLock(senatorIndoorLock);*/
 
 	AcquireLock(lineLock);
 	for (clerkID = 0; clerkID < numClerks; clerkID++)
 	{
 		/* Different lines depending on whether customer or senator. */
-		if (people[ssn].type == SENATOR)
+		int person= GetMV(people, ssn);
+		int t = GETMV(person, type);
+		
+		if (t == SENATOR)
 		{
+			int appclerkdata = GetMV(clerkGroups, clerkType);
+			int appclerks = GetMV(clerkdata, clerks);
+			int clerk = GetMV(clerks, i);
+			SetMV(clerk, senatorLineLength, BUSY);
+
 			clerkLineLength = clerkGroups[clerkType].clerks[clerkID].senatorLineLength;
 		}
 		else
@@ -696,10 +704,9 @@ void WaitInLine (int ssn, int clerkID, enum persontype clerkType)
 	int clerkLock;
 	int workCV;
 	int bribeCV;
-//clerkgroups def inside create.h
 
 	linelock= getMV(clerkType, lineLock);
-	lineCV= getMV(clerkType, );
+	lineCV= getMV(clerkType, lineCV);
 
 	lineLock = clerkGroups[clerkType].lineLock;
 	lineCV = clerkGroups[clerkType].lineCVs[clerkID];
@@ -1037,9 +1044,9 @@ int main()
 	InitializePictureClerkData();
 	InitializeCustomerData();
 
-	while (){ /*customer has not left passport office*/
+	/*while (){ customer has not left passport office
 		Yield();
-	}
+	}*/
 
 	Exit(0);
 }

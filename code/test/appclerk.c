@@ -602,12 +602,26 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 void TakeBreak (int clerkID, enum persontype clerkType) 
 {
 	int lineLock;
-	int breakCV;
+	int breakCV, appclerkdata, linelock;
 
 	/*lineLock = clerkGroups[clerkType].lineLock;*/
 	lineLock= getMV(clerkType, lineLock);
 
-	breakCV = clerkGroups[clerkType].breakCVs[clerkID]; /* MAKE THIS A MV */
+/*
+
+	clerkGroups[clerkType].clerks[i].state
+
+	int appclerkdata = GetMV(clerkGroups, clerkType);
+	int appclerks = GetMV(appclerkdata, clerks);
+	int clerk = GetMV(clerks, i);
+	SetMV(clerk, state, BUSY);*/
+
+
+	/*breakCV = clerkGroups[clerkType].breakCVs[clerkID];  MAKE THIS A MV */
+
+	int appclerkdata = GetMV(clerkGroups, clerkType);
+	int appclerks = GetMV(appclerkdata, breakCVs);
+	SetMV(appclerks, breakCVs, breakCV);
 
 	WriteOutput(Clerk_GoingOnBreak, clerkType, clerkType, -1, clerkID);
 	Wait(breakCV, lineLock); /* Waiting on breakCV = "going on break" */
