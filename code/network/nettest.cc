@@ -123,6 +123,55 @@ ServerLock* serverlocks[100];
 BitMap LockMap(100);
 
 //----------------------------------------------------------------------
+// ValidateLockIndex
+//  Verifies the input passed in to Lock RPCs (1) correspond to valid
+//  lock locations (positive and inbounds) and (2) the lock exists. If 
+//  any errors occur, the Server sends a corresponding error code and 
+//  the RPC should not continue.
+//
+//  Returns -1 if an error occured, 0 otherwise.
+//
+//  "indexlock" -- the index passed in to the Lock RPC being validated
+//  "requestType" -- the RPC two-letter code
+//  "machineID" -- the requesting machine's netname, used for responses
+//  "mailboxID" -- the requesting mailbox number, used for responses
+//----------------------------------------------------------------------
+
+int ValidateLockIndex(int indexlock, int machineID, int mailboxID)
+{
+    // Create the message
+    std::stringstream ss;
+    bool error = false;
+
+    // (1) Index corresponds to valid location: 400
+    if (indexlock >= 100 || indexlock < 0)
+    {
+        ss << "400" << " " << requestType << " " << indexlock;
+        error = true;
+    }
+
+    ServerLock *lock = serverlocks[indexlock];
+
+    // (2) Lock not found: 404
+    if (!lock)
+    {
+        ss << "404" << " " << requestType << " " << indexlock;
+        error = true;
+    }
+
+    // Errors: Send response and wrap up RPC
+    if (error)
+    {
+        string response = ss.str();
+        SendResponse(response, machineID, mailboxID);
+        return -1;
+    }
+
+    // No errors
+    return 0;
+}
+
+//----------------------------------------------------------------------
 // CreateLock
 //  TODO: Description
 //----------------------------------------------------------------------
@@ -170,7 +219,7 @@ bool AcquireLock(int indexlock, lockstate state, ClientResponse response)
             return true;
         }
 
-        lock->state = BUSY;
+        lock->state = state;
     }
 }
 
