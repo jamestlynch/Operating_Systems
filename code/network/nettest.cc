@@ -26,6 +26,8 @@
 #include <queue>
 using namespace std;
 
+void RespondToClient(int responseCode, string type, int indexresource, int machineID, int mailboxID);
+void RespondToServer(int responseCode, int pendingNumber, int machineID, int mailboxID);
 void SendResponse(string response, int machineID, int mailboxID);
 
 struct PendingRequest
@@ -34,12 +36,11 @@ struct PendingRequest
     int mailboxID;
     string requestType;
 
-    int indexcv;
-    int indexlock;
-    int indexmv;
-    int indexvar;
-    int mvvalue;
+    int indexresource
     string name;
+
+    int indexlock;
+    bool lockvalidated;
 
     bool fulfilled;
     int noCount;
@@ -51,6 +52,7 @@ struct PendingRequest
         mailboxID = mailbox;
         fulfilled = false;
         noCount = 0;
+        lockvalidated = false;
     }
 };
 
@@ -77,15 +79,34 @@ vector<PendingRequest*> pending = new vector<PendingRequest>();
 //  pause execution until receiving a response.
 //----------------------------------------------------------------------
 
+struct ClientResponse
+{
+    string requestType;
+    int indexresource;
+    int machineID;
+    int mailboxID;
+
+    ClientResponse(string type, int index, int machine, int mailbox)
+    {
+        requestType = type;
+        indexresource = index;
+        machineID = machine;
+        mailbox = mailboxID;
+    }
+};
+
 enum lockstate { FREE, BUSY };
 
 struct ServerLock
 {
     string name;
     lockstate state;
+    bool isOwned;
     int machineID;
     int mailbox;
     bool toDelete;
+    std::queue<ClientResponse*> waitqueue;
+    std::queue<ClientResponse*> busyqueue;
 
     ServerLock(string lockname, int netname, int box)
     {
@@ -102,93 +123,18 @@ ServerLock* serverlocks[100];
 BitMap LockMap(100);
 
 //----------------------------------------------------------------------
-// ValidateLockIndex
-//  Verifies the input passed in to Lock RPCs (1) correspond to valid
-//  lock locations (positive and inbounds) and (2) the lock exists. If 
-//  any errors occur, the Server sends a corresponding error code and 
-//  the RPC should not continue.
-//
-//  Returns -1 if an error occured, 0 otherwise.
-//
-//  "indexlock" -- the index passed in to the Lock RPC being validated
-//  "requestType" -- the RPC two-letter code
-//  "machineID" -- the requesting machine's netname, used for responses
-//  "mailboxID" -- the requesting mailbox number, used for responses
-//----------------------------------------------------------------------
-
-int ValidateLockIndex(int indexlock, string requestType, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-    bool error = false;
-
-    // (1) Index corresponds to valid location: 400
-    if (indexlock >= 100 || indexlock < 0)
-    {
-        ss << "400" << " " << requestType << " " << indexlock;
-        error = true;
-    }
-
-    ServerLock *lock = serverlocks[indexlock];
-
-    // (2) Lock not found: 404
-    if (!lock)
-    {
-        ss << "404" << " " << requestType << " " << indexlock;
-        error = true;
-    }
-
-    // Errors: Send response and wrap up RPC
-    if (error)
-    {
-        string response = ss.str();
-        SendResponse(response, machineID, mailboxID);
-        return -1;
-    }
-
-    // No errors
-    return 0;
-}
-
-//----------------------------------------------------------------------
 // CreateLock
 //  TODO: Description
 //----------------------------------------------------------------------
 
-void CreateLock(char *name, PacketHeader inPktHdr, MailHeader inMailHdr)
+int CreateLock(string lockname, int clientMachine, int clientMailbox)
 {
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
-
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
-
-    ServerLock *sl= new ServerLock(name, inPktHdr.from, 0);
-    sl->machineID= inPktHdr.from;
-    sl->mailbox= inMailHdr.from;
-    sl->state= 0; //free
+    ServerLock *lock = new ServerLock(name, clientMachine, clientMailbox);
 
     int indexlock = LockMap.find();
-    serverlocks[indexlock] = sl;
+    serverlocks[indexlock] = lock;
 
-    std::stringstream ss;
-    ss << "CLSUCCESS " <<  indexlock;
-
-    outMailHdr.length = ss.str().length() + 1;
-    //printf("Response: %s", response);
-    char *response = const_cast<char*>( ss.str().c_str());
-
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
-
-    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", m->mailHdr.to, m->mailHdr.from, m->pktHdr.to, m->pktHdr.from);
-
-    bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-    if(!success){
-        printf("postOffice send failed. Terminating...\n");
-        interrupt->Halt();
-        }
+    return indexlock + (netname * 100);
 }
 
 //----------------------------------------------------------------------
@@ -196,41 +142,36 @@ void CreateLock(char *name, PacketHeader inPktHdr, MailHeader inMailHdr)
 //  TODO: Description
 //----------------------------------------------------------------------
 
-void AcquireLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr)
+bool AcquireLock(int indexlock, lockstate state, ClientResponse response)
 {
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
+    ServerLock *lock = serverlocks[indexlock];
 
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
-
-    std::stringstream ss;
-    ss << "ALSUCCESS " << indexlock;
-
-    outMailHdr.length = ss.str().length() + 1;
-    //printf("Response: %s", response);
-    char *response = const_cast<char*>( ss.str().c_str());
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
-
-    if (serverlocks[indexlock]->state == 1)
-    { //lock busy so go on wait queue
-        serverlocks[indexlock]->waitqueue.push(m);
+    if (lock->state == BUSY)
+    {
+        ClientResponse *cr;
+        if (state == FREE) cr = new ClientResponse("AL", indexlock, clientMachine, clientMailbox);
+        if (state == BUSY) cr = new ClientResponse("WAL", indexlock, clientMachine, clientMailbox);
+        lock->busyqueue.push(cr);
+        return false;
     }
-    else 
-    {  // lock is valid and available so get the lock
-        printf("About to acquire the lock\n");
-        serverlocks[indexlock]->state = 1;
-        serverlocks[indexlock]->machineID = inPktHdr.from;
-        serverlocks[indexlock]->mailbox = inMailHdr.from;
-
-            bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-            if(!success){
-                printf("postOffice send failed. Terminating...\n");
-                interrupt->Halt();
-            }
+    else
+    {
+        if (lock->isOwned)
+        {
+            lock->waitqueue.push(response);
+            return false;
         }
+        else 
+        {
+            lock->isOwned = true;
+            lock->machineID = inPktHdr.from;
+            lock->mailbox = inMailHdr.from;
+
+            return true;
+        }
+
+        lock->state = BUSY;
+    }
 }
 
 //----------------------------------------------------------------------
@@ -238,63 +179,93 @@ void AcquireLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr)
 //  TODO: Description
 //----------------------------------------------------------------------
 
-void ReleaseLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr)
+bool ReleaseLock(int indexlock, lockstate state, int clientMachine, int clientMailbox)
 {
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
+    ServerLock *lock = serverlocks[indexlock];
 
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
-
-    std::stringstream ss;
-
-    if (serverlocks[indexlock]->machineID != inPktHdr.from || serverlocks[indexlock]->mailbox != inMailHdr.from)
+    if (lock->state == BUSY)
     {
-        ss << "404" << " " << requestType << " " << indexlock;
+        ClientResponse *cr;
+        if (state == FREE) cr = new ClientResponse("RL", indexlock, clientMachine, clientMailbox);
+        if (state == BUSY) cr = new ClientResponse("WRL", indexlock, clientMachine, clientMailbox);
+        lock->busyqueue.push(cr);
+        return false;
     }
     else
     {
-        ss << "RLSUCCESS " <<  indexlock;
+        if (! lock->waitqueue.empty())
+        {
+            ClientResponse *cr = lock->waitqueue.front();
 
-        if (!serverlocks[indexlock]->waitqueue.empty())
-        { // 
-            char *response = const_cast<char*>( ss.str().c_str());
-            
-            Mail *temp = serverlocks[indexlock]->waitqueue.front();
-            bool success = postOffice->Send(temp->pktHdr, temp->mailHdr, temp->data);
-            serverlocks[indexlock]->waitqueue.pop();
+            RespondToClient(200, cr->requestType, cr->indexresource, cr->machineID, cr->mailboxID);
 
-            serverlocks[indexlock]->machineID = inPktHdr.from;
-            serverlocks[indexlock]->mailbox = inMailHdr.from;
+            lock->waitqueue.pop();
+            lock->machineID = cr->machineID;
+            lock->mailbox = cr->mailboxID;
         }
         else
         {
-            serverlocks[indexlock]->state = 0;
+            lock->isOwned = false;
 
-            if (serverlocks[indexlock]->toDelete)
+            if (lock->toDelete)
             {
                 delete serverlocks[indexlock];
                 LockMap.clear(indexlock);
                 serverlocks[indexlock] = NULL;
             }
         }
+
+        lock->state = BUSY;
     }
-        
-    char *response = const_cast<char*>( ss.str().c_str());
 
-    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
-    outMailHdr.length = strlen(response) + 1;
-    printf("Response: %s", response);
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
+    return true;
+}
 
-    bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-        
-    if (!success)
+int FreeLock(int indexlock)
+{
+    ServerLock *lock = serverlocks[indexlock];
+
+    lock->state = FREE;
+
+    while (! lock->busyqueue.empty())
     {
-        printf("postOffice send failed. Terminating...\n");
-        interrupt->Halt();
+        ClientResponse *cr = lock->busyqueue.front();
+
+        if (cr->requestType == "AL")
+        {
+            if (AcquireLock(cr->indexresource, FREE, cr))
+            {
+                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
+            }
+        }
+        if (cr->requestType == "RL")
+        {
+            if (ReleaseLock(cr->indexresource, FREE, cr))
+            {
+                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
+            }
+        }
+        if (cr->requestType == "DL")
+        {
+            if (DestroyLock(cr->indexresource, FREE, cr))
+            {
+                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
+            }
+        }
+        if (cr->requestType == "WAL")
+        {
+            if (AcquireLock(cr->indexresource, BUSY, cr))
+            {
+                // Wait is COMPLETE!
+                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
+            }
+        }
+        if (cr->requestType == "WRL")
+        {
+            ReleaseLock(cr->indexresource, BUSY, cr);
+        }
+
+        lock->busyqueue.pop();
     }
 }
 
@@ -303,39 +274,20 @@ void ReleaseLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr)
 //  TODO: Description
 //----------------------------------------------------------------------
 
-void DestroyLock(int indexlock, PacketHeader inPktHdr, MailHeader inMailHdr){
-    char * response= "DLSUCCESS\n";
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
+void DestroyLock(int indexlock, int clientMachine, int clientMailbox)
+{
+    ServerLock *lock = serverlocks[indexlock];
 
-    outPktHdr.to = inPktHdr.from; 
-    outPktHdr.from= inPktHdr.to;  
-    outMailHdr.to = inMailHdr.from;
-    outMailHdr.from = 0;
-
-    printf("outmailhdr.to= %d, outmailhdr.from= %d, outPktHdr.to=%d, outPktHdr.from=%d\n", outMailHdr.to, outMailHdr.from, outPktHdr.to, outPktHdr.from);
-    outMailHdr.length = strlen(response) + 1;
-    printf("Response: %s", response);
-    Mail *m = new Mail(outPktHdr, outMailHdr, response);
-
-    ServerLock * sl = serverlocks[indexlock];
-
-        if(sl->state == 0 &&  sl->waitqueue.empty()) // if lock is free and nobody is waiting
-         {
-            delete sl;
-            LockMap.clear(indexlock);
-            serverlocks[indexlock] = NULL;
-
-            bool success = postOffice->Send(m->pktHdr, m->mailHdr, m->data);
-            if(!success){
-                printf("postOffice send failed. Terminating...\n");
-                interrupt->Halt();
-            }
-        }
-        else{
-            sl->toDelete=true;
-        }
-
+    if(!lock->isOwned && lock->waitqueue.empty())
+    {
+        delete lock;
+        LockMap.clear(indexlock);
+        serverlocks[indexlock] = NULL;
+    }
+    else
+    {
+        lock->toDelete = true;
+    }
 }
 
 //========================================================================================================================================
@@ -354,7 +306,7 @@ struct ServerCV
     bool toDelete;
     int conditionlock;
     bool cvlockSet;
-    std::queue<Mail*> waitqueue;
+    std::queue<ClientResponse*> waitqueue;
 
     ServerCV(string cvname)
     {
@@ -369,74 +321,6 @@ ServerCV* serverconditions[100];
 BitMap CVMap(100);
 
 //----------------------------------------------------------------------
-// ValidateCVIndeces
-//  Verifies the input passed in to CV RPCs (1) correspond to valid CV,
-//  (2) the CV exists, (3) the lock is valid and exists, and (4) the 
-//  machine owns the Lock corresponding to the CV's critical section. If 
-//  any errors occur, the Server sends a corresponding error code and 
-//  the RPC should not continue.
-//
-//  Returns -1 if an error occured, 0 otherwise.
-//
-//  "indexcv" -- CV index passed in to the CV RPC being validated
-//  "indexlock" -- Lock index passed in to the CV RPC being validated
-//  "requestType" -- the RPC two-letter code
-//  "machineID" -- the requesting machine's netname, used for responses
-//  "mailboxID" -- the requesting mailbox number, used for responses
-//----------------------------------------------------------------------
-
-int ValidateCVIndeces(unsigned int indexcv, unsigned int indexlock, string requestType, int machineID, int mailboxID)
-{
-    // Create the message
-    std::stringstream ss;
-    bool error = false;
-
-    // (1) Corresponds to valid condition location: 400
-    if (indexcv >= 100 || indexcv < 0)
-    {
-        ss << "400" << " " << requestType << " " << indexcv;
-        error = true;
-    }
-
-    // Get the Condition and Wait
-    ServerCV *condition = serverconditions[indexcv];
-
-    // (2) Condition exists: 404
-    if (!condition)
-    {
-        ss << "404" << " " << requestType << " " << indexcv;
-        error = true;
-    }
-    else
-    {
-        // If lock passed in belongs to CV's C.S.
-        if (condition->cvlockSet && condition->conditionlock != indexlock)
-        {
-            ss << "407" << " " << requestType << " " << indexcv;
-            error = true;  
-        }
-    
-        // If CV has no corresponding lock, set its lock
-        if (!condition->cvlockSet)
-        {
-            condition->conditionlock = indexlock;
-            condition->cvlockSet = true;
-        }
-    }
-
-
-    if (error)
-    {
-        string response = ss.str();
-        SendResponse(response, machineID, mailboxID);
-        return -1;
-    }
-
-    // No errors
-    return 0;
-}
-
-//----------------------------------------------------------------------
 // DeleteCondition
 //  TODO: Description
 //----------------------------------------------------------------------
@@ -446,11 +330,8 @@ void DeleteCondition(unsigned int indexcv)
     ServerCV *condition = serverconditions[indexcv];
 
     delete condition;
-
-    serverconditions[indexcv] = NULL;
     CVMap.clear(indexcv);
-
-    DEBUG('n', "Condition %d was successfully deleted.\n", indexcv);
+    serverconditions[indexcv] = NULL;
 }
 
 //----------------------------------------------------------------------
@@ -458,20 +339,14 @@ void DeleteCondition(unsigned int indexcv)
 //  TODO: Description
 //----------------------------------------------------------------------
 
-void CreateCV(string cvname, int machineID, int mailboxID)
+int CreateCV(string cvname, int machineID, int mailboxID)
 {
-    // Create the message
-    std::stringstream ss;
-
     // Create Condition
     ServerCV *condition = new ServerCV(cvname);
     int indexcv = CVMap.find();
     serverconditions[indexcv] = condition;
 
-    // Create Response and Send
-    ss << "201" << " " << "CC" << " " << indexcv;
-    string response = ss.str();
-    SendResponse(response, machineID, mailboxID);
+    return indexcv + (netname * 100);
 }
 
 //----------------------------------------------------------------------
@@ -479,61 +354,13 @@ void CreateCV(string cvname, int machineID, int mailboxID)
 //  TODO: Description
 //----------------------------------------------------------------------
 
-void WaitCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
+void WaitCV(unsigned int indexcv, int machineID, int mailboxID)
 {
-    // Create the message
-    std::stringstream ss;
-
-    // Validate input
-    if (ValidateCVIndeces(indexcv, indexlock, machineID, mailboxID) == -1)
-    {
-        return;
-    }
-    else
-    {
-        ss << "200" << " " << "WC" << " " << indexcv;
-    }
-
-    // Get the Condition and Wait
     ServerCV *condition = serverconditions[indexcv];
 
-    // Prepare Message to send when Signal is called
-    PacketHeader outPktHdr;
-    MailHeader outMailHdr;
+    ClientResponse waitingMachine = new ClientResponse("WC", indexcv, machineID, mailboxID);
 
-    outPktHdr.to = machineID; // Server Machine ID
-    outMailHdr.to = mailboxID; // Server Machine ID
-    outMailHdr.from = 0; // Client Mailbox ID
-    char *response = (char *) ss.str().c_str();
-    outMailHdr.length = strlen(response) + 1;
-
-    Mail *queuedMessage = new Mail(outPktHdr, outMailHdr, response);
-
-    // Release the Lock before going to sleep: 
-    //  Wake up one thread waiting for lock
-    // ^ ReleaseLock should be own method
-    if (!serverlocks[indexlock]->waitqueue.empty())
-    { 
-        Mail *waitingLock = serverlocks[indexlock]->waitqueue.front();
-        serverlocks[indexlock]->waitqueue.pop();
-
-        serverlocks[indexlock]->state = 1; // Set Lock to Busy
-        serverlocks[indexlock]->machineID = waitingLock->pktHdr.to;
-        serverlocks[indexlock]->mailbox = waitingLock->mailHdr.to;
-
-        bool success = postOffice->Send(waitingLock->pktHdr, waitingLock->mailHdr, waitingLock->data);
-        if(!success)
-        {
-            printf("postOffice send failed. Terminating...\n");
-            interrupt->Halt();
-        }
-    }
-    else
-    {
-        serverlocks[indexlock]->state = 0; // Set Lock to Free
-    }
-
-    condition->waitqueue.push(queuedMessage);
+    condition->waitqueue.push(waitingMachine);
 }
 
 //----------------------------------------------------------------------
@@ -618,7 +445,7 @@ void BroadcastCV(unsigned int indexcv, unsigned int indexlock, int machineID, in
 
         // Reaquire the Lock when you are woken back up
         // Lock is busy so go on wait queue
-        if (serverlocks[indexlock]->state == 1)
+        if (serverlocks[indexlock]->isOwned)
         {
             serverlocks[indexlock]->waitqueue.push(response);
         }
@@ -626,7 +453,7 @@ void BroadcastCV(unsigned int indexcv, unsigned int indexlock, int machineID, in
         else
         {
             printf("About to acquire the lock\n");
-            serverlocks[indexlock]->state = 1; // Make Lock Busy
+            serverlocks[indexlock]->isOwned = true; // Make Lock Busy
             serverlocks[indexlock]->machineID = response->pktHdr.to;
             serverlocks[indexlock]->mailbox = response->mailHdr.to;
             // Send response
@@ -728,9 +555,6 @@ BitMap MVMap(100);
 
 void CreateMV(string mvname, int mvsize, int machineID, int mailboxID)
 {
-    // Create the message
-    std::stringstream ss;
-
     // Validate input
     if (mvsize <= 0)
     {
@@ -741,6 +565,8 @@ void CreateMV(string mvname, int mvsize, int machineID, int mailboxID)
         MonitorVariable *mv = new MonitorVariable(mvname, mvsize);
         int indexmv = MVMap.find();
         monitorvariables[indexmv] = mv;
+
+        return indexmv + (netname * 100);
         ss << "201 CM" << " " << indexmv;
     }
 
@@ -860,9 +686,9 @@ void SendResponse(string response, int machineID, int mailboxID)
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
 
-    outPktHdr.to = machineID; // Server Machine ID
-    outMailHdr.to = mailboxID; // Server Machine ID
-    outMailHdr.from = 0; // Client Mailbox ID
+    outPktHdr.to = machineID; // Client Machine ID
+    outMailHdr.to = mailboxID; // Client Machine ID
+    outMailHdr.from = 0; // Server Mailbox ID
 
     char *message = (char *) response.c_str();
     outMailHdr.length = strlen(message) + 1;
@@ -878,175 +704,11 @@ void SendResponse(string response, int machineID, int mailboxID)
     }
 }
 
-void ForwardRequest (char *request, int machineID, int mailboxID)
-{
-    PendingRequest pendingRequest = new PendingRequest(request, machineID, mailboxID);
-
-    pending.push_back(pendingRequest);
-
-    stringstream ss;
-    ss << (pending.size() - 1) << " ";
-    ss << machineID << " ";
-    ss << mailboxID << " ";
-    ss << request;
-
-    for (int indexserver = 0; indexserver < 5; indexserver++)
-    {
-        if (indexserver == netname)
-        {
-            continue;
-        }
-
-        string response = ss.str();
-
-        SendResponse(response, indexserver, 1);
-    }
-}
-
-bool LookupResource (char *request, int machineID, int mailboxID)
-{
-    stringstream ss;
-    ss.str(request);
-
-    string requestType;
-
-    ss >> requestType;
-
-    if (requestType == "CL")
-    {
-        string lockname;
-        ss >> lockname;
-
-        for (int indexlock = 0; indexlock < 100; indexlock++)
-        {
-            if (serverlocks[indexlock])
-            {
-                if (serverlocks[indexlock]->name == lockname)
-                {
-                    // Create the message
-                    std::stringstream ss;
-                    ss << "200" << " " << "CL" << " " << indexlock;
-                    string response = ss.str();
-                    SendResponse(response, machineID, mailboxID);
-                    
-                    break;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    if (requestType == "CC")
-    {
-        string cvname;
-        ss >> cvname;
-
-        for (int indexcv = 0; indexcv < 100; indexcv++)
-        {
-            if (serverconditions[indexcv])
-            {
-                if (serverconditions[indexcv]->name == cvname)
-                {
-                    // Create the message
-                    std::stringstream ss;
-                    ss << "200" << " " << "CC" << " " << indexcv;
-                    string response = ss.str();
-                    SendResponse(response, machineID, mailboxID);
-                    
-                    break;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    if (requestType == "CM")
-    {
-        string mvname;
-        ss >> mvname;
-
-        for (int indexmv = 0; indexmv < 100; indexmv++)
-        {
-            if (serverlocks[indexmv])
-            {
-                if (serverlocks[indexmv]->name == mvname)
-                {
-                    // Create the message
-                    std::stringstream ss;
-                    ss << "200" << " " << "CL" << " " << indexmv;
-                    string response = ss.str();
-                    SendResponse(response, machineID, mailboxID);
-                    
-                    break;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    if (requestType == "AL" || requestType == "RL" || requestType == "DL")
-    {
-        unsigned int indexlock;
-        ss >> indexlock;
-
-        indexlock = indexlock % (netname * 100);
-
-        if (indexlock > 100)
-        {
-            return false;
-        }
-
-        if (!serverlocks[indexlock])
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    if (requestType == "WC" || requestType == "SC" || requestType == "BC" || requestType == "DC")
-    {
-        unsigned int indexcv;
-        ss >> indexcv;
-
-        indexcv = indexcv % (netname * 100);
-
-        if (indexcv > 100)
-        {
-            return false;
-        }
-
-        if (!serverconditions[indexcv])
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    if (requestType == "GM" || requestType == "SM" || requestType == "DM")
-    {
-        unsigned int indexmv;
-        ss >> indexmv;
-
-        indexmv = indexmv % (netname * 100);
-
-        if (indexmv > 100)
-        {
-            return false;
-        }
-
-        if (!monitorvariables[indexmv])
-        {
-            return false;
-        }
-
-        return true;
-    }
-} 
+//========================================================================================================================================
+//
+// Task Server
+//
+//========================================================================================================================================
 
 //----------------------------------------------------------------------
 // Server
@@ -1059,17 +721,12 @@ bool LookupResource (char *request, int machineID, int mailboxID)
 //  (4) (If Machine does not need to wait for resource) Send response
 //----------------------------------------------------------------------
 
-void ClientToServer()
+void TaskServer()
 {
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
     char request[MaxMailSize];
 
-    char buffer[MaxMailSize];
-    char *lockname= new char;
-    char *cvname= new char;
-    char* type= new char;
-    char* response= new char;
     DEBUG('n', "Server is started.\n");
 
     for (int i = 0; i < 100; i++)
@@ -1082,215 +739,7 @@ void ClientToServer()
     while (true)
     {
         DEBUG('n', "Waiting for message.\n");
-        postOffice->Receive(0, &inPktHdr, &inMailHdr, request); // Check Mailbox 0 until Message sent
-        DEBUG('n', "Received \"%s\" from %d, box %d\n", request, inPktHdr.from, inMailHdr.from);
-
-        // Clear stringstream to parse request
-        stringstream ss;
-        fflush(stdout);
-        ss.str(request);
-
-        char *requestType;
-        char *lockname = new char;
-        char *response = "0";
-        int length, lockindex, cvindex;
-        bool success;
-        ss >> requestType;
-
-        DEBUG('n', "Type of RPC: %s\n", requestType);
-
-        if (!LookupResource(request, inPktHdr.from, inMailHdr.from))
-        {
-            ForwardRequest(request, inPktHdr.from, inMailHdr.from);
-            continue;
-        }
-
-       if (strcmp(requestType, "CL") == 0)
-             {
-                printf("Server received Create Lock request from client.\n");
-                ss >> lockname;
-                ss >> length;
-                if (length <= 0 || length > 24)
-                {
-                    printf("%s","Length for locks's identifier is invalid.\n");
-                    ss << "CL_FAILURE " <<  "-1";
-
-                    outPktHdr.to = inPktHdr.from; 
-                    outPktHdr.from= inPktHdr.to;  
-                    outMailHdr.to = inMailHdr.from;
-                    outMailHdr.from = 0;
-
-                    outMailHdr.length = ss.str().length() + 1;
-                    //printf("Response: %s", response);
-                    response = const_cast<char*>( ss.str().c_str());
-                    success = postOffice->Send(outPktHdr, outMailHdr, response);
-                    break;
-                }
-                else{
-                    printf("inmailhdr.to= %d, inmailhdr.from= %d, inPktHdr.to=%d, inPktHdr.from=%d\n", inMailHdr.to, inMailHdr.from, inPktHdr.to, inPktHdr.from);
-                    CreateLock(lockname, inPktHdr, inMailHdr);
-                    printf("After creating the lock\n");
-                }
-            }
-        else if (strcmp(requestType, "AL") == 0) //need to pass index
-             {
-                printf("Server received Acquire Lock request from client.\n");
-                ss >> lockindex;
-                if (ValidateLockIndex(lockindex, inPktHdr, inMailHdr)==-1){
-                    printf("%s","invalid index or wrong machine.\n");
-                    ss << "AL_FAILURE " <<  "-1";
-
-                    outPktHdr.to = inPktHdr.from; 
-                    outPktHdr.from= inPktHdr.to;  
-                    outMailHdr.to = inMailHdr.from;
-                    outMailHdr.from = 0;
-
-                    outMailHdr.length = ss.str().length() + 1;
-                    response = const_cast<char*>( ss.str().c_str());
-                    success = postOffice->Send(outPktHdr, outMailHdr, response);
-                    break;
-                }
-                else{
-                    AcquireLock(lockindex, inPktHdr, inMailHdr);
-                    printf("After acquiring the lock\n");
-                }
-            }
-        else if (strcmp(requestType, "RL") == 0) //need to pass index
-             {
-                printf("Server received Release Lock request from client.\n");
-                ss >> lockindex;
-                if (ValidateLockIndex(lockindex, inPktHdr, inMailHdr)==-1){
-                    printf("%s","invalid index or wrong machine.\n");
-                    ss << "RL_FAILURE " <<  "-1";
-                    outPktHdr.to = inPktHdr.from; 
-                    outPktHdr.from= inPktHdr.to;  
-                    outMailHdr.to = inMailHdr.from;
-                    outMailHdr.from = 0;
-
-                    outMailHdr.length = ss.str().length() + 1;
-                    response = const_cast<char*>(ss.str().c_str());
-                    success = postOffice->Send(outPktHdr, outMailHdr, response);
-                    break;
-                }
-                else
-                {
-                    ReleaseLock(lockindex, inPktHdr, inMailHdr);
-                    printf("After releasing the lock\n");
-                }
-            }
-        else if (strcmp(requestType, "DL") == 0)
-             {
-                printf("Server received Destroy Lock request from client.\n");
-                ss >> lockindex;
-                if (ValidateLockIndex(lockindex, inPktHdr, inMailHdr)==-1){
-                    printf("%s","invalid index or wrong machine.\n");
-                    ss << "DL_FAILURE " <<  "-1";
-                    outPktHdr.to = inPktHdr.from; 
-                    outPktHdr.from= inPktHdr.to;  
-                    outMailHdr.to = inMailHdr.from;
-                    outMailHdr.from = 0;
-                    outMailHdr.length = ss.str().length() + 1;
-                    response = const_cast<char*>( ss.str().c_str());
-                    success = postOffice->Send(outPktHdr, outMailHdr, response);
-                    break;
-                }
-                else
-                {
-                //printf("lockname is: %d", lockname);
-                DestroyLock(lockindex, inPktHdr, inMailHdr);
-                printf("the lock at specified index has been destroyed\n");
         
-                }
-            }
-        else if (strcmp(requestType, "CC") == 0)
-        {
-            string cvname;
-            ss >> cvname;
-
-            CreateCV(lockname, inPktHdr.from, inMailHdr.from);
-        }
-        else if (strcmp(requestType, "WC") == 0)
-        {
-            unsigned int indexcv, indexlock;
-            ss >> indexcv >> indexlock;
-            
-            WaitCV(indexcv, indexlock, inPktHdr.from, inMailHdr.from);
-        }
-        else if (strcmp(requestType, "SC") == 0)
-        {
-            unsigned int indexcv, indexlock;
-            ss >> indexcv >> indexlock;
-
-        4
-            
-            SignalCV(indexcv, indexlock, inPktHdr.from, inMailHdr.from);
-        }
-        else if (strcmp(requestType, "BC") == 0)
-        {
-            unsigned int indexcv, indexlock;
-            ss >> indexcv >> indexlock;
-            
-            BroadcastCV(indexcv, indexlock, inPktHdr.from, inMailHdr.from);
-        }
-        else if (strcmp(requestType, "DC") == 0)
-        {
-            unsigned int indexcv;
-            ss >> indexcv;
-
-            DestroyCV(indexcv, inPktHdr.from, inMailHdr.from);
-        }
-        else if (strcmp(requestType, "CM") == 0)
-        {
-            string mvname;
-            int mvsize;
-            ss >> mvname >> mvsize;
-
-            CreateMV(mvname, mvsize, inPktHdr.from, inMailHdr.from);
-        }
-        else if (strcmp(requestType, "SM") == 0)
-        {
-            unsigned int indexmv, indexvar;
-            int value;
-            ss >> indexmv >> indexvar >> value;
-
-            SetMV(indexmv, indexvar, value, inPktHdr.from, inMailHdr.from);
-        }
-        else if (strcmp(requestType, "GM") == 0)
-        {
-            unsigned int indexmv, indexvar;
-            ss >> indexmv >> indexvar;
-
-            GetMV(indexmv, indexvar, inPktHdr.from, inMailHdr.from);
-        }
-        else if (strcmp(requestType, "DM") == 0)
-        {
-            unsigned int indexmv;
-            ss >> indexmv;
-
-            DestroyMV(indexmv, inPktHdr.from, inMailHdr.from);
-        }
-    }
-}
-
-
-
-
-void ServerToServer ()
-{
-    PacketHeader inPktHdr;
-    MailHeader inMailHdr;
-    char request[MaxMailSize];
-
-    char buffer[MaxMailSize];
-    char *lockname= new char;
-    char *cvname= new char;
-    char* type= new char;
-    char* response= new char;
-    DEBUG('n', "Server is started.\n");
-
-    while (true)
-    {
-        DEBUG('n', "Waiting for message.\n");
         postOffice->Receive(1, &inPktHdr, &inMailHdr, request); // Check Mailbox 0 until Message sent
         DEBUG('n', "Received \"%s\" from %d, box %d\n", request, inPktHdr.from, inMailHdr.from);
 
@@ -1299,165 +748,658 @@ void ServerToServer ()
         fflush(stdout);
         ss.str(request);
 
-        char *requestType;
-        char *lockname = new char;
-        char *response = "0";
-        int length, lockindex, cvindex;
-        bool success;
-        ss >> requestType;
+        // Message Format: <ResponseType> <ClientMachine> <ClientMailbox> <... TaskSpecificParams>
+        string requestType;
+        int clientMachine, clientMailbox;
+        ss >> requestType >> clientMachine >> clientMailbox;
 
         DEBUG('n', "Type of RPC: %s\n", requestType);
 
-        if (strcmp(requestType, "SCL") == 0)
+        if (requestType == "CL")
         {
-            if (response == "NO")
+            string cvname;
+            ss >> cvname;
+
+            int indexlock = CreateCV(lockname, clientMachine, clientMailbox);
+            RespondToClient(201, requestType, indexlock, clientMachine, clientMailbox);
+        }
+        if (requestType == "AL")
+        {
+            unsigned int indexlock;
+            ss >> indexlock;
+
+            // Prepare Message before-hand because Acquire May either be completing
+            //  a Wait call or an Acquire call.
+            ClientResponse response = new ClientResponse(requestType, indexlock, clientMachine, clientMailbox);
+            
+            // If able to Acquire Lock
+            if (AcquireLock(indexlock, FREE, response))
             {
-                pending.at(indexrequest)->noCount++;
-            }
-
-            if (response == "YES")
-            {
-                pending.at(indexrequest)->fulfilled = true;
-            }
-
-            if (pending.at(indexrequest)->numResponse == numServers && !pending.at(indexrequest)->fulfilled)
-            {
-                bool foundLock = false;
-
-                for (int indexlock = 0; indexlock < 100; indexlock++)
-                {
-                    if (serverlocks[indexlock]->name == lockname)
-                    {
-                        // Create the message
-                        std::stringstream ss;
-                        ss << "200" << " " << "CL" << " " << indexlock;
-                        string response = ss.str();
-                        SendResponse(response, machineID, mailboxID);
-                        foundLock = true;
-                        break;
-                    }
-                }
-
-                if (!foundLock)
-                {
-                    CreateLock();
-                }
-
-                pending.at(indexrequest)->fulfilled = true;
+                RespondToClient(200, requestType, indexlock, clientMachine, clientMailbox);
             }
         }
-
-        if (strcmp(requestType, "SCC") == 0)
+        if (requestType == "RL")
         {
-            if (response == "NO")
+            unsigned int indexlock;
+            ss >> indexlock;
+            
+            if (ReleaseLock(indexlock, clientMachine, clientMailbox))
             {
-                pending.at(indexrequest)->noCount++;
-            }
-
-            if (response == "YES")
-            {
-                pending.at(indexrequest)->fulfilled = true;
-            }
-
-            if (pending.at(indexrequest)->numResponse == numServers && !pending.at(indexrequest)->fulfilled)
-            {
-                bool foundLock = false;
-
-                for (int indexcv = 0; indexcv < 100; indexcv++)
-                {
-                    if (serverconditions[indexcv]->name == lockname)
-                    {
-                        // Create the message
-                        std::stringstream ss;
-                        ss << "200" << " " << "CC" << " " << indexcv;
-                        string response = ss.str();
-                        SendResponse(response, machineID, mailboxID);
-                        foundLock = true;
-                        break;
-                    }
-                }
-
-                if (!foundLock)
-                {
-                    CreateCV();
-                }
-
-                pending.at(indexrequest)->fulfilled = true;
+                RespondToClient(200, requestType, indexlock, clientMachine, clientMailbox);
             }
         }
-
-        if (strcmp(requestType, "SCM") == 0)
+        if (requestType == "DL")
         {
-            if (response == "NO")
+            unsigned int indexlock;
+            ss >> indexlock;
+            
+            DestroyLock(indexlock, clientMachine, clientMailbox);
+            RespondToClient(200, requestType, indexlock, clientMachine, clientMailbox);
+        }
+        if (requestType == "WFL")
+        {
+            unsigned int indexlock;
+            ss >> indexlock;
+
+            FreeLock(indexlock);
+        }
+        if (requestType == "SFL")
+        {
+            unsigned int indexlock;
+            ss >> indexlock;
+
+            FreeLock(indexlock);
+        }
+        if (requestType == "CC")
+        {
+            string cvname;
+            ss >> cvname;
+
+            int indexcv = CreateCV(lockname, clientMachine, clientMailbox);
+            RespondToClient(201, requestType, indexcv, clientMachine, clientMailbox);
+        }
+        if (requestType == "WC")
+        {
+            unsigned int indexcv;
+            ss >> indexcv;
+            
+            WaitCV(indexcv, clientMachine, clientMailbox);
+            
+            NextStep("WFL", pendingNumber, clientMachine, clientMailbox);
+        }
+        if (requestType == "WAL")
+        {
+            unsigned int indexcv, indexlock;
+            ss >> indexcv >> indexlock;
+
+            // Prepare Message before-hand because Acquire May either be completing
+            //  a Wait call or an Acquire call.
+            ClientResponse response = new ClientResponse("WC", indexcv, clientMachine, clientMailbox);
+            
+            // If able to Acquire Lock
+            if (AcquireLock(indexlock, BUSY, response))
             {
-                pending.at(indexrequest)->noCount++;
-            }
-
-            if (response == "YES")
-            {
-                pending.at(indexrequest)->fulfilled = true;
-            }
-
-            if (pending.at(indexrequest)->numResponse == numServers && !pending.at(indexrequest)->fulfilled)
-            {
-                bool foundLock = false;
-
-                for (int indexmv = 0; indexmv < 100; indexmv++)
-                {
-                    if (monitorvariables[indexmv]->name == mvname)
-                    {
-                        // Create the message
-                        std::stringstream ss;
-                        ss << "200" << " " << "CM" << " " << indexmv;
-                        string response = ss.str();
-                        SendResponse(response, machineID, mailboxID);
-                        foundLock = true;
-                        break;
-                    }
-                }
-
-                if (!foundLock)
-                {
-                    CreateMV();
-                }
-
-                pending.at(indexrequest)->fulfilled = true;
+                RespondToClient(200, requestType, indexcv, clientMachine, clientMailbox);
             }
         }
-
-        if (requestType == "SAL" || requestType == "SRL" || requestType == "SDL" 
-            || requestType == "SWC" || requestType == "SSC" || requestType == "SBC" || requestType == "SDC"
-            || requestType == "SGM" || requestType == "SSM" || requestType == "SDM")
+        if (requestType == "WRL")
         {
-            if (response == "NO")
+            unsigned int indexlock, pendingNumber;
+            ss >> indexlock >> pendingNumber;
+            
+            if (ReleaseLock(indexlock, BUSY, clientMachine, clientMailbox))
             {
-                pending.at(indexrequest).noCount++;
-            }
-
-            if (response == "YES")
-            {
-                pending.at(indexrequest).fulfilled = true;
-            }
-
-            if (pending.at(indexrequest).noCount == numServers && !pending.at(indexrequest).fulfilled)
-            {
-                std::stringstream ss;
-                ss << "400" << " " << requestType << " " << indexresource;
-                string response = ss.str();
-                SendResponse(response, machineID, mailboxID);
-                pending.at(indexrequest).fulfilled = true;
+                NextStep("WC2", pendingNumber, clientMachine, clientMailbox);
             }
         }
+        if (requestType == "WR") // Release Lock from Wait to preserve requestType
+        {
+            unsigned int indexcv, indexlock;
+            ss >> indexcv >> indexlock;
+            
+            ReleaseLock(indexlock, clientMachine, clientMailbox);
+            RespondToClient(200, "WC", indexcv, clientMachine, clientMailbox);
+        }
+        if (requestType == "WA") // Re-Acquire Lock from Wait to preserve requestType
+        {
+            unsigned int indexcv, indexlock;
+            ss >> indexcv >> indexlock;
 
+            // Prepare Message before-hand because Acquire May either be completing
+            //  a Wait call or an Acquire call.
+            fflush(stdout);
+            string response;
+            ss << 200 << " " << requestType << " " << indexcv;
+            
+            // If able to Acquire Lock; Else Response was Queued.
+            if (AcquireLock(indexlock, response, clientMachine, clientMailbox))
+            {
+                RespondToClient(200, "WC", indexcv, clientMachine, clientMailbox);
+            }            
+        }
+        if (requestType == "SC")
+        {
+            unsigned int indexcv;
+            ss >> indexcv;
+
+            SignalCV(indexcv, clientMachine, clientMailbox);
+            RespondToClient(200, requestType, indexcv, clientMachine, clientMailbox);
+        }
+        else if (strcmp(requestType, "BC") == 0)
+        {
+            unsigned int indexcv;
+            ss >> indexcv;
+            
+            BroadcastCV(indexcv, clientMachine, clientMailbox);
+            RespondToClient(200, requestType, indexcv, clientMachine, clientMailbox);
+        }
+        else if (strcmp(requestType, "DC") == 0)
+        {
+            unsigned int indexcv;
+            ss >> indexcv;
+
+            DestroyCV(indexcv, clientMachine, clientMailbox);
+            RespondToClient(200, requestType, indexcv, clientMachine, clientMailbox);
+        }
+        else if (strcmp(requestType, "CM") == 0)
+        {
+            string mvname;
+            int mvsize;
+            ss >> mvname >> mvsize;
+
+            int indexmv = CreateMV(mvname, mvsize, clientMachine, clientMailbox);
+            RespondToClient(201, requestType, indexmv, clientMachine, clientMailbox);
+        }
+        else if (strcmp(requestType, "SM") == 0)
+        {
+            unsigned int indexmv, indexvar;
+            int value;
+            ss >> indexmv >> indexvar >> value;
+
+            SetMV(indexmv, indexvar, value, clientMachine, clientMailbox);
+            RespondToClient(200, requestType, indexmv, clientMachine, clientMailbox);
+        }
+        else if (strcmp(requestType, "GM") == 0)
+        {
+            unsigned int indexmv, indexvar;
+            ss >> indexmv >> indexvar;
+
+            GetMV(indexmv, indexvar, clientMachine, clientMailbox);
+            RespondToClient(200, requestType, indexmv, clientMachine, clientMailbox);
+        }
+        else if (strcmp(requestType, "DM") == 0)
+        {
+            unsigned int indexmv;
+            ss >> indexmv;
+
+            DestroyMV(indexmv, clientMachine, clientMailbox);
+            RespondToClient(200, requestType, indexmv, clientMachine, clientMailbox);
+        }
+    }
+}
+
+
+//========================================================================================================================================
+//
+// Router
+//
+//========================================================================================================================================
+
+void PerformTask (string request, int clientMachine, int clientMailbox);
+void ScheduleTask (string request, int clientMachine, int clientMailbox);
+
+bool LookupResource (string request, int machineID, int mailboxID);
+int LookupLock(string request, int machineID, int mailboxID);
+int LookupCV(string request, int machineID, int mailboxID);
+
+void ForwardRequest (char *request, int machineID, int mailboxID);
+void RespondToServer (int resourceStatus, int pendingNumber, int serverMachine, int serverMailbox);
+
+void Router ()
+{
+    PacketHeader inPktHdr;
+    MailHeader inMailHdr;
+    char request[MaxMailSize];
+
+    DEBUG('n', "Router is started.\n");
+
+    while (true)
+    {
+        DEBUG('n', "Waiting for message.\n");
         
+        postOffice->Receive(0, &inPktHdr, &inMailHdr, request);
+        DEBUG('n', "Received \"%s\" from %d, box %d\n", request, inPktHdr.from, inMailHdr.from);
 
+        // Clear stringstream to parse request
+        stringstream ss;
+        fflush(stdout);
+        ss.str(request);
 
+        string requestType;
+        ss >> requestType;
 
-        if (pendingRequest.at(indexrequest)->fulfilled)
+        // Message format: REQ <PendingNumber> <clientMachine> <clientMailbox> <originalRequest>
+        if (requestType == "REQ")
         {
-            delete pending.at(indexpending);
-            pending.at(indexpending) = NULL;
+            unsigned int pendingNumber, clientMachine, clientMailbox;
+            ss >> pendingNumber >> clientMachine >> clientMailbox;
+
+            string originalRequest;
+            getline(ss, originalRequest);
+
+            int lookupResponse = LookupResource(forwardedRequest);
+
+            // If we have the resource
+            if (lookupResponse == 302)
+            {
+                RespondToServer(302, pendingNumber, inPktHdr.from, inMailHdr.from); // YES
+
+                PerformTask(originalRequest, clientMachine, clientMailbox);
+            }
+            // Validating Lock for CV Call:
+            if (lookupResponse == 401)
+            {
+                RespondToServer(401, pendingNumber, inPktHdr.from, inMailHdr.from); // Machine does not own CV's Lock
+            }
+            if (lookupResponse == 404)
+            {
+                RespondToServer(404, pendingNumber, inPktHdr.from, inMailHdr.from); // NO
+            }
         }
+
+        // Message format: RES <ResponseCode> <PendingNumber>
+        else if (requestType == "RES")
+        {
+            int responseCode, pendingNumber;
+            ss >> responseCode >> pendingNumber;
+
+            PendingRequest *pendingReq = pending.at(indexrequest);
+
+            // Server Found Resource
+            if (responseCode == 302)
+            {
+                pendingReq->fulfilled = true;
+            }
+
+            // Unauthorized: Do Not Own Lock Corresponding to CV
+            if (responseCode == 401)
+            {
+                RespondToClient(401, pendingReq->requestType, pendingReq->indexresource, clientMachine, clientMailbox);
+                pendingReq->fulfilled = true;
+            }
+
+            // Not Found
+            else if (responseCode == 404)
+            {
+                pendingReq->noCount++;
+            }
+
+            // If All Responses and Still Unfulfilled
+            if (pendingReq->noCount == numServers && !pendingReq->fulfilled)
+            {
+                if (pendingReq->requestType == "CL" || pendingReq->requestType == "CC" || pendingReq->requestType == "CM")
+                {
+                    string createRequest;
+                    fflush(stdout);
+                    ss << pendingReq->requestType << " " << pendingReq->name;
+                    getline(ss, createRequest);
+
+                    ScheduleTask(createRequest, pendingReq->machineID, pendingReq->mailboxID); // Create Resource
+                }
+                else
+                {
+                    RespondToClient(400, pendingReq->requestType, pendingReq->indexresource, clientMachine, clientMailbox);
+                }
+
+                pending.at(indexrequest)->fulfilled = true;
+            }
+
+            if (pendingRequest.at(indexrequest)->fulfilled)
+            {
+                delete pending.at(indexpending);
+                pending.at(indexpending) = NULL;
+            }
+        }
+
+        // Client Message
+        // Message Format: <RequestType> <... TaskSpecificParams>
+        else
+        {
+            int lookupResponse = LookupResource(string(request));
+
+            // If we have the resource
+            if (lookupResponse == 302)
+            {
+                PerformTask(string(request), clientMachine, clientMailbox);
+            }
+
+            // Invalid 
+            if (lookupResponse == 400 || lookupResponse == 401)
+            {
+                int indexresource;
+                ss >> indexresource;
+
+                RespondToClient(lookupResponse, requestType, indexresource, clientMachine, clientMailbox);
+            }
+
+            // Not Found
+            if (lookupResponse == 404)
+            {
+                ForwardRequest(request, clientMachine, clientMailbox);
+            }
+        }
+    }
+}
+
+bool LookupResource (string request, int machineID, int mailboxID)
+{
+    stringstream ss;
+    ss.str(request);
+
+    string requestType;
+    ss >> requestType;
+
+    if (requestType == "CL" || requestType == "AL" || requestType == "RL" || requestType == "DL" 
+        || requestType == "WC" || requestType == "SC" || requestType == "BC" || requestType == "WFL" || requestType == "SFL")
+    {
+        return LookupLock(request, machineID, mailboxID);
+    }
+
+    if (requestType == "CC" || requestType == "WC2" || requestType == "SC2" || requestType == "BC2" || requestType == "DC")
+    {
+        return LookupCV(request, machineID, mailboxID);
+    }
+
+    if (requestType == "CM" || requestType == "SM" || requestType == "GM" || requestType == "DM")
+    {
+        return LookupMV(request, machineID, mailboxID);
+    }
+}
+
+//----------------------------------------------------------------------
+// ValidateLockIndex
+//  Verifies the input passed in to Lock RPCs (1) correspond to valid
+//  lock locations (positive and inbounds) and (2) the lock exists. If 
+//  any errors occur, the Server sends a corresponding error code and 
+//  the RPC should not continue.
+//
+//  Returns -1 if an error occured, 0 otherwise.
+//
+//  "indexlock" -- the index passed in to the Lock RPC being validated
+//  "requestType" -- the RPC two-letter code
+//  "machineID" -- the requesting machine's netname, used for responses
+//  "mailboxID" -- the requesting mailbox number, used for responses
+//----------------------------------------------------------------------
+
+int LookupLock(string request, int machineID, int mailboxID)
+{
+    fflush(stdout);
+    ss.str(request);
+
+    string requestType;
+    ss >> requestType;
+
+    if (requestType == "CL")
+    {
+        string lockname;
+        ss >> lockname;
+
+        for (int index = 0; index < 100; index++)
+        {
+            if (serverlocks[index])
+            {
+                if (serverlocks[index]->name == lockname)
+                {
+                    RespondToClient(201, requestType, index, machineID, mailboxID);
+                    return 302; // FOUND Lock
+                }
+            }
+        }
+
+        return 404;
+    }
+
+    int indexlock;
+    ss >> indexlock;
+
+    indexlock = indexlock % (netname * 100);
+
+    // (1) Index corresponds to valid location: 400
+    if (indexlock >= 100 || indexlock < 0)
+    {
+        return 400;
+    }
+
+    ServerLock *lock = serverlocks[indexlock];
+
+    // (2) Lock not found: 404
+    if (!lock)
+    {
+        return 404;
+    }
+
+    // UNAUTHORIZED: Trying to release a Lock client does not own
+    if (requestType == "RL" || requestType == "VL")
+    {
+        if (lock->machineID != clientMachine || lock->mailbox != clientMailbox))
+        {
+            return 401;
+        }
+    }
+
+    // No Errors; FOUND Lock
+    return 302;
+}
+
+//----------------------------------------------------------------------
+// ValidateCVIndeces
+//  Verifies the input passed in to CV RPCs (1) correspond to valid CV,
+//  (2) the CV exists, (3) the lock is valid and exists, and (4) the 
+//  machine owns the Lock corresponding to the CV's critical section. If 
+//  any errors occur, the Server sends a corresponding error code and 
+//  the RPC should not continue.
+//
+//  Returns -1 if an error occured, 0 otherwise.
+//
+//  "indexcv" -- CV index passed in to the CV RPC being validated
+//  "indexlock" -- Lock index passed in to the CV RPC being validated
+//  "requestType" -- the RPC two-letter code
+//  "machineID" -- the requesting machine's netname, used for responses
+//  "mailboxID" -- the requesting mailbox number, used for responses
+//----------------------------------------------------------------------
+
+int LookupCV(string request, int machineID, int mailboxID)
+{
+    // (1) Corresponds to valid condition location: 400
+    if (indexcv >= 100 || indexcv < 0)
+    {
+        return 400;
+    }
+
+    // Create the message
+    std::stringstream ss;
+    fflush(stdout);
+    ss.str(request);
+
+    string requestType;
+    ss >> requestType;
+
+    // Create: heck if Server Owns CV Already
+    if (requestType == "CC")
+    {
+        string cvname;
+        ss >> cvname;
+
+        for (int index = 0; index < 100; index++)
+        {
+            if (serverconditions[index])
+            {
+                if (serverlocks[index]->name == cvname)
+                {
+                    RespondToClient(201, requestType, index, machineID, mailboxID);
+                    return 302; // FOUND Lock
+                }
+            }
+        }
+
+        return 404;
+    }
+
+    int indexcv;
+    ss >> indexcv;
+
+    indexcv = indexcv % (netname * 100);
+
+    // Get the Condition and Wait
+    ServerCV *condition = serverconditions[indexcv];
+
+    // (2) Condition exists: 404
+    if (!condition)
+    {
+        return 404;
+    }
+    else
+    {
+        int indexlock;
+        ss >> indexlock;
+
+        // UNAUTHORIZED: If lock passed in belongs to CV's C.S.
+        if (condition->cvlockSet && condition->conditionlock != indexlock)
+        {
+            return 401; 
+        }
+
+    
+        // If CV has no corresponding lock, set its lock
+        if (!condition->cvlockSet)
+        {
+            condition->conditionlock = indexlock;
+            condition->cvlockSet = true;
+        }
+    }
+
+    // No errors
+    return 0;
+}
+
+
+void ForwardRequest (char *request, int machineID, int mailboxID)
+{
+    stringstream ss;
+    fflush(stdout);
+    ss.str(request);
+
+    string requestType;
+    ss >> requestType;
+
+    PendingRequest pendingRequest = new PendingRequest(requestType, machineID, mailboxID);
+
+    if (requestType == "CL" || requestType == "CC" || requestType == "CM")
+    {
+        string name;
+        ss >> name;
+        pendingRequest.name = name;
+    }
+    else
+    {
+        int indexresource;
+        ss >> indexresource;
+        pendingRequest.indexresource = indexresource;
+
+        if (requestType == "WC" || requestType == "SC" || requestType == "BC")
+        {
+            int indexlock;
+            ss >> indexlock;
+            pendingRequest.indexlock = indexlock;
+        }
+    }
+
+    pending.push_back(pendingRequest);
+
+    stringstream ss;
+    ss << "REQ" << " ";
+    ss << (pending.size() - 1) << " ";
+    ss << machineID << " ";
+    ss << mailboxID << " ";
+    ss << request;
+
+    for (int indexserver = 0; indexserver < 5; indexserver++)
+    {
+        if (indexserver == netname)
+        {
+            continue;
+        }
+
+        string forwardedRequest = ss.str();
+
+        SendResponse(forwardedRequest, indexserver, 0);
+    }
+}
+
+void RespondToServer (int resourceStatus, int pendingNumber, int serverMachine, int serverMailbox)
+{
+    stringstream ss;
+    ss << "RES" << " " << resourceStatus << " " << pendingNumber;
+
+    string response = ss.str();
+
+    SendResponse(response, serverMachine, serverMailbox);
+}
+
+void ScheduleTask (string request, int clientMachine, int clientMailbox)
+{
+    stringstream ss;
+    fflush(stdout);
+    ss.str(request);
+
+    string requestType, requestParams;
+    ss >> requestType;
+    getline(ss, requestParams);
+
+    fflush(stdout);
+    
+    if (requestType == "WC") requestType = "WRL";
+    if (requestType == "WC2") requestType = "WC";
+
+    // Message Format: <requestType> <ClientMachine> <ClientMailbox> <... TaskSpecificParams>
+    ss << requestType << " " << clientMachine << " " << clientMailbox << " " << requestParams;
+
+    string task = ss.str();
+
+    SendResponse(task, netname, 1);
+}
+
+void PerformTask (string request, int clientMachine, int clientMailbox)
+{
+    stringstream ss;
+    fflush(stdout);
+    ss.str(request);
+
+    string requestType;
+    ss >> requestType;
+
+    // Step 1 of Wait/Signal/Broadcast: Release Lock
+    if (requestType == "WC" || requestType == "SC" || requestType == "BC")
+    {
+        unsigned int indexcv, indexlock;
+        ss >> indexcv >> indexlock;
+
+        PendingRequest cvRequest = new PendingRequest(requestType, inPktHdr.from, inMailHdr.from);
+        cvRequest.indexresource = indexcv;
+        cvRequest.indexlock = indexlock;
+        pending.push_back(cvRequest);
+
+        string taskRequest;
+        fflush(stdout);
+        ss << requestType << " " << (pending.size() - 1) << " " << cvRequest->indexlock;
+        getline(ss, taskRequest);
+
+        ScheduleTask(taskRequest, inPktHdr.from, inMailHdr.from));
+    }
+
+    else if (requestType != "CL" && requestType != "CC" && requestType != "CM")
+    {
+        ScheduleTask(request, inPktHdr.from, inMailHdr.from));
     }
 }
 
