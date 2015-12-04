@@ -1,16 +1,15 @@
-Title:  Writeup for Project 3, Fall 2015
-Date:  11/10/2015
+Title:	Writeup for Project 4, Fall 2015
+Date:	12/03/2015
 Group 8
-James Lynch	jamestly@usc.edu
+James Lynch		jamestly@usc.edu
 Austin Spiegel	aspiegel@usc.edu
 Haley Lenner	lenner@usc.edu
  
 I. Requirements:
 
-The requirements for this Project are to implement the software-managed TLB, virtual memory, and RPC calls for creating Locks, Condition Variables, and Monitor Variables.  The TLB acts as a cache and gives the illusion of fast access to virtual address translation over a large address space.  Virtual memory is implemented to use main memory as a cache for the disk.  This allows us to concurrently run programs that are larger than main memory, reading 'pages' of code or data from either the executable or a swap file.  RPCs allow machines to run procedures on another machine via message passing.  For Project 3, this is done using a single Server with up to five clients.
+The requirements for this project are to create a fully distributed passport office.  This involves two parts.  The first part focuses on splitting up the monolithic passport office program into many seperate programs.  Each program is a different role from the passport office (i.e. passportClerk, pictureClerk, cashier, etc.).  The new passport office will now run on 5 different clients communicating with 5 different servers.  In doing this, we lost the ability to have global shared data.  Global data will now reside in monitor variables on the servers.  Locks, condition variables, and monitor variables will be disributed amongs the 5 different servers, but they will effectively exist in the same address space.  The second part of this project involves ensuring that the distributed data is accessible by all 5 servers.  When accessing a lock, condition variable, or monitor variable, each 'role' program will contact a random server.  This server may or may not have the resource the program is attempting to access.  In that situation, the server must contact the other servers and forward the request.  The resources have their own intracacies, and distributed requests for them must be handled in specific ways.
 
 II. Assumptions:
-
 
 
 III. Design:
@@ -282,4 +281,3 @@ Our output will say pass/fail for validation tests.
 
 VI. Discussion:
 
-All of the RPCs work 100% properly. We did not design our tests to run with -rs values. Our tests display proper functionality for the RPCs. 
