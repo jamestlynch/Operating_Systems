@@ -26,10 +26,6 @@
 #include <queue>
 using namespace std;
 
-void RespondToClient(int responseCode, string type, int indexresource, int machineID, int mailboxID);
-void RespondToServer(int responseCode, int pendingNumber, int machineID, int mailboxID);
-void SendResponse(string response, int machineID, int mailboxID);
-
 struct PendingRequest
 {
     int machineID;
@@ -58,6 +54,24 @@ struct PendingRequest
 
 vector<PendingRequest*> pending = new vector<PendingRequest>();
 
+struct ClientResponse
+{
+    string requestType;
+    int indexresource;
+    int machineID;
+    int mailboxID;
+    int requestNumber;
+
+    ClientResponse(string type, int index, int reqNumber, int machine, int mailbox)
+    {
+        requestType = type;
+        indexresource = index;
+        machineID = machine;
+        mailbox = mailboxID;
+        requestNumber = reqNumber;
+    }
+};
+
 
 //========================================================================================================================================
 //
@@ -78,22 +92,6 @@ vector<PendingRequest*> pending = new vector<PendingRequest>();
 //  of Messages to put a remote user program to sleep, since programs
 //  pause execution until receiving a response.
 //----------------------------------------------------------------------
-
-struct ClientResponse
-{
-    string requestType;
-    int indexresource;
-    int machineID;
-    int mailboxID;
-
-    ClientResponse(string type, int index, int machine, int mailbox)
-    {
-        requestType = type;
-        indexresource = index;
-        machineID = machine;
-        mailbox = mailboxID;
-    }
-};
 
 enum lockstate { FREE, BUSY };
 
@@ -122,54 +120,132 @@ ServerLock* serverlocks[100];
 
 BitMap LockMap(100);
 
-//----------------------------------------------------------------------
-// ValidateLockIndex
-//  Verifies the input passed in to Lock RPCs (1) correspond to valid
-//  lock locations (positive and inbounds) and (2) the lock exists. If 
-//  any errors occur, the Server sends a corresponding error code and 
-//  the RPC should not continue.
-//
-//  Returns -1 if an error occured, 0 otherwise.
-//
-//  "indexlock" -- the index passed in to the Lock RPC being validated
-//  "requestType" -- the RPC two-letter code
-//  "machineID" -- the requesting machine's netname, used for responses
-//  "mailboxID" -- the requesting mailbox number, used for responses
-//----------------------------------------------------------------------
+int CreateLock(string lockname, int clientMachine, int clientMailbox);
+bool AcquireLock(int indexlock, lockstate state, int requestNumber, ClientResponse response);
+bool ReleaseLock(int indexlock, lockstate state, int requestNumber, int clientMachine, int clientMailbox);
+void DestroyLock(int indexlock, int clientMachine, int clientMailbox);
 
-int ValidateLockIndex(int indexlock, int machineID, int mailboxID)
+int FreeLock(int indexlock, int requestNumber);
+
+//========================================================================================================================================
+//
+// Condition Variables
+//  A condition variable does not have a value, but threads may be queued, 
+//  waiting on the variable. All operations on a condition variable must 
+//  be made while the requesting machine has acquired a lock. Mutual exclusion
+//  must be enforced among machines calling the condition variable operations.
+//
+//========================================================================================================================================
+
+struct ServerCV
 {
-    // Create the message
-    std::stringstream ss;
-    bool error = false;
+    string name;
+    bool toDelete;
+    int conditionlock;
+    bool cvlockSet;
+    std::queue<ClientResponse*> waitqueue;
 
-    // (1) Index corresponds to valid location: 400
-    if (indexlock >= 100 || indexlock < 0)
+    ServerCV(string cvname)
     {
-        ss << "400" << " " << requestType << " " << indexlock;
-        error = true;
+        name = cvname;
+        toDelete = false;
+        cvlockSet = false;
     }
+};
 
-    ServerLock *lock = serverlocks[indexlock];
+ServerCV* serverconditions[100];
 
-    // (2) Lock not found: 404
-    if (!lock)
+BitMap CVMap(100);
+
+int CreateCV(string cvname, int machineID, int mailboxID);
+void WaitCV(unsigned int indexcv, unsigned int requestNumber, int machineID, int mailboxID);
+void SignalCV(unsigned int indexcv, int clientMachine, int clientMailbox);
+void BroadcastCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID);
+void DestroyCV(unsigned int indexcv, int machineID, int mailboxID);
+
+void DeleteCondition(unsigned int indexcv);
+
+//========================================================================================================================================
+//
+// Monitor Variables
+//  Monitor Variables are shared data used by remote user programs.
+//
+//========================================================================================================================================
+
+struct MonitorVariable
+{
+    string name;
+    int *values;
+    unsigned int size;
+
+    MonitorVariable(string id, unsigned int arraysize)
     {
-        ss << "404" << " " << requestType << " " << indexlock;
-        error = true;
+        name = id;
+        size = arraysize;
+        values = new int[arraysize];
     }
+};
 
-    // Errors: Send response and wrap up RPC
-    if (error)
-    {
-        string response = ss.str();
-        SendResponse(response, machineID, mailboxID);
-        return -1;
-    }
+MonitorVariable* monitorvariables[100];
 
-    // No errors
-    return 0;
-}
+BitMap MVMap(100);
+
+void CreateMV(string mvname, int mvsize, int machineID, int mailboxID);
+void SetMV(unsigned int indexmv, unsigned int indexvar, int value, int machineID, int mailboxID);
+void GetMV(unsigned int indexmv, unsigned int indexvar, int machineID, int mailboxID);
+void DestroyMV(unsigned int indexmv, int machineID, int mailboxID);
+
+//========================================================================================================================================
+//
+// Server
+//  Client machines send request, Server handles requests and sends responses.
+//
+//  See also:   exception.cc   client networked system calls
+//
+//========================================================================================================================================
+
+void TaskServer();
+void Router ();
+
+void NextResourceStep(string requestType, int requestNumber, int clientMachine, int clientMailbox);
+bool LookupResource (string request, int machineID, int mailboxID);
+int LookupLock(string request, int machineID, int mailboxID);
+int LookupCV(string request, int machineID, int mailboxID);
+
+void ForwardRequest (char *request, int machineID, int mailboxID);
+void PerformTask (string request, int clientMachine, int clientMailbox);
+void ScheduleTask (string request, int clientMachine, int clientMailbox);
+void RespondToClient(int responseCode, string type, int indexresource, int machineID, int mailboxID);
+void RespondToServer(int responseCode, int pendingNumber, int machineID, int mailboxID);
+void SendResponse(string response, int machineID, int mailboxID);
+
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+//========================================================================================================================================
+
+//========================================================================================================================================
+//
+// Locks
+//  A condition variable does not have a value, but threads may be queued, 
+//  waiting on the variable. All operations on a condition variable must 
+//  be made while the requesting machine has acquired a lock. Mutual exclusion
+//  must be enforced among machines calling the condition variable operations.
+//
+//========================================================================================================================================
 
 //----------------------------------------------------------------------
 // CreateLock
@@ -191,15 +267,15 @@ int CreateLock(string lockname, int clientMachine, int clientMailbox)
 //  TODO: Description
 //----------------------------------------------------------------------
 
-bool AcquireLock(int indexlock, lockstate state, ClientResponse response)
+bool AcquireLock(int indexlock, lockstate state, int requestNumber, ClientResponse response)
 {
-    ServerLock *lock = serverlocks[indexlock];
+    ServerLock *lock = serverlocks[indexlock % (netname * 100)];
 
     if (lock->state == BUSY)
     {
         ClientResponse *cr;
-        if (state == FREE) cr = new ClientResponse("AL", indexlock, clientMachine, clientMailbox);
-        if (state == BUSY) cr = new ClientResponse("WAL", indexlock, clientMachine, clientMailbox);
+        if (state == FREE) cr = new ClientResponse("AL", indexlock, requestNumber, clientMachine, clientMailbox);
+        if (state == BUSY) cr = new ClientResponse("WAL", indexlock, requestNumber, clientMachine, clientMailbox);
         lock->busyqueue.push(cr);
         return false;
     }
@@ -228,15 +304,15 @@ bool AcquireLock(int indexlock, lockstate state, ClientResponse response)
 //  TODO: Description
 //----------------------------------------------------------------------
 
-bool ReleaseLock(int indexlock, lockstate state, int clientMachine, int clientMailbox)
+bool ReleaseLock(int indexlock, lockstate state, int requestNumber, int clientMachine, int clientMailbox)
 {
-    ServerLock *lock = serverlocks[indexlock];
+    ServerLock *lock = serverlocks[indexlock % (netname * 100)];
 
     if (lock->state == BUSY)
     {
         ClientResponse *cr;
-        if (state == FREE) cr = new ClientResponse("RL", indexlock, clientMachine, clientMailbox);
-        if (state == BUSY) cr = new ClientResponse("WRL", indexlock, clientMachine, clientMailbox);
+        if (state == FREE) cr = new ClientResponse("RL", indexlock, requestNumber, clientMachine, clientMailbox);
+        if (state == BUSY) cr = new ClientResponse("WRL", indexlock, requestNumber, clientMachine, clientMailbox);
         lock->busyqueue.push(cr);
         return false;
     }
@@ -270,54 +346,6 @@ bool ReleaseLock(int indexlock, lockstate state, int clientMachine, int clientMa
     return true;
 }
 
-int FreeLock(int indexlock)
-{
-    ServerLock *lock = serverlocks[indexlock];
-
-    lock->state = FREE;
-
-    while (! lock->busyqueue.empty())
-    {
-        ClientResponse *cr = lock->busyqueue.front();
-
-        if (cr->requestType == "AL")
-        {
-            if (AcquireLock(cr->indexresource, FREE, cr))
-            {
-                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
-            }
-        }
-        if (cr->requestType == "RL")
-        {
-            if (ReleaseLock(cr->indexresource, FREE, cr))
-            {
-                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
-            }
-        }
-        if (cr->requestType == "DL")
-        {
-            if (DestroyLock(cr->indexresource, FREE, cr))
-            {
-                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
-            }
-        }
-        if (cr->requestType == "WAL")
-        {
-            if (AcquireLock(cr->indexresource, BUSY, cr))
-            {
-                // Wait is COMPLETE!
-                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
-            }
-        }
-        if (cr->requestType == "WRL")
-        {
-            ReleaseLock(cr->indexresource, BUSY, cr);
-        }
-
-        lock->busyqueue.pop();
-    }
-}
-
 //----------------------------------------------------------------------
 // DestroyLock
 //  TODO: Description
@@ -339,6 +367,54 @@ void DestroyLock(int indexlock, int clientMachine, int clientMailbox)
     }
 }
 
+int FreeLock(int indexlock, int requestNumber)
+{
+    ServerLock *lock = serverlocks[indexlock % (netname * 100)];
+
+    lock->state = FREE;
+
+    while (! lock->busyqueue.empty())
+    {
+        ClientResponse *cr = lock->busyqueue.front();
+
+        if (cr->requestType == "AL")
+        {
+            if (AcquireLock(cr->indexresource, FREE, 0, cr))
+            {
+                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
+            }
+        }
+        if (cr->requestType == "RL")
+        {
+            if (ReleaseLock(cr->indexresource, FREE, 0, cr))
+            {
+                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
+            }
+        }
+        if (cr->requestType == "DL")
+        {
+            if (DestroyLock(cr->indexresource, FREE, 0, cr))
+            {
+                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
+            }
+        }
+        if (cr->requestType == "WAL")
+        {
+            if (AcquireLock(cr->indexresource, BUSY, requestNumber, cr))
+            {
+                // Wait is COMPLETE!
+                RespondToClient(200, cr->requestType, cr->indexresource, cr->clientMachine, cr->clientMailbox);
+            }
+        }
+        if (cr->requestType == "WRL")
+        {
+            ReleaseLock(cr->indexresource, BUSY, requestNumber, cr);
+        }
+
+        lock->busyqueue.pop();
+    }
+}
+
 //========================================================================================================================================
 //
 // Condition Variables
@@ -348,40 +424,6 @@ void DestroyLock(int indexlock, int clientMachine, int clientMailbox)
 //  must be enforced among machines calling the condition variable operations.
 //
 //========================================================================================================================================
-
-struct ServerCV
-{
-    string name;
-    bool toDelete;
-    int conditionlock;
-    bool cvlockSet;
-    std::queue<ClientResponse*> waitqueue;
-
-    ServerCV(string cvname)
-    {
-        name = cvname;
-        toDelete = false;
-        cvlockSet = false;
-    }
-};
-
-ServerCV* serverconditions[100];
-
-BitMap CVMap(100);
-
-//----------------------------------------------------------------------
-// DeleteCondition
-//  TODO: Description
-//----------------------------------------------------------------------
-
-void DeleteCondition(unsigned int indexcv)
-{
-    ServerCV *condition = serverconditions[indexcv];
-
-    delete condition;
-    CVMap.clear(indexcv);
-    serverconditions[indexcv] = NULL;
-}
 
 //----------------------------------------------------------------------
 // CreateCV
@@ -403,11 +445,11 @@ int CreateCV(string cvname, int machineID, int mailboxID)
 //  TODO: Description
 //----------------------------------------------------------------------
 
-void WaitCV(unsigned int indexcv, int machineID, int mailboxID)
+void WaitCV(unsigned int indexcv, unsigned int requestNumber, int machineID, int mailboxID)
 {
-    ServerCV *condition = serverconditions[indexcv];
+    ServerCV *condition = serverconditions[indexcv % (netname * 100)];
 
-    ClientResponse waitingMachine = new ClientResponse("WC", indexcv, machineID, mailboxID);
+    ClientResponse waitingMachine = new ClientResponse("WC", indexcv, requestNumber, machineID, mailboxID);
 
     condition->waitqueue.push(waitingMachine);
 }
@@ -417,54 +459,25 @@ void WaitCV(unsigned int indexcv, int machineID, int mailboxID)
 //  TODO: Description
 //----------------------------------------------------------------------
 
-void SignalCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
+void SignalCV(unsigned int indexcv, int clientMachine, int clientMailbox)
 {
-    // Create the message
-    std::stringstream ss;
-
-    // Validate input
-    if (ValidateCVIndeces(indexcv, indexlock, machineID, mailboxID) == -1)
-    {
-        return;
-    }
-
-    // Get the Condition and Signal
-    ServerCV *condition = serverconditions[indexcv];
+    ServerCV *condition = serverconditions[indexcv % (netname * 100)];
 
     // "Wake up" One Sleeping Machine
-    Mail *response = condition->waitqueue.front();
-    condition->waitqueue.pop();
+    ClientResponse waitingMachine = condition->waitqueue.front();
 
-    // Need to Forward Message to machine with Lock
-    ForwardMessage(task = "AL", indexlock, response); // Client Machine ID, Mailbox ID, Request Code/Status 
-
-        {
-                // Add Client Machine ID/Mailbox ID to request
-                ss << task; // Task to Perform
-                ss << response.outPktHdr.to; // Client Machine ID
-                ss << response.outMailHdr.to; // Client Mailbox ID 
-                ss << response.data; // TODO: How do you load a char[] into a ss? <-- Response to Original Request (i.e. asking to AcquireLock, but originally called Wait)
-
-                // Put in Resource Mailbox
-                PacketHeader outPktHdr;
-                MailHeader outMailHdr;
-
-                outPktHdr.to = ;// Server Machine ID
-                outMailHdr.to = 1; // Put in Resource Mailbox
-                outMailHdr.from = 0;
-                return;
-        }
+    if (waitingMachine)
+    {
+        // Call last step in Wait: Re-Acquire Lock before C.S.
+        NextResourceStep("WAL", waitingMachine->requestNumber, clientMachine, clientMailbox);
+        condition->waitqueue.pop();
+    }
 
     // Marked for deletion and no waiting threads, delete
     if (condition->toDelete && condition->waitqueue.empty())
     {
         DeleteCondition(indexcv);
     }
-
-    // Send response to Signaling machine
-    ss << "200" << " " << "SC" << " " << indexcv;
-    string signalResponse = ss.str();
-    SendResponse(signalResponse, machineID, mailboxID);
 }
 
 //----------------------------------------------------------------------
@@ -474,45 +487,14 @@ void SignalCV(unsigned int indexcv, unsigned int indexlock, int machineID, int m
 
 void BroadcastCV(unsigned int indexcv, unsigned int indexlock, int machineID, int mailboxID)
 {
-    // Create the message
-    std::stringstream ss;
-
-    // Validate input
-    if (ValidateCVIndeces(indexcv, indexlock, machineID, mailboxID) == -1)
-    {
-        return;
-    }
-
-    // Get the Condition and Wait
-    ServerCV *condition = serverconditions[indexcv];
+    ServerCV *condition = serverconditions[indexcv % (netname * 100)];
 
     // "Wake up" ALL Sleeping Machines
     while (!condition->waitqueue.empty())
     {
-        Mail *response = condition->waitqueue.front();
+        ClientResponse waitingMachine = condition->waitqueue.front();
+        NextResourceStep("WAL", waitingMachine->requestNumber, clientMachine, clientMailbox);
         condition->waitqueue.pop();
-
-        // Reaquire the Lock when you are woken back up
-        // Lock is busy so go on wait queue
-        if (serverlocks[indexlock]->isOwned)
-        {
-            serverlocks[indexlock]->waitqueue.push(response);
-        }
-        // Lock is valid and available so get the lock
-        else
-        {
-            printf("About to acquire the lock\n");
-            serverlocks[indexlock]->isOwned = true; // Make Lock Busy
-            serverlocks[indexlock]->machineID = response->pktHdr.to;
-            serverlocks[indexlock]->mailbox = response->mailHdr.to;
-            // Send response
-            bool success = postOffice->Send(response->pktHdr, response->mailHdr, response->data);
-            if (!success)
-            {
-                printf("The PostOffice Send failed. You must not have the other Nachos running. Terminating Nachos.\n");
-                interrupt->Halt();
-            }
-        }
     }
 
     // Marked for deletion and no waiting threads, delete
@@ -520,11 +502,6 @@ void BroadcastCV(unsigned int indexcv, unsigned int indexlock, int machineID, in
     {
         DeleteCondition(indexcv);
     }
-
-    // Send response to Signaling machine
-    ss << "200" << " " << "BC" << " " << "100";
-    string signalResponse = ss.str();
-    SendResponse(signalResponse, machineID, mailboxID);
 }
 
 //----------------------------------------------------------------------
@@ -534,42 +511,29 @@ void BroadcastCV(unsigned int indexcv, unsigned int indexlock, int machineID, in
 
 void DestroyCV(unsigned int indexcv, int machineID, int mailboxID)
 {
-    // Create the message
-    std::stringstream ss;
-    bool error = false;
+    ServerCV *condition = serverconditions[indexcv % (netname * 100)];
 
-    // Validate input
-    if (indexcv >= 100 || indexcv < 0)
+    // No waiting threads when Destroy called, delete
+    if (condition->waitqueue.empty())
     {
-        ss << "400" << " " << "DC" << " " << indexcv;
-        error = true;
+        DeleteCondition(indexcv);
     }
 
-    // Get the Condition and Wait
-    ServerCV *condition = serverconditions[indexcv];
-    
-    // if (machineID != serverlocks.at(condition->conditionlock)->machineID)
-    // {
-    //     ss << "400" << " " << "DC" << " " << indexcv;
-    //     error = true;
-    // }
+    condition->toDelete = true;
+}
 
-    // Valid CV index, delete or mark for deletion
-    if (!error)
-    {
-        // No waiting threads when Destroy called, delete
-        if (condition->waitqueue.empty())
-        {
-            DeleteCondition(indexcv);
-        }
+//----------------------------------------------------------------------
+// DeleteCondition
+//  TODO: Description
+//----------------------------------------------------------------------
 
-        ss << "200" << " " << "DC" << " " << indexcv;
-        condition->toDelete = true;
-    }
+void DeleteCondition(unsigned int indexcv)
+{
+    ServerCV *condition = serverconditions[indexcv % (netname * 100)];
 
-    // Send Response
-    string response = ss.str();
-    SendResponse(response, machineID, mailboxID);
+    delete condition;
+    CVMap.clear(indexcv);
+    serverconditions[indexcv] = NULL;
 }
 
 //========================================================================================================================================
@@ -578,24 +542,6 @@ void DestroyCV(unsigned int indexcv, int machineID, int mailboxID)
 //  Monitor Variables are shared data used by remote user programs.
 //
 //========================================================================================================================================
-
-struct MonitorVariable
-{
-    string name;
-    int *values;
-    unsigned int size;
-
-    MonitorVariable(string id, unsigned int arraysize)
-    {
-        name = id;
-        size = arraysize;
-        values = new int[arraysize];
-    }
-};
-
-MonitorVariable* monitorvariables[100];
-
-BitMap MVMap(100);
 
 //----------------------------------------------------------------------
 // CreateMV
@@ -819,10 +765,10 @@ void TaskServer()
 
             // Prepare Message before-hand because Acquire May either be completing
             //  a Wait call or an Acquire call.
-            ClientResponse response = new ClientResponse(requestType, indexlock, clientMachine, clientMailbox);
+            ClientResponse response = new ClientResponse(requestType, indexlock, 0, clientMachine, clientMailbox);
             
             // If able to Acquire Lock
-            if (AcquireLock(indexlock, FREE, response))
+            if (AcquireLock(indexlock, FREE, 0, response))
             {
                 RespondToClient(200, requestType, indexlock, clientMachine, clientMailbox);
             }
@@ -832,9 +778,9 @@ void TaskServer()
             unsigned int indexlock;
             ss >> indexlock;
             
-            if (ReleaseLock(indexlock, clientMachine, clientMailbox))
+            if (ReleaseLock(indexlock, FREE, 0, clientMachine, clientMailbox))
             {
-                RespondToClient(200, requestType, indexlock, clientMachine, clientMailbox);
+                RespondToClient(200, requestType, indexlock, 0, clientMachine, clientMailbox);
             }
         }
         if (requestType == "DL")
@@ -847,10 +793,10 @@ void TaskServer()
         }
         if (requestType == "WFL")
         {
-            unsigned int indexlock;
-            ss >> indexlock;
+            unsigned int indexlock, pendingNumber;
+            ss >> indexlock >> pendingNumber;
 
-            FreeLock(indexlock);
+            FreeLock(indexlock, pendingNumber);
         }
         if (requestType == "SFL")
         {
@@ -874,19 +820,19 @@ void TaskServer()
             
             WaitCV(indexcv, clientMachine, clientMailbox);
             
-            NextStep("WFL", pendingNumber, clientMachine, clientMailbox);
+            NextResourceStep("WFL", pendingNumber, clientMachine, clientMailbox);
         }
         if (requestType == "WAL")
         {
-            unsigned int indexcv, indexlock;
-            ss >> indexcv >> indexlock;
+            unsigned int indexcv, pendingNumber;
+            ss >> indexcv >> pendingNumber;
 
             // Prepare Message before-hand because Acquire May either be completing
             //  a Wait call or an Acquire call.
-            ClientResponse response = new ClientResponse("WC", indexcv, clientMachine, clientMailbox);
+            ClientResponse response = new ClientResponse("WC", indexcv, pendingNumber, clientMachine, clientMailbox);
             
             // If able to Acquire Lock
-            if (AcquireLock(indexlock, BUSY, response))
+            if (AcquireLock(indexlock, BUSY, pendingNumber, response))
             {
                 RespondToClient(200, requestType, indexcv, clientMachine, clientMailbox);
             }
@@ -896,35 +842,10 @@ void TaskServer()
             unsigned int indexlock, pendingNumber;
             ss >> indexlock >> pendingNumber;
             
-            if (ReleaseLock(indexlock, BUSY, clientMachine, clientMailbox))
+            if (ReleaseLock(indexlock, BUSY, pendingNumber, clientMachine, clientMailbox))
             {
-                NextStep("WC2", pendingNumber, clientMachine, clientMailbox);
+                NextResourceStep("VWC", pendingNumber, clientMachine, clientMailbox);
             }
-        }
-        if (requestType == "WR") // Release Lock from Wait to preserve requestType
-        {
-            unsigned int indexcv, indexlock;
-            ss >> indexcv >> indexlock;
-            
-            ReleaseLock(indexlock, clientMachine, clientMailbox);
-            RespondToClient(200, "WC", indexcv, clientMachine, clientMailbox);
-        }
-        if (requestType == "WA") // Re-Acquire Lock from Wait to preserve requestType
-        {
-            unsigned int indexcv, indexlock;
-            ss >> indexcv >> indexlock;
-
-            // Prepare Message before-hand because Acquire May either be completing
-            //  a Wait call or an Acquire call.
-            fflush(stdout);
-            string response;
-            ss << 200 << " " << requestType << " " << indexcv;
-            
-            // If able to Acquire Lock; Else Response was Queued.
-            if (AcquireLock(indexlock, response, clientMachine, clientMailbox))
-            {
-                RespondToClient(200, "WC", indexcv, clientMachine, clientMailbox);
-            }            
         }
         if (requestType == "SC")
         {
@@ -987,22 +908,11 @@ void TaskServer()
     }
 }
 
-
 //========================================================================================================================================
 //
 // Router
 //
 //========================================================================================================================================
-
-void PerformTask (string request, int clientMachine, int clientMailbox);
-void ScheduleTask (string request, int clientMachine, int clientMailbox);
-
-bool LookupResource (string request, int machineID, int mailboxID);
-int LookupLock(string request, int machineID, int mailboxID);
-int LookupCV(string request, int machineID, int mailboxID);
-
-void ForwardRequest (char *request, int machineID, int mailboxID);
-void RespondToServer (int resourceStatus, int pendingNumber, int serverMachine, int serverMailbox);
 
 void Router ()
 {
@@ -1149,12 +1059,12 @@ bool LookupResource (string request, int machineID, int mailboxID)
     ss >> requestType;
 
     if (requestType == "CL" || requestType == "AL" || requestType == "RL" || requestType == "DL" 
-        || requestType == "WC" || requestType == "SC" || requestType == "BC" || requestType == "WFL" || requestType == "SFL")
+        || requestType == "WC" || requestType == "WAL" || requestType == "SC" || requestType == "BC" || requestType == "WFL" || requestType == "SFL")
     {
         return LookupLock(request, machineID, mailboxID);
     }
 
-    if (requestType == "CC" || requestType == "WC2" || requestType == "SC2" || requestType == "BC2" || requestType == "DC")
+    if (requestType == "CC" || requestType == "VWC" || requestType == "VSC" || requestType == "VBC" || requestType == "DC")
     {
         return LookupCV(request, machineID, mailboxID);
     }
@@ -1208,6 +1118,12 @@ int LookupLock(string request, int machineID, int mailboxID)
         return 404;
     }
 
+    if (!(requestType == "AL" || requestType == "RL" || requestType == "DL"))
+    {
+        int indexcv;
+        ss >> indexcv;
+    }
+    
     int indexlock;
     ss >> indexlock;
 
@@ -1228,7 +1144,7 @@ int LookupLock(string request, int machineID, int mailboxID)
     }
 
     // UNAUTHORIZED: Trying to release a Lock client does not own
-    if (requestType == "RL" || requestType == "VL")
+    if (requestType == "RL" || requestType == "WRL")
     {
         if (lock->machineID != clientMachine || lock->mailbox != clientMailbox))
         {
@@ -1259,12 +1175,6 @@ int LookupLock(string request, int machineID, int mailboxID)
 
 int LookupCV(string request, int machineID, int mailboxID)
 {
-    // (1) Corresponds to valid condition location: 400
-    if (indexcv >= 100 || indexcv < 0)
-    {
-        return 400;
-    }
-
     // Create the message
     std::stringstream ss;
     fflush(stdout);
@@ -1298,6 +1208,12 @@ int LookupCV(string request, int machineID, int mailboxID)
     ss >> indexcv;
 
     indexcv = indexcv % (netname * 100);
+
+    // (1) Corresponds to valid condition location: 400
+    if (indexcv >= 100 || indexcv < 0)
+    {
+        return 400;
+    }
 
     // Get the Condition and Wait
     ServerCV *condition = serverconditions[indexcv];
@@ -1395,6 +1311,29 @@ void RespondToServer (int resourceStatus, int pendingNumber, int serverMachine, 
     SendResponse(response, serverMachine, serverMailbox);
 }
 
+void NextResourceStep (string requestType, int requestNumber, int clientMachine, int clientMailbox)
+{
+    PendingRequest *pr = pending.at(requestNumber);
+
+    stringstream ss;
+    ss << requestType << " " << clientMachine << " " << clientMailbox << " ";
+
+    if (requestType == "VWC" || requestType == "VSC" || requestType == "VBC")
+    {
+        ss << pr->indexresource << " ";
+    }
+    else if (requestType == "WAL" || requestType == "WFL")
+    {
+        ss << pr->indexlock << " ";
+    } 
+
+    ss << requestNumber;
+
+    string lookupRequest = ss.str();
+
+    SendResponse(lookupRequest, netname, 0);
+}
+
 void ScheduleTask (string request, int clientMachine, int clientMailbox)
 {
     stringstream ss;
@@ -1408,7 +1347,9 @@ void ScheduleTask (string request, int clientMachine, int clientMailbox)
     fflush(stdout);
     
     if (requestType == "WC") requestType = "WRL";
-    if (requestType == "WC2") requestType = "WC";
+    if (requestType == "VWC") requestType = "WC";
+    if (requestType == "VSC") requestType = "SC";
+    if (requestType == "VBC") requestType = "BC";
 
     // Message Format: <requestType> <ClientMachine> <ClientMailbox> <... TaskSpecificParams>
     ss << requestType << " " << clientMachine << " " << clientMailbox << " " << requestParams;
@@ -1428,7 +1369,7 @@ void PerformTask (string request, int clientMachine, int clientMailbox)
     ss >> requestType;
 
     // Step 1 of Wait/Signal/Broadcast: Release Lock
-    if (requestType == "WC" || requestType == "SC" || requestType == "BC")
+    if (requestType == "WC")
     {
         unsigned int indexcv, indexlock;
         ss >> indexcv >> indexlock;
@@ -1440,10 +1381,61 @@ void PerformTask (string request, int clientMachine, int clientMailbox)
 
         string taskRequest;
         fflush(stdout);
-        ss << requestType << " " << (pending.size() - 1) << " " << cvRequest->indexlock;
+        ss << requestType << " " << cvRequest->indexlock << " " << (pending.size() - 1);
         getline(ss, taskRequest);
 
         ScheduleTask(taskRequest, inPktHdr.from, inMailHdr.from));
+    }
+
+    else if (requestType == "SC")
+    {
+        unsigned int indexcv, indexlock;
+        ss >> indexcv >> indexlock;
+
+        PendingRequest cvRequest = new PendingRequest(requestType, inPktHdr.from, inMailHdr.from);
+        cvRequest.indexresource = indexcv;
+        cvRequest.indexlock = indexlock;
+        pending.push_back(cvRequest);
+
+        string taskRequest;
+        fflush(stdout);
+        ss << requestType << " " << cvRequest->indexresource << " " << (pending.size() - 1);
+        getline(ss, taskRequest);
+
+        NextResourceStep("VSC", (pending.size() - 1), clientMachine, clientMailbox);
+    }
+
+    else if (requestType == "BC")
+    {
+        unsigned int indexcv, indexlock;
+        ss >> indexcv >> indexlock;
+
+        PendingRequest cvRequest = new PendingRequest(requestType, inPktHdr.from, inMailHdr.from);
+        cvRequest.indexresource = indexcv;
+        cvRequest.indexlock = indexlock;
+        pending.push_back(cvRequest);
+
+        string taskRequest;
+        fflush(stdout);
+        ss << requestType << " " << cvRequest->indexresource << " " << (pending.size() - 1);
+        getline(ss, taskRequest);
+
+        NextResourceStep("VBC", (pending.size() - 1), clientMachine, clientMailbox);
+    }
+
+    else if (requestType == "WFL" || requestType == "WAL")
+    {
+        unsigned int requestNumber, clientMachine, clientMailbox;
+        ss >> requestNumber >> clientMachine >> clientMailbox;
+
+        PendingRequest *cvRequest = pending.at(requestNumber);
+
+        string traskRequest;
+        fflush(stdout);
+        ss << requestType << " " << cvRequest->indexlock << " " << (pending.size() - 1);
+        getline(ss, taskRequest);
+
+        ScheduleTask(taskRequest, clientMachine, clientMailbox);
     }
 
     else if (requestType != "CL" && requestType != "CC" && requestType != "CM")
