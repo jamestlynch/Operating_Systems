@@ -180,7 +180,6 @@ main(int argc, char **argv)
 #endif // FILESYS
 #ifdef NETWORK
 
-		printf("start main\n");
         //start the server
         if (!strcmp(*argv, "-server")) {
         	//printf("main is calling server\n");

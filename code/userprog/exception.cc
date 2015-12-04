@@ -24,6 +24,7 @@
 #include "system.h"
 #include "network.h"
 #include "syscall.h"
+#include "post.h"
 #include <stdio.h>
 #include <iostream>
 #include <string>
@@ -505,6 +506,7 @@ void SendRequest(string request)
     // Create the message
     char * message = (char *) request.c_str();
     outMailHdr.length = strlen(message) + 1;
+    printf("REQUEST: %s", message);
 
     DEBUG('n', "Client Sending Message to %d: %s\n", outPktHdr.to, message);
 
@@ -556,6 +558,7 @@ int ReceiveResponse()
 
 int CreateLock_Syscall(unsigned int vaddr, int len) 
 {
+<<<<<<< HEAD
     // Validate length is nonzero and positive
     if (len <= 0)
     {
@@ -634,6 +637,41 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
     printf("Returning x value of: %d\n", x);
     
     return x;
+=======
+  #ifdef NETWORK
+    if (len <= 0)
+    {
+        printf("Invalid length for CV identifier\n");
+        return -1;
+    }
+
+    char * lockID = new char[len + 1];
+
+    // Out of memory
+    if (!lockID)
+    {
+        printf("Error allocating kernel buffer for creating new CV!\n");
+        return -1;
+    }
+
+    // Translation failed; else string copied into buf (!= -1)
+    if (copyin(vaddr, len, lockID) == -1)
+    {
+        printf("Bad pointer passed to create new CV\n");
+        delete[] lockID;
+        return -1;
+    }
+
+    lockID[len] = '\0'; // Add null terminating character to cv name
+    stringstream ss;
+    ss << "CL" << " " << lockID;
+    string request = ss.str();
+    SendRequest(request);
+    int indexlock = ReceiveResponse();
+    printf("Indexlock returned to client: %d", indexlock);
+    return indexlock;
+
+>>>>>>> Proj4Pt1
 #else
     locksLock->Acquire(); // Interupts enabled, need to synchronize
 
@@ -668,6 +706,7 @@ int CreateLock_Syscall(unsigned int vaddr, int len)
 
 int AcquireLock_Syscall(int indexlock)
 {
+<<<<<<< HEAD
 #ifdef NETWORK
     PacketHeader outPktHdr, inPktHdr;
     MailHeader outMailHdr, inMailHdr;
@@ -716,6 +755,18 @@ int AcquireLock_Syscall(int indexlock)
     return x;
   
 #else
+=======
+  #ifdef NETWORK
+    stringstream ss;
+    ss << "AL" << " " << indexlock;
+    string request = ss.str();
+    SendRequest(request);
+    indexlock = ReceiveResponse();
+    
+    return indexlock;
+  #else
+
+>>>>>>> Proj4Pt1
     // Lock index: (1) valid location, (2) defined, (3) belongs to currentThread's process
     if (validatelockindex(indexlock) == -1)
     {

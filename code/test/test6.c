@@ -28,7 +28,7 @@ void t6_t3()
     test=AcquireLock(lockindex);
     test=Wait(lockindex, cvindex);
     Write("FORTH\n", sizeof("FORTH\n"), 1);
-    Write("Passed broadcast test if FINISHED numbers are in increasing order.\n", sizeof("Passed broadcast test if FINISHED numbers are in increasing order.\n"), 1);
+    Write("Passed broadcast test if capitalized numbers are in increasing order.\n", sizeof("Passed broadcast test if FINISHED numbers are in increasing order.\n"), 1);
     test=ReleaseLock(lockindex);
     Exit(0);
 }

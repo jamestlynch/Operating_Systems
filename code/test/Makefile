@@ -31,7 +31,11 @@ CPP = $(GCCDIR)cpp
 INCDIR =-I../userprog -I../threads
 CFLAGS = -G 0 -c $(INCDIR)
 
+<<<<<<< HEAD
 all: halt matmult sort testfiles locktest conditiontest runtests test1 test2 test3 test4 test5 test6 test7 test8 execTest forkTest clientTest1 clientTest2 clientTest3 clientTest4 clientTest5 clientTest6 mvtest
+=======
+all: halt matmult sort testfiles locktest conditiontest runtests test1 test2 test3 test4 test5 test6 test7 test8 execTest forkTest clientTest1 clientTest2 clientTest3 clientTest4 mvtest customer Exec1 Exec2 create
+>>>>>>> Proj4Pt1
 
 start.o: start.s ../userprog/syscall.h
 	$(CPP) $(CPPFLAGS) start.s > strt.s
@@ -170,6 +174,7 @@ clientTest4: clientTest4.o start.o
 	$(LD) $(LDFLAGS) start.o clientTest4.o -o clientTest4.coff
 	../bin/coff2noff clientTest4.coff clientTest4
 
+<<<<<<< HEAD
 clientTest5.o: clientTest5.c
 	$(CC) $(CFLAGS) -c clientTest5.c
 clientTest5: clientTest5.o start.o
@@ -181,6 +186,31 @@ clientTest6.o: clientTest6.c
 clientTest6: clientTest6.o start.o
 	$(LD) $(LDFLAGS) start.o clientTest6.o -o clientTest6.coff
 	../bin/coff2noff clientTest6.coff clientTest6
+=======
+customer.o: customer.c
+	$(CC) $(CFLAGS) -c customer.c
+customer: customer.o start.o
+	$(LD) $(LDFLAGS) start.o customer.o -o customer.coff
+	../bin/coff2noff customer.coff customer
+
+appclerk.o: appclerk.c
+	$(CC) $(CFLAGS) -c appclerk.c
+appclerk: appclerk.o start.o
+	$(LD) $(LDFLAGS) start.o appclerk.o -o appclerk.coff
+	../bin/coff2noff appclerk.coff appclerk
+
+Exec1.o: Exec1.c
+	$(CC) $(CFLAGS) -c Exec1.c
+Exec1: Exec1.o start.o
+	$(LD) $(LDFLAGS) start.o Exec1.o -o Exec1.coff
+	../bin/coff2noff Exec1.coff Exec1
+
+Exec2.o: Exec2.c
+	$(CC) $(CFLAGS) -c Exec2.c
+Exec2: Exec2.o start.o
+	$(LD) $(LDFLAGS) start.o Exec2.o -o Exec2.coff
+	../bin/coff2noff Exec2.coff Exec2
+>>>>>>> Proj4Pt1
 
 clean:
 	rm -f *.o *.coff

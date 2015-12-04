@@ -43,6 +43,24 @@ class Machine;
 class AddrSpace;
 class Mail;
 
+<<<<<<< HEAD
+=======
+class ServerLock {
+    public:
+        ServerLock(string name, int netname, int box);
+        //who owns the lock
+        //what is the name of the lock
+        //queue of who is waiting for the lock
+        string serverlockName;
+        std::queue<Mail*> waitqueue;
+        bool toDelete;
+        bool state;
+        int machineID;
+        int mailbox;
+    };
+
+
+>>>>>>> Proj4Pt1
 #ifdef USER_PROGRAM
 
     // Machine exectures user programs

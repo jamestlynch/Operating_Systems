@@ -65,6 +65,20 @@ int tlbCounter;
 
 
 #ifdef NETWORK
+<<<<<<< HEAD
+=======
+    PostOffice *postOffice;
+    vector<int> mvs;
+    vector<ServerLock*> slocks;
+    vector<Mail*> mailMessages;
+
+    ServerLock::ServerLock(string name, int netname, int box) {
+        serverlockName= name;
+        toDelete= false;
+        state = 0; //0=free, 1=busy
+        machineID= netname;
+        mailbox=box;
+>>>>>>> Proj4Pt1
 
     PostOffice *postOffice;
     int netname;
