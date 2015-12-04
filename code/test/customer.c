@@ -1,7 +1,8 @@
 #include "syscall.h"
 #include "create.h"
 
-enum outputstatement { 
+enum outputstatement 
+{ 
 	Clerk_SignalledCustomer, Clerk_ReceivedSSN, Clerk_SystemJobComplete,
 	Clerk_ReceivedBribe, Clerk_GoingOnBreak, Clerk_ComingOffBreak,
 	Clerk_TookPicture, Clerk_ToldByCustomerDoesNotLikePicture, Clerk_ToldByCustomerDoesLikePicture,
@@ -598,9 +599,6 @@ void WriteOutput (enum outputstatement statement, enum persontype clerkType, enu
 
 int DecideClerk (int ssn, enum persontype clerkType)
 {
-	int numClerks;
-	int lineLock;
-
 	int clerkID; /* Going to iterate over all clerks to make line decision */
 	int currentClerk = -1;
 	int currentLineLength = 1000;
@@ -608,59 +606,15 @@ int DecideClerk (int ssn, enum persontype clerkType)
 	int shortestLineLength = 1000;
 	int clerkLineLength; /* Keeps track of either normal line count or senator line count depending on if isSenator */
 
-	/*numClerks = clerkGroups[clerkType].numClerks;
-
-	clerkGroups[clerkType].clerks[i].state
-	int appclerkdata = GetMV(clerkGroups, clerkType);
-	int appclerks = GetMV(appclerkdata, clerks);
-	int clerk = GetMV(clerks, i);
-	SetMV(clerk, state, BUSY);
-
-
-	clerkGroups[clerkType].clerks[i]
-
-
-	clerkGroups[clerkType].clerks
-
-
-	lineLock = clerkGroups[clerkType].lineLock;*/
-
-	numClerks= getMV(clerkType, numClerks);
-	lineLock= getMV(clerkType, lineLock);
-
-	/*  TODO: Arrays were cast as unsigned ints, how to convert/cast back to array; or just how to access data inside array, otherwise? */
-
-	/* Check if the senator is present, and if so, "go outside" by waiting on the CV. */
-	/* 	By placing this here, we ensure line order remains consistent, conveniently. */
-
-	/*AcquireLock(senatorIndoorLock);
-	if (isSenatorPresent && people[ssn].type != SENATOR)
-	{
-		WriteOutput(Customer_GoingOutsideForSenator, clerkType, CUSTOMER, ssn, clerkID);
-		Wait(senatorIndoorCV, senatorIndoorLock);
-	}
-	ReleaseLock(senatorIndoorLock);*/
+	int numClerks = getMV(clerkType, numClerks);
+	int clerkLineLock = getMV(clerkType, lineLock);
 
 	AcquireLock(lineLock);
 	for (clerkID = 0; clerkID < numClerks; clerkID++)
-	{
-		/* Different lines depending on whether customer or senator. */
-		int person= GetMV(people, ssn);
-		int t = GETMV(person, type);
-		
-		if (t == SENATOR)
-		{
-			int appclerkdata = GetMV(clerkGroups, clerkType);
-			int appclerks = GetMV(clerkdata, clerks);
-			int clerk = GetMV(clerks, i);
-			SetMV(clerk, senatorLineLength, BUSY);
-
-			clerkLineLength = clerkGroups[clerkType].clerks[clerkID].senatorLineLength;
-		}
-		else
-		{
-			clerkLineLength = clerkGroups[clerkType].clerks[clerkID].lineLength;
-		}
+	{		
+		clerkLine = getMV(clerkType, clerkID);
+		clerkLineLength = getMV(clerkID, lineLength);
+		clerkGroups[clerkType].clerks[clerkID].lineLength;
 
 		/* If clerk is available, go there. */
 		if (clerkLineLength == 0 && clerkGroups[clerkType].clerks[clerkID].state == AVAILABLE)
