@@ -1,5 +1,5 @@
 <div align="center">
-<img src="http://grfx.cstv.com/photos/schools/usc/sports/genrel/auto_player/11869977.jpeg" alt="University of Southern California Logo" style="width: 350px; height: auto;" />
+<img src="http://grfx.cstv.com/photos/schools/usc/sports/genrel/auto_player/11869977.jpeg" alt="University of Southern California Logo" style="max-width: 75%;" />
 </div>
 
 
