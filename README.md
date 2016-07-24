@@ -1,7 +1,10 @@
-<div align="center">
-<h1>Nachos</h1>
-</div>
+![alt text][logo]
 
+[logo]: http://grfx.cstv.com/photos/schools/usc/sports/genrel/auto_player/11869977.jpeg "University of Southern California Logo"
+
+<div align="center">
+# Nachos
+</div>
 
 Nachos is instructional software for teaching undergraduate, and potentially
 graduate, level operating systems courses.  The Nachos distribution
